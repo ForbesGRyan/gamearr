@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
+import StoreSelector from './StoreSelector';
 
 interface SearchResult {
   igdbId: number;
@@ -32,6 +33,7 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
   const [isSearching, setIsSearching] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedStore, setSelectedStore] = useState<string | null>(null);
 
   // Pre-fill search with parsed title when folder changes
   useEffect(() => {
@@ -89,7 +91,7 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
         platforms: game.platforms ? game.platforms.map((p) => ({ name: p })) : [],
       };
 
-      const response = await api.matchLibraryFolder(folder.folderName, igdbGame);
+      const response = await api.matchLibraryFolder(folder.path, folder.folderName, igdbGame, selectedStore);
 
       if (response.success) {
         onFolderMatched();
@@ -148,6 +150,13 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
               {isSearching ? 'Searching...' : 'Search'}
             </button>
           </form>
+
+          <div className="mt-4">
+            <StoreSelector value={selectedStore} onChange={setSelectedStore} label="Digital Store (Optional)" />
+            <p className="text-xs text-gray-400 mt-1">
+              Select a store if you own this game digitally (game will be marked as already owned).
+            </p>
+          </div>
 
           {error && (
             <div className="mt-3 p-3 border border-red-700 rounded text-red-200 text-sm" style={{ backgroundColor: 'rgb(127, 29, 29)' }}>

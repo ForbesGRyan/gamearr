@@ -18,6 +18,7 @@ db.run(`
     title TEXT NOT NULL,
     year INTEGER,
     platform TEXT NOT NULL,
+    store TEXT,
     monitored INTEGER NOT NULL DEFAULT 1,
     status TEXT NOT NULL DEFAULT 'wanted',
     cover_url TEXT,
@@ -61,6 +62,19 @@ db.run(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     key TEXT NOT NULL UNIQUE,
     value TEXT NOT NULL
+  )
+`);
+
+// Create library_files table
+db.run(`
+  CREATE TABLE IF NOT EXISTS library_files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    folder_path TEXT NOT NULL UNIQUE,
+    parsed_title TEXT,
+    parsed_year INTEGER,
+    matched_game_id INTEGER REFERENCES games(id) ON DELETE SET NULL,
+    ignored INTEGER NOT NULL DEFAULT 0,
+    scanned_at INTEGER NOT NULL DEFAULT (unixepoch())
   )
 `);
 

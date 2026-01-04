@@ -6,6 +6,17 @@ import { logger } from '../utils/logger';
 
 export class GameService {
   /**
+   * Normalize search query for better fuzzy matching
+   * Handles: periods, underscores, multiple spaces, etc.
+   */
+  private normalizeSearchQuery(query: string): string {
+    return query
+      .replace(/[._-]/g, ' ')      // Replace periods, underscores, hyphens with spaces
+      .replace(/\s+/g, ' ')         // Collapse multiple spaces into one
+      .trim();                       // Remove leading/trailing whitespace
+  }
+
+  /**
    * Search for games on IGDB
    */
   async searchIGDB(query: string): Promise<GameSearchResult[]> {
@@ -13,7 +24,11 @@ export class GameService {
       throw new Error('IGDB is not configured. Please add your API credentials in settings.');
     }
 
-    return igdbClient.searchGames({ search: query, limit: 20 });
+    // Normalize query for better fuzzy matching
+    const normalizedQuery = this.normalizeSearchQuery(query);
+    logger.info(`Searching IGDB: "${query}" → normalized: "${normalizedQuery}"`);
+
+    return igdbClient.searchGames({ search: normalizedQuery, limit: 20 });
   }
 
   /**
@@ -39,8 +54,10 @@ export class GameService {
 
   /**
    * Add a game to the library from IGDB
+   * If store is specified, assumes user owns the game (status: downloaded, monitored: false)
+   * If no store, assumes user wants to download it (status: wanted, monitored: true)
    */
-  async addGameFromIGDB(igdbId: number, monitored: boolean = true): Promise<Game> {
+  async addGameFromIGDB(igdbId: number, monitored: boolean = true, store?: string | null): Promise<Game> {
     // Check if game already exists
     const existing = await gameRepository.findByIgdbId(igdbId);
     if (existing) {
@@ -55,22 +72,31 @@ export class GameService {
 
     logger.info(`Adding game to library: ${igdbGame.title}`);
 
+    // If store is specified, user already owns it - no need to download or monitor
+    const hasStore = !!store;
+    const gameStatus = hasStore ? 'downloaded' : 'wanted';
+    const shouldMonitor = hasStore ? false : monitored;
+
+    if (hasStore) {
+      logger.info(`Game has store (${store}) - setting status to 'downloaded' and monitored to false`);
+    }
+
     // Create new game entry
     const newGame: NewGame = {
       igdbId: igdbGame.igdbId,
       title: igdbGame.title,
       year: igdbGame.year,
       platform: igdbGame.platforms?.[0] || 'PC',
-      monitored,
-      status: 'wanted',
+      store: store || null,
+      monitored: shouldMonitor,
+      status: gameStatus,
       coverUrl: igdbGame.coverUrl,
       folderPath: null,
     };
 
     const game = await gameRepository.create(newGame);
 
-    // TODO: Trigger automatic search in Phase 6
-    logger.info(`Game added successfully: ${game.title} (ID: ${game.id})`);
+    logger.info(`Game added successfully: ${game.title} (ID: ${game.id}, Status: ${gameStatus})`);
 
     return game;
   }

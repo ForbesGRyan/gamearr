@@ -7,6 +7,7 @@ export const games = sqliteTable('games', {
   title: text('title').notNull(),
   year: integer('year'),
   platform: text('platform').notNull(),
+  store: text('store'), // Steam, Epic Games, GOG, etc.
   monitored: integer('monitored', { mode: 'boolean' }).notNull().default(true),
   status: text('status', {
     enum: ['wanted', 'downloading', 'downloaded']
@@ -55,6 +56,18 @@ export const settings = sqliteTable('settings', {
   value: text('value').notNull(), // JSON string
 });
 
+export const libraryFiles = sqliteTable('library_files', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  folderPath: text('folder_path').notNull().unique(),
+  parsedTitle: text('parsed_title'),
+  parsedYear: integer('parsed_year'),
+  matchedGameId: integer('matched_game_id').references(() => games.id, { onDelete: 'set null' }),
+  ignored: integer('ignored', { mode: 'boolean' }).notNull().default(false),
+  scannedAt: integer('scanned_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
 // Type exports
 export type Game = typeof games.$inferSelect;
 export type NewGame = typeof games.$inferInsert;
@@ -67,3 +80,6 @@ export type NewDownloadHistory = typeof downloadHistory.$inferInsert;
 
 export type Settings = typeof settings.$inferSelect;
 export type NewSettings = typeof settings.$inferInsert;
+
+export type LibraryFile = typeof libraryFiles.$inferSelect;
+export type NewLibraryFile = typeof libraryFiles.$inferInsert;

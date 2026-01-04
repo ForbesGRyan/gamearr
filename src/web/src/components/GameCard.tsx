@@ -1,3 +1,5 @@
+import StoreIcon from './StoreIcon';
+
 interface Game {
   id: number;
   title: string;
@@ -6,6 +8,7 @@ interface Game {
   monitored: boolean;
   status: 'wanted' | 'downloading' | 'downloaded';
   platform: string;
+  store?: string | null;
 }
 
 interface GameCardProps {
@@ -13,9 +16,10 @@ interface GameCardProps {
   onToggleMonitor: (id: number) => void;
   onDelete: (id: number) => void;
   onSearch?: (game: Game) => void;
+  onEdit?: (game: Game) => void;
 }
 
-function GameCard({ game, onToggleMonitor, onDelete, onSearch }: GameCardProps) {
+function GameCard({ game, onToggleMonitor, onDelete, onSearch, onEdit }: GameCardProps) {
   const statusColors = {
     wanted: 'bg-yellow-600',
     downloading: 'bg-blue-600',
@@ -73,6 +77,15 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch }: GameCardProps) 
               >
                 {game.monitored ? '👁️' : '👁️‍🗨️'}
               </button>
+              {onEdit && (
+                <button
+                  onClick={() => onEdit(game)}
+                  className="bg-purple-600 hover:bg-purple-700 px-3 py-2 rounded transition text-sm"
+                  title="Edit"
+                >
+                  ✏️
+                </button>
+              )}
               <button
                 onClick={() => {
                   if (confirm(`Delete "${game.title}"?`)) {
@@ -107,6 +120,11 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch }: GameCardProps) 
           <span>{game.year || 'Unknown'}</span>
           <span>{game.platform}</span>
         </div>
+        {game.store && (
+          <div className="mt-2">
+            <StoreIcon store={game.store} />
+          </div>
+        )}
       </div>
     </div>
   );

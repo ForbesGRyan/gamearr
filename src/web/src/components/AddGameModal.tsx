@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api/client';
+import StoreSelector from './StoreSelector';
 
 interface SearchResult {
   igdbId: number;
@@ -22,6 +23,7 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
   const [isSearching, setIsSearching] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedStore, setSelectedStore] = useState<string | null>(null);
 
   // Debug: log whenever searchResults changes
   console.log('Current searchResults:', searchResults, 'Length:', searchResults.length);
@@ -64,13 +66,14 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
     setError(null);
 
     try {
-      const response = await api.addGame({ igdbId, monitored: true });
+      const response = await api.addGame({ igdbId, monitored: true, store: selectedStore });
 
       if (response.success) {
         onGameAdded();
         onClose();
         setSearchQuery('');
         setSearchResults([]);
+        setSelectedStore(null);
       } else {
         setError(response.error || 'Failed to add game');
       }
@@ -118,6 +121,13 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
               {isSearching ? 'Searching...' : 'Search'}
             </button>
           </form>
+
+          <div className="mt-4">
+            <StoreSelector value={selectedStore} onChange={setSelectedStore} label="Digital Store (Optional)" />
+            <p className="text-xs text-gray-400 mt-1">
+              If you select a store, the game will be marked as already owned (no download needed).
+            </p>
+          </div>
 
           {error && (
             <div className="mt-3 p-3 border border-red-700 rounded text-red-200 text-sm" style={{ backgroundColor: 'rgb(127, 29, 29)' }}>

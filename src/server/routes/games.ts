@@ -10,12 +10,14 @@ const games = new Hono();
 const addGameSchema = z.object({
   igdbId: z.number(),
   monitored: z.boolean().optional().default(true),
+  store: z.string().nullable().optional(),
 });
 
 const updateGameSchema = z.object({
   monitored: z.boolean().optional(),
   status: z.enum(['wanted', 'downloading', 'downloaded']).optional(),
-  folderPath: z.string().optional(),
+  folderPath: z.string().nullable().optional(),
+  store: z.string().nullable().optional(),
 });
 
 // GET /api/v1/games - List all games
@@ -39,8 +41,8 @@ games.post('/', zValidator('json', addGameSchema), async (c) => {
   logger.info('POST /api/v1/games');
 
   try {
-    const { igdbId, monitored } = c.req.valid('json');
-    const game = await gameService.addGameFromIGDB(igdbId, monitored);
+    const { igdbId, monitored, store } = c.req.valid('json');
+    const game = await gameService.addGameFromIGDB(igdbId, monitored, store);
     return c.json({ success: true, data: game }, 201);
   } catch (error) {
     logger.error('Failed to add game:', error);

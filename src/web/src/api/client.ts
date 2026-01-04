@@ -181,10 +181,10 @@ class ApiClient {
     });
   }
 
-  async matchLibraryFolder(folderName: string, igdbGame: any) {
+  async matchLibraryFolder(folderPath: string, folderName: string, igdbGame: any, store?: string | null) {
     return this.request('/library/match', {
       method: 'POST',
-      body: JSON.stringify({ folderName, igdbGame }),
+      body: JSON.stringify({ folderPath, folderName, igdbGame, store }),
     });
   }
 }

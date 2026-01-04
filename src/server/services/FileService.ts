@@ -3,7 +3,8 @@ import * as path from 'path';
 import { logger } from '../utils/logger';
 import { settingsService } from './SettingsService';
 import { gameRepository } from '../repositories/GameRepository';
-import type { Game } from '../db/schema';
+import { libraryFileRepository } from '../repositories/LibraryFileRepository';
+import type { Game, LibraryFile } from '../db/schema';
 
 export interface MoveResult {
   success: boolean;
@@ -249,13 +250,41 @@ export class FileService {
   }
 
   /**
-   * Scan library folder and return detailed folder information
+   * Get cached library files from database (excluding ignored and matched)
+   * This is for the import page - only shows unmatched folders
    */
-  async scanLibrary(): Promise<LibraryFolder[]> {
+  async getCachedLibraryFiles(): Promise<LibraryFolder[]> {
     try {
+      const cachedFiles = await libraryFileRepository.findAll();
+
+      // Filter out ignored folders AND matched folders
+      return cachedFiles
+        .filter((file) => !file.ignored && !file.matchedGameId)
+        .map((file) => ({
+          folderName: path.basename(file.folderPath),
+          parsedTitle: file.parsedTitle || '',
+          parsedYear: file.parsedYear || undefined,
+          matched: false, // All results are unmatched
+          gameId: undefined,
+          path: file.folderPath,
+        }));
+    } catch (error) {
+      logger.error('Failed to get cached library files:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Refresh library scan and update cache
+   */
+  async refreshLibraryScan(): Promise<LibraryFolder[]> {
+    try {
+      logger.info('Refreshing library scan...');
+
       const libraryPath = await this.getLibraryPath();
 
       if (!fs.existsSync(libraryPath)) {
+        logger.warn('Library path does not exist');
         return [];
       }
 
@@ -266,9 +295,16 @@ export class FileService {
       // Get all games from database to check for matches
       const allGames = await gameRepository.findAll();
 
-      // Parse and match each folder
-      const libraryFolders: LibraryFolder[] = folderNames.map((folderName) => {
+      // Get existing cached files
+      const existingFiles = await libraryFileRepository.findAll();
+      const existingPaths = new Set(existingFiles.map((f) => f.folderPath));
+
+      // Parse and cache each folder
+      const libraryFolders: LibraryFolder[] = [];
+
+      for (const folderName of folderNames) {
         const parsed = this.parseFolderName(folderName);
+        const folderPath = path.join(libraryPath, folderName);
 
         // Try to find a matching game
         const matchedGame = allGames.find((game) => {
@@ -281,22 +317,117 @@ export class FileService {
           return titleMatch;
         });
 
-        return {
-          folderName,
-          parsedTitle: parsed.title,
-          parsedYear: parsed.year,
-          matched: !!matchedGame,
-          gameId: matchedGame?.id,
-          path: path.join(libraryPath, folderName),
-        };
-      });
+        // Check if we have existing match data
+        const existingFile = existingFiles.find((f) => f.folderPath === folderPath);
 
-      logger.info(`Scanned library: ${libraryFolders.length} folders, ${libraryFolders.filter(f => f.matched).length} matched`);
+        // Upsert to database - preserve ignored status
+        await libraryFileRepository.upsert({
+          folderPath,
+          parsedTitle: parsed.title,
+          parsedYear: parsed.year || null,
+          matchedGameId: existingFile?.matchedGameId || matchedGame?.id || null,
+          ignored: existingFile?.ignored || false, // Preserve ignored status
+        });
+
+        // Only add to results if not ignored AND not matched
+        // This makes it an "import" page showing only folders that need matching
+        const isMatched = !!(existingFile?.matchedGameId || matchedGame);
+        if (!existingFile?.ignored && !isMatched) {
+          libraryFolders.push({
+            folderName,
+            parsedTitle: parsed.title,
+            parsedYear: parsed.year,
+            matched: false,
+            gameId: undefined,
+            path: folderPath,
+          });
+        }
+
+        // Remove from existing paths set
+        existingPaths.delete(folderPath);
+      }
+
+      // Delete cached files that no longer exist in filesystem
+      for (const missingPath of existingPaths) {
+        logger.info(`Removing cached file that no longer exists: ${missingPath}`);
+        await libraryFileRepository.delete(missingPath);
+      }
+
+      logger.info(
+        `Library scan refreshed: ${libraryFolders.length} folders, ${libraryFolders.filter((f) => f.matched).length} matched`
+      );
 
       return libraryFolders;
     } catch (error) {
+      logger.error('Failed to refresh library scan:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Scan library folder and return detailed folder information
+   * This method now uses cached data if available
+   */
+  async scanLibrary(): Promise<LibraryFolder[]> {
+    try {
+      // Check if we have cached data
+      const cachedFiles = await libraryFileRepository.findAll();
+
+      if (cachedFiles.length > 0) {
+        logger.info(`Using cached library data: ${cachedFiles.length} files`);
+        return this.getCachedLibraryFiles();
+      }
+
+      // No cached data, perform fresh scan
+      logger.info('No cached data, performing fresh scan');
+      return this.refreshLibraryScan();
+    } catch (error) {
       logger.error('Failed to scan library:', error);
       return [];
+    }
+  }
+
+  /**
+   * Match a library folder to a game
+   */
+  async matchFolderToGame(folderPath: string, gameId: number): Promise<boolean> {
+    try {
+      logger.info(`Matching folder ${folderPath} to game ID ${gameId}`);
+
+      // Ensure the folder exists in library_files table
+      const existingFile = await libraryFileRepository.findByPath(folderPath);
+
+      if (!existingFile) {
+        // Parse folder name to extract title and year
+        const folderName = path.basename(folderPath);
+        const parsed = this.parseFolderName(folderName);
+
+        logger.info(`Folder not in cache, adding it: ${folderPath}`);
+
+        // Create the library file entry
+        await libraryFileRepository.upsert({
+          folderPath,
+          parsedTitle: parsed.title,
+          parsedYear: parsed.year || null,
+          matchedGameId: gameId,
+          ignored: false,
+        });
+      } else {
+        // Update existing entry with the match
+        await libraryFileRepository.matchToGame(folderPath, gameId);
+      }
+
+      // Update game status to downloaded and set folder path
+      await gameRepository.update(gameId, {
+        status: 'downloaded',
+        folderPath: folderPath
+      });
+
+      logger.info(`Successfully matched folder to game ${gameId}`);
+      return true;
+    } catch (error) {
+      logger.error('Failed to match folder to game:', error);
+      return false;
     }
   }
 }
