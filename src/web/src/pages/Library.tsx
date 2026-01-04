@@ -4,6 +4,7 @@ import AddGameModal from '../components/AddGameModal';
 import SearchReleasesModal from '../components/SearchReleasesModal';
 import MatchFolderModal from '../components/MatchFolderModal';
 import EditGameModal from '../components/EditGameModal';
+import StoreSelector from '../components/StoreSelector';
 import { api } from '../api/client';
 
 interface Game {
@@ -26,6 +27,15 @@ interface LibraryFolder {
   path: string;
 }
 
+interface AutoMatchSuggestion {
+  igdbId: number;
+  title: string;
+  year?: number;
+  coverUrl?: string;
+  summary?: string;
+  platforms?: string[];
+}
+
 type Tab = 'games' | 'scan';
 
 function Library() {
@@ -44,6 +54,9 @@ function Library() {
   const [isScanLoaded, setIsScanLoaded] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedGameForEdit, setSelectedGameForEdit] = useState<Game | null>(null);
+  const [autoMatchSuggestions, setAutoMatchSuggestions] = useState<Record<string, AutoMatchSuggestion>>({});
+  const [isAutoMatching, setIsAutoMatching] = useState<Record<string, boolean>>({});
+  const [selectedStore, setSelectedStore] = useState<Record<string, string | null>>({});
 
   const loadGames = async () => {
     setIsLoading(true);
@@ -200,6 +213,87 @@ function Library() {
     setIsEditModalOpen(true);
   };
 
+  const handleAutoMatch = async (folder: LibraryFolder) => {
+    setIsAutoMatching((prev) => ({ ...prev, [folder.path]: true }));
+    setError(null);
+
+    try {
+      const response = await api.autoMatchFolder(folder.parsedTitle, folder.parsedYear);
+
+      if (response.success && response.data) {
+        setAutoMatchSuggestions((prev) => ({
+          ...prev,
+          [folder.path]: response.data as AutoMatchSuggestion,
+        }));
+      } else {
+        setError(response.error || 'Failed to auto-match folder');
+      }
+    } catch (err) {
+      setError('Failed to auto-match folder');
+    } finally {
+      setIsAutoMatching((prev) => ({ ...prev, [folder.path]: false }));
+    }
+  };
+
+  const handleConfirmAutoMatch = async (folder: LibraryFolder) => {
+    const suggestion = autoMatchSuggestions[folder.path];
+    if (!suggestion) return;
+
+    try {
+      // Convert suggestion to IGDB game format
+      const igdbGame = {
+        id: suggestion.igdbId,
+        name: suggestion.title,
+        first_release_date: suggestion.year
+          ? new Date(`${suggestion.year}-01-01`).getTime() / 1000
+          : null,
+        cover: suggestion.coverUrl ? { url: suggestion.coverUrl } : null,
+        platforms: suggestion.platforms ? suggestion.platforms.map((p) => ({ name: p })) : [],
+      };
+
+      const response = await api.matchLibraryFolder(
+        folder.path,
+        folder.folderName,
+        igdbGame,
+        selectedStore[folder.path] || null
+      );
+
+      if (response.success) {
+        // Remove from suggestions
+        setAutoMatchSuggestions((prev) => {
+          const newSuggestions = { ...prev };
+          delete newSuggestions[folder.path];
+          return newSuggestions;
+        });
+
+        // Remove from library folders list
+        setLibraryFolders((prev) => prev.filter((f) => f.path !== folder.path));
+
+        setScanMessage(`Successfully matched "${folder.folderName}" to ${suggestion.title}`);
+        setTimeout(() => setScanMessage(null), 5000);
+
+        // Reload games
+        loadGames();
+      } else {
+        setError(response.error || 'Failed to match folder');
+      }
+    } catch (err) {
+      setError('Failed to match folder');
+    }
+  };
+
+  const handleCancelAutoMatch = (folder: LibraryFolder) => {
+    setAutoMatchSuggestions((prev) => {
+      const newSuggestions = { ...prev };
+      delete newSuggestions[folder.path];
+      return newSuggestions;
+    });
+  };
+
+  const handleEditAutoMatch = (folder: LibraryFolder) => {
+    handleMatchFolder(folder);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -335,34 +429,124 @@ function Library() {
                 folder to a game, or "Ignore" to hide it.
               </p>
               <div className="space-y-3">
-                {libraryFolders.map((folder) => (
-                  <div
-                    key={folder.path}
-                    className="bg-gray-700 rounded p-4 flex items-center justify-between"
-                  >
-                    <div>
-                      <div className="font-medium">{folder.folderName}</div>
-                      <div className="text-sm text-gray-400">
-                        Parsed: {folder.parsedTitle}
-                        {folder.parsedYear && ` (${folder.parsedYear})`}
+                {libraryFolders.map((folder) => {
+                  const suggestion = autoMatchSuggestions[folder.path];
+                  const isMatching = isAutoMatching[folder.path];
+
+                  return (
+                    <div key={folder.path} className="bg-gray-700 rounded p-4">
+                      {/* Folder Info */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium">{folder.folderName}</div>
+                          <div className="text-sm text-gray-400">
+                            Parsed: {folder.parsedTitle}
+                            {folder.parsedYear && ` (${folder.parsedYear})`}
+                          </div>
+                        </div>
+                        {!suggestion && (
+                          <div className="flex gap-2">
+                            <button
+                              className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                              onClick={() => handleAutoMatch(folder)}
+                              disabled={isMatching}
+                            >
+                              {isMatching ? 'Searching...' : 'Auto Match'}
+                            </button>
+                            <button
+                              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition text-sm"
+                              onClick={() => handleMatchFolder(folder)}
+                            >
+                              Manual Match
+                            </button>
+                            <button
+                              className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded transition text-sm"
+                              onClick={() => handleIgnoreFolder(folder.path)}
+                            >
+                              Ignore
+                            </button>
+                          </div>
+                        )}
                       </div>
+
+                      {/* Auto-Match Suggestion Card */}
+                      {suggestion && (
+                        <div className="mt-4 p-4 bg-gray-800 rounded border border-green-600">
+                          <div className="flex items-start gap-4 mb-4">
+                            <div className="w-20 h-28 rounded flex-shrink-0 bg-gray-700">
+                              {suggestion.coverUrl ? (
+                                <img
+                                  src={suggestion.coverUrl}
+                                  alt={suggestion.title}
+                                  className="w-full h-full object-cover rounded"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-400 text-2xl">
+                                  🎮
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <div className="text-green-400 text-sm font-medium mb-1">
+                                Suggested Match
+                              </div>
+                              <h4 className="font-semibold text-lg">
+                                {suggestion.title}
+                                {suggestion.year && (
+                                  <span className="text-gray-400 ml-2">({suggestion.year})</span>
+                                )}
+                              </h4>
+                              {suggestion.platforms && (
+                                <p className="text-sm text-gray-400 mt-1">
+                                  {suggestion.platforms.slice(0, 3).join(', ')}
+                                </p>
+                              )}
+                              {suggestion.summary && (
+                                <p className="text-sm text-gray-300 mt-2 line-clamp-2">
+                                  {suggestion.summary}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="mb-4">
+                            <StoreSelector
+                              value={selectedStore[folder.path] || null}
+                              onChange={(store) =>
+                                setSelectedStore((prev) => ({ ...prev, [folder.path]: store }))
+                              }
+                              label="Digital Store (Optional)"
+                            />
+                            <p className="text-xs text-gray-400 mt-1">
+                              Select a store if you own this game digitally.
+                            </p>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <button
+                              className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition text-sm flex-1"
+                              onClick={() => handleConfirmAutoMatch(folder)}
+                            >
+                              Confirm Match
+                            </button>
+                            <button
+                              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition text-sm"
+                              onClick={() => handleEditAutoMatch(folder)}
+                            >
+                              Edit Match
+                            </button>
+                            <button
+                              className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded transition text-sm"
+                              onClick={() => handleCancelAutoMatch(folder)}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition text-sm"
-                        onClick={() => handleMatchFolder(folder)}
-                      >
-                        Match
-                      </button>
-                      <button
-                        className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded transition text-sm"
-                        onClick={() => handleIgnoreFolder(folder.path)}
-                      >
-                        Ignore
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

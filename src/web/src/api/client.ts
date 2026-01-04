@@ -181,6 +181,13 @@ class ApiClient {
     });
   }
 
+  async autoMatchFolder(parsedTitle: string, parsedYear?: number) {
+    return this.request('/library/auto-match', {
+      method: 'POST',
+      body: JSON.stringify({ parsedTitle, parsedYear }),
+    });
+  }
+
   async matchLibraryFolder(folderPath: string, folderName: string, igdbGame: any, store?: string | null) {
     return this.request('/library/match', {
       method: 'POST',

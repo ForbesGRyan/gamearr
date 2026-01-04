@@ -1,9 +1,64 @@
 import { Hono } from 'hono';
 import { fileService } from '../services/FileService';
 import { gameRepository } from '../repositories/GameRepository';
+import { gameService } from '../services/GameService';
 import { logger } from '../utils/logger';
 
 const library = new Hono();
+
+/**
+ * Clean up scene release names and version info for better IGDB matching
+ * Removes: scene groups, version numbers, "update" keywords, common tags
+ */
+function cleanSearchQuery(title: string): string {
+  let cleaned = title;
+
+  // Remove common scene group tags (case insensitive)
+  const sceneGroups = [
+    'CODEX', 'SKIDROW', 'PLAZA', 'RELOADED', 'PROPHET', 'CPY', 'HOODLUM',
+    'STEAMPUNKS', 'GOLDBERG', 'FLT', 'RAZOR1911', 'TENOKE', 'DARKSiDERS',
+    'RUNE', 'GOG', 'DODI', 'FitGirl', 'ElAmigos', 'CHRONOS', 'TiNYiSO',
+    'I_KnoW', 'SiMPLEX', 'DINOByTES', 'ANOMALY'
+  ];
+
+  // Remove scene groups with common patterns like -CODEX, [CODEX], (CODEX)
+  sceneGroups.forEach((group) => {
+    const patterns = [
+      new RegExp(`[-\\.\\s]${group}$`, 'gi'),           // -CODEX at end
+      new RegExp(`\\[${group}\\]`, 'gi'),               // [CODEX]
+      new RegExp(`\\(${group}\\)`, 'gi'),               // (CODEX)
+      new RegExp(`${group}[-\\.\\s]`, 'gi'),            // CODEX- at start
+    ];
+    patterns.forEach((pattern) => {
+      cleaned = cleaned.replace(pattern, ' ');
+    });
+  });
+
+  // Remove version numbers: v1.0, v2.3.1, V1.0.2, etc.
+  cleaned = cleaned.replace(/\b[vV]?\d+(\.\d+){0,3}\b/g, ' ');
+
+  // Remove "Update" or "Updated" keywords
+  cleaned = cleaned.replace(/\b(update|updated)\b/gi, ' ');
+
+  // Remove common tags
+  const tags = [
+    'Repack', 'MULTi\\d+', 'MULTI', 'RIP', 'Cracked', 'Crack',
+    'DLC', 'GOTY', 'Complete', 'Edition', 'Deluxe', 'Ultimate',
+    'Definitive', 'Enhanced', 'Remastered', 'Anniversary',
+    'Digital', 'Steam', 'GOG\\.com', 'Epic', 'Uplay'
+  ];
+  tags.forEach((tag) => {
+    cleaned = cleaned.replace(new RegExp(`\\b${tag}\\b`, 'gi'), ' ');
+  });
+
+  // Remove extra punctuation and normalize spaces
+  cleaned = cleaned
+    .replace(/[._-]/g, ' ')        // Replace dots, underscores, hyphens with spaces
+    .replace(/\s+/g, ' ')          // Normalize multiple spaces
+    .trim();
+
+  return cleaned;
+}
 
 // GET /api/v1/library/scan - Get cached library scan
 library.get('/scan', async (c) => {
@@ -53,6 +108,58 @@ library.post('/scan', async (c) => {
     });
   } catch (error) {
     logger.error('Library scan failed:', error);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
+// POST /api/v1/library/auto-match - Auto-match a library folder by searching IGDB
+library.post('/auto-match', async (c) => {
+  logger.info('POST /api/v1/library/auto-match');
+
+  try {
+    const body = await c.req.json();
+    const { parsedTitle, parsedYear } = body;
+
+    if (!parsedTitle) {
+      return c.json(
+        { success: false, error: 'Missing required field: parsedTitle' },
+        400
+      );
+    }
+
+    // Clean up the title by removing scene tags, version numbers, etc.
+    const cleanedTitle = cleanSearchQuery(parsedTitle);
+
+    logger.info(`Auto-match: Original="${parsedTitle}", Cleaned="${cleanedTitle}"`);
+
+    // Build search query with year if available
+    const searchQuery = parsedYear ? `${cleanedTitle} ${parsedYear}` : cleanedTitle;
+
+    // Search IGDB for the game
+    const results = await gameService.searchIGDB(searchQuery);
+
+    if (!results || results.length === 0) {
+      return c.json({
+        success: false,
+        error: 'No matches found on IGDB',
+      });
+    }
+
+    // Return the best match (first result)
+    const bestMatch = results[0];
+
+    logger.info(`Auto-matched "${parsedTitle}" to "${bestMatch.title}"`);
+
+    return c.json({
+      success: true,
+      data: bestMatch,
+      message: `Found match: ${bestMatch.title}`,
+    });
+  } catch (error) {
+    logger.error('Auto-match failed:', error);
     return c.json(
       { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
       500
