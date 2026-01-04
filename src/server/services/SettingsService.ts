@@ -14,6 +14,7 @@ const SETTINGS_KEYS = {
   IGDB_CLIENT_ID: 'igdb_client_id',
   IGDB_CLIENT_SECRET: 'igdb_client_secret',
   LIBRARY_PATH: 'library_path',
+  DRY_RUN: 'dry_run',
 };
 
 export class SettingsService {
@@ -52,6 +53,23 @@ export class SettingsService {
   async setQBittorrentCategory(category: string): Promise<void> {
     logger.info(`Setting qBittorrent category filter: ${category}`);
     await settingsRepository.set(SETTINGS_KEYS.QBITTORRENT_CATEGORY, category);
+  }
+
+  /**
+   * Get dry-run mode status
+   */
+  async getDryRun(): Promise<boolean> {
+    const dryRun = await settingsRepository.getJSON<boolean>(SETTINGS_KEYS.DRY_RUN);
+    // Default to false if not set
+    return dryRun ?? false;
+  }
+
+  /**
+   * Set dry-run mode
+   */
+  async setDryRun(enabled: boolean): Promise<void> {
+    logger.info(`Setting dry-run mode: ${enabled ? 'ENABLED' : 'DISABLED'}`);
+    await settingsRepository.setJSON(SETTINGS_KEYS.DRY_RUN, enabled);
   }
 
   /**

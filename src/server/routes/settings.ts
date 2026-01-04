@@ -22,6 +22,50 @@ settings.get('/', async (c) => {
   }
 });
 
+// GET /api/v1/settings/dry-run - Get dry-run mode status
+settings.get('/dry-run', async (c) => {
+  logger.info('GET /api/v1/settings/dry-run');
+
+  try {
+    const dryRun = await settingsService.getDryRun();
+    return c.json({ success: true, data: dryRun });
+  } catch (error) {
+    logger.error('Failed to get dry-run status:', error);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
+// PUT /api/v1/settings/dry-run - Toggle dry-run mode
+settings.put('/dry-run', async (c) => {
+  logger.info('PUT /api/v1/settings/dry-run');
+
+  try {
+    const body = await c.req.json();
+    const { enabled } = body;
+
+    if (typeof enabled !== 'boolean') {
+      return c.json({ success: false, error: 'enabled must be a boolean' }, 400);
+    }
+
+    await settingsService.setDryRun(enabled);
+
+    return c.json({
+      success: true,
+      message: `Dry-run mode ${enabled ? 'enabled' : 'disabled'}`,
+      data: enabled,
+    });
+  } catch (error) {
+    logger.error('Failed to update dry-run status:', error);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
 // GET /api/v1/settings/categories - Get available categories
 settings.get('/categories', async (c) => {
   logger.info('GET /api/v1/settings/categories');

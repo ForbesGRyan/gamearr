@@ -18,6 +18,7 @@ import './db';
 
 // Import jobs
 import { downloadMonitor } from './jobs/DownloadMonitor';
+import { searchScheduler } from './jobs/SearchScheduler';
 
 const app = new Hono();
 
@@ -62,7 +63,8 @@ if (process.env.IGDB_CLIENT_ID && process.env.IGDB_CLIENT_SECRET) {
 
 // Start background jobs
 downloadMonitor.start();
-logger.info('✅ Background jobs started');
+searchScheduler.start();
+logger.info('✅ Background jobs started (DownloadMonitor, SearchScheduler)');
 
 export default {
   port,

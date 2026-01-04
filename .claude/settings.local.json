@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:api-docs.igdb.com)",
+      "Bash(bun run:*)",
+      "WebSearch",
+      "Bash(git add:*)"
+    ]
+  }
+}

@@ -27,13 +27,41 @@ export class DownloadService {
       throw new Error('qBittorrent is not configured. Please add your qBittorrent settings.');
     }
 
-    logger.info(`Grabbing release: ${release.title} for game ID ${gameId}`);
+    // Check if dry-run mode is enabled
+    const isDryRun = await settingsService.getDryRun();
+
+    logger.info(`${isDryRun ? '[DRY-RUN] ' : ''}Grabbing release: ${release.title} for game ID ${gameId}`);
 
     try {
       // Get game info
       const game = await gameRepository.findById(gameId);
       if (!game) {
         throw new Error('Game not found');
+      }
+
+      if (isDryRun) {
+        // Log detailed information about what would be downloaded
+        logger.info('═══════════════════════════════════════════════════════');
+        logger.info('[DRY-RUN] Download Details:');
+        logger.info('═══════════════════════════════════════════════════════');
+        logger.info(`Game: ${game.title} (${game.year})`);
+        logger.info(`Release: ${release.title}`);
+        logger.info(`Indexer: ${release.indexer}`);
+        logger.info(`Quality: ${release.quality || 'N/A'}`);
+        logger.info(`Size: ${(release.size / (1024 * 1024 * 1024)).toFixed(2)} GB`);
+        logger.info(`Seeders: ${release.seeders}`);
+        logger.info(`Match Confidence: ${release.matchConfidence}`);
+        logger.info(`Quality Score: ${release.score}`);
+        logger.info(`Download URL: ${release.downloadUrl}`);
+        logger.info(`Category: gamearr`);
+        logger.info(`Tags: gamearr,game-${gameId}`);
+        logger.info('═══════════════════════════════════════════════════════');
+
+        return {
+          success: true,
+          message: '[DRY-RUN] Download logged (not actually downloaded)',
+          releaseId: -1,
+        };
       }
 
       // Create release record
