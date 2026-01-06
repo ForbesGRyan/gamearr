@@ -5,6 +5,7 @@ import type {
   TorrentInfo,
 } from './types';
 import { logger } from '../../utils/logger';
+import { QBittorrentError, ErrorCode } from '../../utils/errors';
 
 export class QBittorrentClient {
   private host: string;
@@ -38,7 +39,10 @@ export class QBittorrentClient {
     }
 
     if (!this.isConfigured()) {
-      throw new Error('qBittorrent credentials not configured');
+      throw new QBittorrentError(
+        'Not configured. Please add your qBittorrent settings.',
+        ErrorCode.QBITTORRENT_NOT_CONFIGURED
+      );
     }
 
     logger.info('Authenticating with qBittorrent...');
@@ -57,12 +61,18 @@ export class QBittorrentClient {
       });
 
       if (!response.ok) {
-        throw new Error(`qBittorrent auth failed: ${response.statusText}`);
+        throw new QBittorrentError(
+          `Authentication failed: ${response.statusText}`,
+          ErrorCode.QBITTORRENT_AUTH_FAILED
+        );
       }
 
       const result = await response.text();
       if (result !== 'Ok.') {
-        throw new Error('qBittorrent authentication failed');
+        throw new QBittorrentError(
+          'Authentication failed: Invalid credentials',
+          ErrorCode.QBITTORRENT_AUTH_FAILED
+        );
       }
 
       // Extract cookie from response
@@ -73,8 +83,14 @@ export class QBittorrentClient {
 
       logger.info('qBittorrent authentication successful');
     } catch (error) {
+      if (error instanceof QBittorrentError) {
+        throw error;
+      }
       logger.error('qBittorrent authentication failed:', error);
-      throw error;
+      throw new QBittorrentError(
+        `Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        ErrorCode.QBITTORRENT_CONNECTION_FAILED
+      );
     }
   }
 
@@ -99,7 +115,10 @@ export class QBittorrentClient {
       });
 
       if (!response.ok) {
-        throw new Error(`qBittorrent API error (${response.status}): ${response.statusText}`);
+        throw new QBittorrentError(
+          `API error (${response.status}): ${response.statusText}`,
+          ErrorCode.QBITTORRENT_ERROR
+        );
       }
 
       const contentType = response.headers.get('content-type');
@@ -109,8 +128,14 @@ export class QBittorrentClient {
 
       return response.text() as T;
     } catch (error) {
+      if (error instanceof QBittorrentError) {
+        throw error;
+      }
       logger.error('qBittorrent request failed:', error);
-      throw error;
+      throw new QBittorrentError(
+        `Request failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        ErrorCode.QBITTORRENT_CONNECTION_FAILED
+      );
     }
   }
 

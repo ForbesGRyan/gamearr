@@ -1,238 +1,206 @@
-# Gamearr 🎮
+# Gamearr
 
 Automated game library management following the *arr ecosystem pattern. Built with Bun, TypeScript, Hono, and React.
 
-## Project Status
+## Features
 
-**Current Version:** v0.2.0 (Phase 2 - Metadata Integration Complete)
+- **IGDB Integration** - Search and add games with full metadata (cover art, year, platforms)
+- **Prowlarr Integration** - Search multiple torrent indexers for game releases
+- **qBittorrent Integration** - Automated download management
+- **Library Scanning** - Scan existing game folders and match to database
+- **RSS Automation** - Automatically grab new releases matching your wanted games
+- **Quality Scoring** - Intelligent release selection (prefers GOG, DRM-Free, repacks)
+- **Dry-Run Mode** - Test your configuration without downloading
 
-### Phase 1 ✅ Complete
-- [x] Project scaffolding
-- [x] Database schema with Drizzle ORM
-- [x] Hono API server with route structure
-- [x] React + Vite frontend
-- [x] Logging utility
+## Quick Start
 
-### Phase 2 ✅ Complete
-- [x] IGDB API integration with OAuth
-- [x] Game search functionality
-- [x] Add games to library
-- [x] Game library grid view
-- [x] Monitor/unmonitor games
-- [x] Delete games
+### Prerequisites
 
-### Upcoming Phases
-- **Phase 3:** Prowlarr/indexer integration
-- **Phase 4:** qBittorrent download client
-- **Phase 5:** File management & organization
-- **Phase 6:** RSS monitoring & automation
-- **Phase 7:** Settings UI & polish
+- [Bun](https://bun.sh) 1.0+
+- [Prowlarr](https://prowlarr.com/) (for indexer management)
+- [qBittorrent](https://www.qbittorrent.org/) with Web UI enabled
+- [IGDB API credentials](https://dev.twitch.tv/console) (free via Twitch Developer Console)
 
-## Tech Stack
+### Installation
 
-### Backend
-- **Runtime:** Bun 1.x
-- **Framework:** Hono 4.x
-- **Database:** SQLite (bun:sqlite)
-- **ORM:** Drizzle ORM
-- **Validation:** Zod
-
-### Frontend
-- **Framework:** React 18
-- **Build Tool:** Vite 5
-- **Styling:** TailwindCSS
-- **Routing:** React Router
-
-## Prerequisites
-
-- [Bun](https://bun.sh) 1.0 or higher
-
-## Installation
-
-1. Clone the repository:
 ```bash
+# Clone and install
 git clone https://github.com/yourusername/gamearr.git
 cd gamearr
-```
-
-2. Install backend dependencies:
-```bash
 bun install
-```
+cd src/web && bun install && cd ../..
 
-3. Install frontend dependencies:
-```bash
-cd src/web
-bun install
-cd ../..
-```
-
-4. Configure IGDB API credentials:
-```bash
-# Copy example env file
+# Configure environment
 cp .env.example .env
+# Edit .env with your credentials
 
-# Edit .env and add your IGDB credentials
-# Get credentials from: https://dev.twitch.tv/console/apps
-```
-
-5. Initialize database (auto-creates tables):
-```bash
+# Initialize database
 bun run db:push
+
+# Start development servers
+bun run dev:all
 ```
+
+Open http://localhost:3000 in your browser.
+
+## Configuration
+
+### Required Settings
+
+Configure these in the Settings page (http://localhost:3000/settings):
+
+| Setting | Description |
+|---------|-------------|
+| **IGDB Client ID/Secret** | From [Twitch Developer Console](https://dev.twitch.tv/console) |
+| **Prowlarr URL** | e.g., `http://localhost:9696` |
+| **Prowlarr API Key** | Found in Prowlarr Settings > General |
+| **qBittorrent Host** | e.g., `http://localhost:8080` |
+| **qBittorrent Username/Password** | Web UI credentials |
+| **Library Path** | Where your games are stored |
+
+### Optional Settings
+
+| Setting | Description |
+|---------|-------------|
+| **Prowlarr Categories** | Filter search to specific categories (e.g., Games/PC) |
+| **qBittorrent Category** | Category for Gamearr downloads |
+| **Dry-Run Mode** | Log downloads without actually grabbing |
+
+## Usage
+
+### Adding Games
+
+1. Go to **Library** page
+2. Click **Add Game**
+3. Search for a game by name
+4. Select the game and click **Add to Library**
+
+### Manual Search
+
+1. Click on a game in your library
+2. Click **Search Releases**
+3. Review available releases and quality scores
+4. Click **Grab** to download
+
+### Automatic Downloads
+
+Gamearr runs two background jobs:
+
+- **RSS Sync** (every 15 min) - Checks indexers for new releases matching wanted games
+- **Search Scheduler** (every 15 min) - Actively searches for all wanted games
+
+Games meeting the auto-grab criteria (score >= 100, seeders >= 5) are automatically downloaded.
+
+### Library Scanning
+
+1. Go to **Library** page
+2. Click **Scan Library**
+3. Match unrecognized folders to games in IGDB
+4. Matched games are marked as "downloaded"
+
+## API Endpoints
+
+All endpoints prefixed with `/api/v1`:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/games` | GET | List all games |
+| `/games` | POST | Add a game |
+| `/games/:id` | GET/PUT/DELETE | Game CRUD |
+| `/search/games?q=` | GET | Search IGDB |
+| `/search/releases/:id` | POST | Search releases for game |
+| `/search/grab` | POST | Grab a release |
+| `/downloads` | GET | Active downloads |
+| `/downloads/test` | GET | Test qBittorrent connection |
+| `/indexers` | GET | List Prowlarr indexers |
+| `/indexers/test` | GET | Test Prowlarr connection |
+| `/settings/:key` | GET/PUT | Get/set setting |
+| `/system/status` | GET | Basic health check |
+| `/system/health` | GET | Detailed health with service status |
+| `/library/scan` | POST | Scan library folder |
 
 ## Development
 
-### Easy Start (Recommended)
+### Commands
 
-**Option 1: Using run scripts (automatic setup)**
-
-Windows PowerShell:
-```powershell
-.\run.ps1
-```
-
-Windows Command Prompt:
-```cmd
-run.bat
-```
-
-macOS/Linux/WSL:
 ```bash
-chmod +x run.sh
-./run.sh
-```
-
-**Option 2: Using npm/bun script**
-```bash
+# Development (both servers)
 bun run dev:all
-# Runs both backend and frontend in one terminal
+
+# Or separately:
+bun dev          # Backend on :7878
+bun dev:web      # Frontend on :3000
+
+# Database
+bun run db:push    # Push schema changes
+bun run db:studio  # Open Drizzle Studio
+
+# Production build
+bun run build      # Creates ./gamearr binary
+./gamearr          # Run on :7878
 ```
 
-### Manual Start
-
-**Terminal 1 - Backend:**
-```bash
-bun dev
-# Server runs on http://localhost:7878
-```
-
-**Terminal 2 - Frontend:**
-```bash
-bun dev:web
-# Frontend runs on http://localhost:3000
-```
-
-### View Database
-```bash
-bun run db:studio
-# Opens Drizzle Studio in browser
-```
-
-## Building for Production
-
-### Build Frontend
-```bash
-bun run build:web
-```
-
-### Build Standalone Binary
-```bash
-bun run build
-# Creates ./gamearr executable
-```
-
-### Run Production Build
-```bash
-./gamearr
-# Serves frontend and API on port 7878
-```
-
-## Project Structure
+### Project Structure
 
 ```
 gamearr/
 ├── src/
-│   ├── server/              # Backend
-│   │   ├── routes/          # API route handlers
+│   ├── server/
+│   │   ├── routes/          # API endpoints
 │   │   ├── services/        # Business logic
 │   │   ├── repositories/    # Database access
-│   │   ├── integrations/    # External API clients
-│   │   ├── jobs/            # Background jobs
-│   │   ├── db/              # Database schema & migrations
-│   │   ├── utils/           # Utilities
-│   │   └── index.ts         # Server entry point
-│   ├── web/                 # Frontend
-│   │   ├── src/
-│   │   │   ├── components/  # React components
-│   │   │   ├── pages/       # Page components
-│   │   │   ├── hooks/       # Custom hooks
-│   │   │   ├── api/         # API client
-│   │   │   └── App.tsx      # Root component
-│   │   └── index.html
-│   └── shared/              # Shared types
-├── data/                    # SQLite database (gitignored)
-├── dist/                    # Built frontend (gitignored)
-└── PRODUCT_PLAN.md          # Detailed development plan
+│   │   ├── integrations/    # IGDB, Prowlarr, qBittorrent clients
+│   │   ├── jobs/            # RssSync, SearchScheduler, DownloadMonitor
+│   │   ├── db/              # Drizzle schema
+│   │   └── utils/           # Logger, errors
+│   └── web/
+│       └── src/
+│           ├── pages/       # Library, Activity, Settings
+│           ├── components/  # GameCard, AddGameModal, etc.
+│           └── api/         # API client
+├── data/                    # SQLite database
+└── dist/                    # Production build
 ```
 
-## API Endpoints
+## Quality Scoring
 
-All endpoints are prefixed with `/api/v1`
+Releases are scored based on:
 
-### Games
-- `GET /games` - List all games
-- `POST /games` - Add a new game
-- `GET /games/:id` - Get game details
-- `PUT /games/:id` - Update game
-- `DELETE /games/:id` - Delete game
+| Factor | Points |
+|--------|--------|
+| Title match | +50 |
+| Year match | +20 |
+| GOG release | +50 |
+| DRM-Free | +40 |
+| Repack | +20 |
+| Scene release | +10 |
+| High seeders (20+) | +10 |
+| Low seeders (<5) | -30 |
+| Old release (>2 years) | -20 |
+| Suspicious size | -50 |
 
-### Search
-- `GET /search/games?q=query` - Search IGDB
-- `POST /search/releases/:id` - Search releases for game
+**Auto-grab threshold:** score >= 100 AND seeders >= 5
 
-### Downloads
-- `GET /downloads` - Current downloads
-- `DELETE /downloads/:id` - Cancel download
+## Troubleshooting
 
-### Indexers
-- `GET /indexers` - List indexers
-- `POST /indexers` - Add indexer
-- `PUT /indexers/:id` - Update indexer
-- `DELETE /indexers/:id` - Delete indexer
+### Connection Issues
 
-### Settings
-- `GET /settings` - Get settings
-- `PUT /settings` - Update settings
+Use the **Test Connection** buttons in Settings to verify:
+- Prowlarr is reachable and API key is correct
+- qBittorrent Web UI is enabled and credentials are correct
 
-### System
-- `GET /system/status` - Health check
-- `GET /system/logs` - Recent logs
+### No Search Results
 
-## Database Schema
+- Check Prowlarr has indexers configured
+- Verify category filters match your indexers
+- Try a manual search with simpler terms
 
-### Games
-- Game metadata from IGDB
-- Monitor status
-- Download status
+### Downloads Not Starting
 
-### Releases
-- Torrent/NZB releases
-- Quality information
-- Indexer source
-
-### Download History
-- Download progress tracking
-- Completion status
-
-### Settings
-- Application configuration
-- API credentials
-- Paths
-
-## Contributing
-
-This is currently in active development. See `PRODUCT_PLAN.md` for the roadmap.
+- Check qBittorrent connection
+- Verify the download URL/magnet is valid
+- Check qBittorrent logs for errors
+- Try enabling Dry-Run mode to see what would be grabbed
 
 ## License
 
@@ -240,4 +208,4 @@ MIT
 
 ## Acknowledgments
 
-Inspired by [Radarr](https://github.com/Radarr/Radarr) and the *arr ecosystem.
+Inspired by [Radarr](https://github.com/Radarr/Radarr), [Sonarr](https://github.com/Sonarr/Sonarr), and the *arr ecosystem.

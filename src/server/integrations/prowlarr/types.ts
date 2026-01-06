@@ -9,6 +9,12 @@ export interface ProwlarrSearchParams {
   type?: 'search' | 'tvsearch' | 'movie';
 }
 
+export interface ProwlarrRssParams {
+  indexerIds?: number[];
+  categories?: number[];
+  limit?: number;
+}
+
 export interface ProwlarrRelease {
   guid: string;
   title: string;

@@ -43,4 +43,20 @@ indexers.delete('/:id', async (c) => {
   return c.json({ success: true, message: 'Not implemented yet' }, 501);
 });
 
+// GET /api/v1/indexers/test - Test Prowlarr connection
+indexers.get('/test', async (c) => {
+  logger.info('GET /api/v1/indexers/test');
+
+  try {
+    const connected = await indexerService.testConnection();
+    return c.json({ success: true, data: connected });
+  } catch (error) {
+    logger.error('Prowlarr connection test failed:', error);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : 'Connection failed' },
+      500
+    );
+  }
+});
+
 export default indexers;

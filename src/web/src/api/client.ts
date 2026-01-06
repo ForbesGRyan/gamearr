@@ -167,11 +167,20 @@ class ApiClient {
     return this.request(`/settings/${key}`);
   }
 
-  async updateSetting(key: string, value: string) {
+  async updateSetting(key: string, value: string | boolean | number) {
     return this.request(`/settings/${key}`, {
       method: 'PUT',
       body: JSON.stringify({ value }),
     });
+  }
+
+  // Connection tests
+  async testProwlarrConnection() {
+    return this.request<boolean>('/indexers/test');
+  }
+
+  async testQbittorrentConnection() {
+    return this.request<boolean>('/downloads/test');
   }
 
   // Library

@@ -95,4 +95,20 @@ downloads.post('/:hash/resume', async (c) => {
   }
 });
 
+// GET /api/v1/downloads/test - Test qBittorrent connection
+downloads.get('/test', async (c) => {
+  logger.info('GET /api/v1/downloads/test');
+
+  try {
+    const connected = await downloadService.testConnection();
+    return c.json({ success: true, data: connected });
+  } catch (error) {
+    logger.error('qBittorrent connection test failed:', error);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : 'Connection failed' },
+      500
+    );
+  }
+});
+
 export default downloads;

@@ -1,10 +1,12 @@
 import type {
   ProwlarrSearchParams,
+  ProwlarrRssParams,
   ProwlarrRelease,
   ProwlarrIndexer,
   ReleaseSearchResult,
 } from './types';
 import { logger } from '../../utils/logger';
+import { ProwlarrError, ErrorCode } from '../../utils/errors';
 
 export class ProwlarrClient {
   private baseUrl: string;
@@ -30,7 +32,10 @@ export class ProwlarrClient {
    */
   private async request<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
     if (!this.isConfigured()) {
-      throw new Error('Prowlarr not configured');
+      throw new ProwlarrError(
+        'Not configured. Please add your Prowlarr URL and API key in settings.',
+        ErrorCode.PROWLARR_NOT_CONFIGURED
+      );
     }
 
     const url = new URL(`${this.baseUrl}/api/v1/${endpoint}`);
@@ -53,13 +58,22 @@ export class ProwlarrClient {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Prowlarr API error (${response.status}): ${errorText}`);
+        throw new ProwlarrError(
+          `API error (${response.status}): ${errorText}`,
+          ErrorCode.PROWLARR_ERROR
+        );
       }
 
       return response.json();
     } catch (error) {
+      if (error instanceof ProwlarrError) {
+        throw error;
+      }
       logger.error('Prowlarr request failed:', error);
-      throw error;
+      throw new ProwlarrError(
+        `Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        ErrorCode.PROWLARR_CONNECTION_FAILED
+      );
     }
   }
 
@@ -96,6 +110,46 @@ export class ProwlarrClient {
       return results.map((release) => this.mapToSearchResult(release));
     } catch (error) {
       logger.error('Prowlarr search failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get recent releases via RSS/newznab feed
+   * This fetches the latest releases without a specific search query
+   */
+  async getRssReleases(params: ProwlarrRssParams = {}): Promise<ReleaseSearchResult[]> {
+    const { indexerIds, categories, limit = 100 } = params;
+
+    logger.info('Fetching RSS releases from Prowlarr');
+
+    try {
+      const searchParams: Record<string, string> = {
+        query: '', // Empty query to get recent releases
+        type: 'search',
+        limit: limit.toString(),
+        offset: '0',
+      };
+
+      // Add indexer IDs if specified
+      if (indexerIds && indexerIds.length > 0) {
+        searchParams.indexerIds = indexerIds.join(',');
+      }
+
+      // Add categories if specified
+      if (categories && categories.length > 0) {
+        categories.forEach((cat, index) => {
+          searchParams[`categories[${index}]`] = cat.toString();
+        });
+      }
+
+      const results = await this.request<ProwlarrRelease[]>('search', searchParams);
+
+      logger.info(`Fetched ${results.length} RSS releases from Prowlarr`);
+
+      return results.map((release) => this.mapToSearchResult(release));
+    } catch (error) {
+      logger.error('Prowlarr RSS fetch failed:', error);
       throw error;
     }
   }

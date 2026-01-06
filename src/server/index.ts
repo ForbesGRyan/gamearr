@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
 import { serveStatic } from 'hono/bun';
 import { logger } from './utils/logger';
+import { AppError, toAppError, formatErrorResponse } from './utils/errors';
 
 // Import routes
 import gamesRouter from './routes/games';
@@ -19,6 +20,7 @@ import './db';
 // Import jobs
 import { downloadMonitor } from './jobs/DownloadMonitor';
 import { searchScheduler } from './jobs/SearchScheduler';
+import { rssSync } from './jobs/RssSync';
 
 const app = new Hono();
 
@@ -45,8 +47,16 @@ app.notFound((c) => {
 
 // Error handler
 app.onError((err, c) => {
-  logger.error('Unhandled error:', err);
-  return c.json({ success: false, error: err.message }, 500);
+  const appError = toAppError(err);
+
+  // Log error with appropriate level
+  if (appError.statusCode >= 500) {
+    logger.error(`[${appError.code}] ${appError.message}`, err);
+  } else {
+    logger.warn(`[${appError.code}] ${appError.message}`);
+  }
+
+  return c.json(formatErrorResponse(appError), appError.statusCode);
 });
 
 const port = process.env.PORT || 7878;
@@ -64,7 +74,8 @@ if (process.env.IGDB_CLIENT_ID && process.env.IGDB_CLIENT_SECRET) {
 // Start background jobs
 downloadMonitor.start();
 searchScheduler.start();
-logger.info('✅ Background jobs started (DownloadMonitor, SearchScheduler)');
+rssSync.start();
+logger.info('✅ Background jobs started (DownloadMonitor, SearchScheduler, RssSync)');
 
 export default {
   port,
