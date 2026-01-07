@@ -3,6 +3,10 @@ import type {
   IGDBAuthResponse,
   IGDBSearchParams,
   GameSearchResult,
+  PopularityType,
+  PopularityPrimitive,
+  PopularGame,
+  MultiplayerInfo,
 } from './types';
 import { logger } from '../../utils/logger';
 
@@ -102,7 +106,8 @@ export class IGDBClient {
         fields name, cover.image_id, first_release_date, summary, platforms,
                genres.name, total_rating, game_modes.name,
                involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
-               similar_games.name, similar_games.cover.image_id, game_type;
+               similar_games.name, similar_games.cover.image_id, game_type,
+               multiplayer_modes.*, themes.name;
         where game_type = 0;
         limit ${limit};
       `;
@@ -139,7 +144,8 @@ export class IGDBClient {
         fields name, cover.url, cover.image_id, first_release_date, platforms.name, summary,
                genres.name, total_rating, game_modes.name,
                involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
-               similar_games.name, similar_games.cover.image_id;
+               similar_games.name, similar_games.cover.image_id,
+               multiplayer_modes.*, themes.name;
         where id = ${igdbId};
       `;
 
@@ -176,6 +182,9 @@ export class IGDBClient {
     // Extract genres
     const genres = game.genres?.map(g => g.name) || undefined;
 
+    // Extract themes
+    const themes = game.themes?.map(t => t.name) || undefined;
+
     // Extract game modes
     const gameModes = game.game_modes?.map(m => m.name) || undefined;
 
@@ -201,6 +210,33 @@ export class IGDBClient {
     // Round total rating to integer
     const totalRating = game.total_rating ? Math.round(game.total_rating) : undefined;
 
+    // Parse multiplayer modes (aggregate across all platforms, prioritizing PC - platform 6)
+    let multiplayer: MultiplayerInfo | undefined;
+    if (game.multiplayer_modes && game.multiplayer_modes.length > 0) {
+      // Prefer PC multiplayer mode if available, otherwise use first
+      const pcMode = game.multiplayer_modes.find(m => m.platform === 6);
+      const modes = pcMode ? [pcMode] : game.multiplayer_modes;
+
+      multiplayer = {
+        hasOnlineCoop: modes.some(m => m.onlinecoop),
+        hasOfflineCoop: modes.some(m => m.offlinecoop),
+        hasLanCoop: modes.some(m => m.lancoop),
+        hasSplitscreen: modes.some(m => m.splitscreen || m.splitscreenonline),
+        hasCampaignCoop: modes.some(m => m.campaigncoop),
+        hasDropIn: modes.some(m => m.dropin),
+        maxOnlinePlayers: Math.max(...modes.map(m => m.onlinemax || m.onlinecoopmax || 0).filter(n => n > 0), 0) || undefined,
+        maxOfflinePlayers: Math.max(...modes.map(m => m.offlinemax || m.offlinecoopmax || 0).filter(n => n > 0), 0) || undefined,
+      };
+
+      // Only include if there's actually multiplayer support
+      const hasAnyMultiplayer = multiplayer.hasOnlineCoop || multiplayer.hasOfflineCoop ||
+        multiplayer.hasLanCoop || multiplayer.hasSplitscreen ||
+        multiplayer.maxOnlinePlayers || multiplayer.maxOfflinePlayers;
+      if (!hasAnyMultiplayer) {
+        multiplayer = undefined;
+      }
+    }
+
     return {
       igdbId: game.id,
       title: game.name,
@@ -209,12 +245,90 @@ export class IGDBClient {
       summary: game.summary,
       platforms,
       genres,
+      themes,
       totalRating,
       developer,
       publisher,
       gameModes,
       similarGames,
+      multiplayer,
     };
+  }
+
+  /**
+   * Get available popularity types
+   */
+  async getPopularityTypes(): Promise<PopularityType[]> {
+    logger.info('Fetching IGDB popularity types');
+
+    try {
+      const query = `fields id, name, popularity_source, updated_at; sort id asc;`;
+      const results = await this.request<PopularityType[]>('popularity_types', query);
+      return results;
+    } catch (error) {
+      logger.error('IGDB get popularity types failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get popular games by popularity type
+   */
+  async getPopularGames(popularityType: number, limit: number = 20): Promise<PopularGame[]> {
+    logger.info(`Fetching popular games (type: ${popularityType}, limit: ${limit})`);
+
+    try {
+      // First, get popularity primitives for the specified type
+      const primitivesQuery = `
+        fields game_id, value, popularity_type;
+        sort value desc;
+        limit ${limit};
+        where popularity_type = ${popularityType};
+      `;
+      const primitives = await this.request<PopularityPrimitive[]>('popularity_primitives', primitivesQuery);
+
+      if (primitives.length === 0) {
+        return [];
+      }
+
+      // Extract game IDs
+      const gameIds = primitives.map(p => p.game_id);
+
+      // Fetch game details for all IDs in a single query
+      const gamesQuery = `
+        fields name, cover.image_id, first_release_date, summary, platforms,
+               genres.name, total_rating, game_modes.name,
+               involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
+               similar_games.name, similar_games.cover.image_id,
+               multiplayer_modes.*, themes.name;
+        where id = (${gameIds.join(',')});
+        limit ${limit};
+      `;
+      const games = await this.request<IGDBGame[]>('games', gamesQuery);
+
+      // Create a map of game ID to game data
+      const gameMap = new Map(games.map(g => [g.id, g]));
+
+      // Combine popularity data with game details, maintaining rank order
+      const popularGames: PopularGame[] = primitives
+        .map((primitive, index) => {
+          const game = gameMap.get(primitive.game_id);
+          if (!game) return null;
+
+          return {
+            game: this.mapToSearchResult(game),
+            popularityValue: primitive.value,
+            popularityType: primitive.popularity_type,
+            rank: index + 1,
+          };
+        })
+        .filter((pg): pg is PopularGame => pg !== null);
+
+      return popularGames;
+    } catch (error) {
+      logger.error('IGDB get popular games failed:', error);
+      throw error;
+    }
   }
 }
 

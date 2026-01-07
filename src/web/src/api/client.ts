@@ -257,6 +257,15 @@ class ApiClient {
       method: 'POST',
     });
   }
+
+  // Discover
+  async getPopularityTypes() {
+    return this.request('/discover/popularity-types');
+  }
+
+  async getPopularGames(type: number, limit: number = 20) {
+    return this.request(`/discover/popular?type=${type}&limit=${limit}`);
+  }
 }
 
 export const api = new ApiClient();

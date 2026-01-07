@@ -13,6 +13,8 @@ import indexersRouter from './routes/indexers';
 import settingsRouter from './routes/settings';
 import systemRouter from './routes/system';
 import libraryRouter from './routes/library';
+import updatesRouter from './routes/updates';
+import discoverRouter from './routes/discover';
 
 // Initialize database
 import './db';
@@ -22,6 +24,7 @@ import { downloadMonitor } from './jobs/DownloadMonitor';
 import { searchScheduler } from './jobs/SearchScheduler';
 import { rssSync } from './jobs/RssSync';
 import { metadataRefreshJob } from './jobs/MetadataRefreshJob';
+import { updateCheckJob } from './jobs/UpdateCheckJob';
 
 const app = new Hono();
 
@@ -37,6 +40,8 @@ app.route('/api/v1/indexers', indexersRouter);
 app.route('/api/v1/settings', settingsRouter);
 app.route('/api/v1/system', systemRouter);
 app.route('/api/v1/library', libraryRouter);
+app.route('/api/v1/updates', updatesRouter);
+app.route('/api/v1/discover', discoverRouter);
 
 // Serve static frontend files (will add in Phase 1)
 app.use('/*', serveStatic({ root: './dist' }));
@@ -77,7 +82,8 @@ downloadMonitor.start();
 searchScheduler.start();
 rssSync.start();
 metadataRefreshJob.start();
-logger.info('✅ Background jobs started (DownloadMonitor, SearchScheduler, RssSync, MetadataRefreshJob)');
+updateCheckJob.start();
+logger.info('✅ Background jobs started (DownloadMonitor, SearchScheduler, RssSync, MetadataRefreshJob, UpdateCheckJob)');
 
 export default {
   port,

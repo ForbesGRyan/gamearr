@@ -44,6 +44,11 @@ export interface IGDBGame {
       image_id: string;
     };
   }>;
+  multiplayer_modes?: IGDBMultiplayerMode[];
+  themes?: Array<{
+    id: number;
+    name: string;
+  }>;
 }
 
 export interface IGDBAuthResponse {
@@ -76,4 +81,56 @@ export interface GameSearchResult {
     name: string;
     coverUrl?: string;
   }>;
+  multiplayer?: MultiplayerInfo;
+  themes?: string[];
+}
+
+// Multiplayer modes
+export interface IGDBMultiplayerMode {
+  id: number;
+  campaigncoop?: boolean;
+  dropin?: boolean;
+  lancoop?: boolean;
+  offlinecoop?: boolean;
+  offlinecoopmax?: number;
+  offlinemax?: number;
+  onlinecoop?: boolean;
+  onlinecoopmax?: number;
+  onlinemax?: number;
+  platform?: number;
+  splitscreen?: boolean;
+  splitscreenonline?: boolean;
+}
+
+export interface MultiplayerInfo {
+  hasOnlineCoop: boolean;
+  hasOfflineCoop: boolean;
+  hasLanCoop: boolean;
+  hasSplitscreen: boolean;
+  maxOnlinePlayers?: number;
+  maxOfflinePlayers?: number;
+  hasCampaignCoop: boolean;
+  hasDropIn: boolean;
+}
+
+// Popularity API types
+export interface PopularityType {
+  id: number;
+  name: string;
+  popularity_source: number;
+  updated_at?: number;
+}
+
+export interface PopularityPrimitive {
+  id: number;
+  game_id: number;
+  popularity_type: number;
+  value: number;
+}
+
+export interface PopularGame {
+  game: GameSearchResult;
+  popularityValue: number;
+  popularityType: number;
+  rank: number;
 }

@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import Library from './pages/Library';
+import Discover from './pages/Discover';
 import Search from './pages/Search';
 import Activity from './pages/Activity';
 import Settings from './pages/Settings';
@@ -20,6 +21,12 @@ function App() {
                     className="px-3 py-2 rounded hover:bg-gray-700 transition"
                   >
                     Library
+                  </Link>
+                  <Link
+                    to="/discover"
+                    className="px-3 py-2 rounded hover:bg-gray-700 transition"
+                  >
+                    Discover
                   </Link>
                   <Link
                     to="/search"
@@ -49,6 +56,7 @@ function App() {
         <main className="container mx-auto px-4 py-8">
           <Routes>
             <Route path="/" element={<Library />} />
+            <Route path="/discover" element={<Discover />} />
             <Route path="/search" element={<Search />} />
             <Route path="/activity" element={<Activity />} />
             <Route path="/settings" element={<Settings />} />
