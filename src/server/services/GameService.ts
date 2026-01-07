@@ -81,7 +81,7 @@ export class GameService {
       logger.info(`Game has store (${store}) - setting status to 'downloaded' and monitored to false`);
     }
 
-    // Create new game entry
+    // Create new game entry with metadata
     const newGame: NewGame = {
       igdbId: igdbGame.igdbId,
       title: igdbGame.title,
@@ -92,6 +92,16 @@ export class GameService {
       status: gameStatus,
       coverUrl: igdbGame.coverUrl,
       folderPath: null,
+      // Metadata from IGDB
+      summary: igdbGame.summary || null,
+      genres: igdbGame.genres ? JSON.stringify(igdbGame.genres) : null,
+      totalRating: igdbGame.totalRating || null,
+      developer: igdbGame.developer || null,
+      publisher: igdbGame.publisher || null,
+      gameModes: igdbGame.gameModes ? JSON.stringify(igdbGame.gameModes) : null,
+      similarGames: igdbGame.similarGames
+        ? JSON.stringify(igdbGame.similarGames)
+        : null,
     };
 
     const game = await gameRepository.create(newGame);

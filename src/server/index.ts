@@ -21,6 +21,7 @@ import './db';
 import { downloadMonitor } from './jobs/DownloadMonitor';
 import { searchScheduler } from './jobs/SearchScheduler';
 import { rssSync } from './jobs/RssSync';
+import { metadataRefreshJob } from './jobs/MetadataRefreshJob';
 
 const app = new Hono();
 
@@ -75,7 +76,8 @@ if (process.env.IGDB_CLIENT_ID && process.env.IGDB_CLIENT_SECRET) {
 downloadMonitor.start();
 searchScheduler.start();
 rssSync.start();
-logger.info('✅ Background jobs started (DownloadMonitor, SearchScheduler, RssSync)');
+metadataRefreshJob.start();
+logger.info('✅ Background jobs started (DownloadMonitor, SearchScheduler, RssSync, MetadataRefreshJob)');
 
 export default {
   port,

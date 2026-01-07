@@ -14,6 +14,14 @@ export const games = sqliteTable('games', {
   }).notNull().default('wanted'),
   coverUrl: text('cover_url'),
   folderPath: text('folder_path'),
+  // Metadata fields from IGDB
+  summary: text('summary'),
+  genres: text('genres'), // JSON array of genre names
+  totalRating: integer('total_rating'), // 0-100 rating score
+  developer: text('developer'),
+  publisher: text('publisher'),
+  gameModes: text('game_modes'), // JSON array of game mode names
+  similarGames: text('similar_games'), // JSON array of {igdbId, name, coverUrl}
   addedAt: integer('added_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),

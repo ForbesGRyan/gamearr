@@ -9,6 +9,16 @@ interface SearchResult {
   coverUrl?: string;
   summary?: string;
   platforms?: string[];
+  genres?: string[];
+  totalRating?: number;
+  developer?: string;
+  publisher?: string;
+  gameModes?: string[];
+  similarGames?: Array<{
+    igdbId: number;
+    name: string;
+    coverUrl?: string;
+  }>;
 }
 
 interface LibraryFolder {
@@ -80,18 +90,9 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
     setError(null);
 
     try {
-      // Convert SearchResult to IGDB game format
-      const igdbGame = {
-        id: game.igdbId,
-        name: game.title,
-        first_release_date: game.year
-          ? new Date(`${game.year}-01-01`).getTime() / 1000
-          : null,
-        cover: game.coverUrl ? { url: game.coverUrl } : null,
-        platforms: game.platforms ? game.platforms.map((p) => ({ name: p })) : [],
-      };
-
-      const response = await api.matchLibraryFolder(folder.path, folder.folderName, igdbGame, selectedStore);
+      // Pass the full SearchResult directly - library route handles both formats
+      // and will store all metadata (summary, genres, rating, developer, etc.)
+      const response = await api.matchLibraryFolder(folder.path, folder.folderName, game, selectedStore);
 
       if (response.success) {
         onFolderMatched();

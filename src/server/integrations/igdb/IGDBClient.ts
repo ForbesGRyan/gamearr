@@ -96,11 +96,19 @@ export class IGDBClient {
     logger.info(`Searching IGDB for: ${search}`);
 
     try {
-      // Get all matching games, filter client-side for better results
-      const query = `search "${search}"; fields name, cover.image_id, first_release_date, summary, platforms, game_type; where game_type = 0; limit ${limit};`;
+      // Get all matching games with expanded metadata
+      const query = `
+        search "${search}";
+        fields name, cover.image_id, first_release_date, summary, platforms,
+               genres.name, total_rating, game_modes.name,
+               involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
+               similar_games.name, similar_games.cover.image_id, game_type;
+        where game_type = 0;
+        limit ${limit};
+      `;
 
       const results = await this.request<IGDBGame[]>('games', query);
-      
+
       // Filter for PC games (platform ID 6) and main games only
       // Platform 6 = PC (Windows)
       // Category: 0 = main game, 1 = DLC, 2 = expansion, 3 = bundle, etc.
@@ -110,7 +118,7 @@ export class IGDBClient {
 
         return hasPC;
       });
-      
+
       const mapped = filteredGames.map((game) => this.mapToSearchResult(game));
 
       return mapped;
@@ -128,7 +136,10 @@ export class IGDBClient {
 
     try {
       const query = `
-        fields name, cover.url, cover.image_id, first_release_date, platforms.name, summary;
+        fields name, cover.url, cover.image_id, first_release_date, platforms.name, summary,
+               genres.name, total_rating, game_modes.name,
+               involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
+               similar_games.name, similar_games.cover.image_id;
         where id = ${igdbId};
       `;
 
@@ -162,6 +173,34 @@ export class IGDBClient {
     // Platforms are returned as IDs, just use PC since we filtered for it
     const platforms = ['PC'];
 
+    // Extract genres
+    const genres = game.genres?.map(g => g.name) || undefined;
+
+    // Extract game modes
+    const gameModes = game.game_modes?.map(m => m.name) || undefined;
+
+    // Extract developer and publisher from involved_companies
+    let developer: string | undefined;
+    let publisher: string | undefined;
+    if (game.involved_companies) {
+      const devCompany = game.involved_companies.find(ic => ic.developer);
+      const pubCompany = game.involved_companies.find(ic => ic.publisher);
+      developer = devCompany?.company?.name;
+      publisher = pubCompany?.company?.name;
+    }
+
+    // Extract similar games with cover URLs
+    const similarGames = game.similar_games?.slice(0, 6).map(sg => ({
+      igdbId: sg.id,
+      name: sg.name,
+      coverUrl: sg.cover?.image_id
+        ? `https://images.igdb.com/igdb/image/upload/t_cover_small/${sg.cover.image_id}.jpg`
+        : undefined,
+    })) || undefined;
+
+    // Round total rating to integer
+    const totalRating = game.total_rating ? Math.round(game.total_rating) : undefined;
+
     return {
       igdbId: game.id,
       title: game.name,
@@ -169,6 +208,12 @@ export class IGDBClient {
       coverUrl,
       summary: game.summary,
       platforms,
+      genres,
+      totalRating,
+      developer,
+      publisher,
+      gameModes,
+      similarGames,
     };
   }
 }

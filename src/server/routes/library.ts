@@ -8,54 +8,96 @@ const library = new Hono();
 
 /**
  * Clean up scene release names and version info for better IGDB matching
- * Removes: scene groups, version numbers, "update" keywords, common tags
+ * Removes: scene groups, version numbers, "update" keywords, edition names, common tags
  */
 function cleanSearchQuery(title: string): string {
   let cleaned = title;
+
+  // Remove version numbers BEFORE normalizing dots to spaces
+  // Patterns like .v1.0, .v2.3.1, .1.2.3.4567 (preceded by separator or space)
+  cleaned = cleaned.replace(/[\s.\-_][vV]\d+(\.\d+)*/g, ' '); // v1, v1.0, v1.2.3
+  cleaned = cleaned.replace(/[.\-_]\d+(\.\d+){1,}/g, ' '); // .1.2.3 style versions (must have at least 2 parts)
+
+  // Now normalize separators to spaces
+  cleaned = cleaned.replace(/[._-]/g, ' ');
 
   // Remove common scene group tags (case insensitive)
   const sceneGroups = [
     'CODEX', 'SKIDROW', 'PLAZA', 'RELOADED', 'PROPHET', 'CPY', 'HOODLUM',
     'STEAMPUNKS', 'GOLDBERG', 'FLT', 'RAZOR1911', 'TENOKE', 'DARKSiDERS',
     'RUNE', 'GOG', 'DODI', 'FitGirl', 'ElAmigos', 'CHRONOS', 'TiNYiSO',
-    'I_KnoW', 'SiMPLEX', 'DINOByTES', 'ANOMALY'
+    'I_KnoW', 'SiMPLEX', 'DINOByTES', 'ANOMALY', 'EMPRESS',
+    'P2P', 'PROPER', 'INTERNAL', 'KaOs', 'Portable', 'x64', 'x86'
   ];
 
-  // Remove scene groups with common patterns like -CODEX, [CODEX], (CODEX)
+  // Remove scene groups
   sceneGroups.forEach((group) => {
-    const patterns = [
-      new RegExp(`[-\\.\\s]${group}$`, 'gi'),           // -CODEX at end
-      new RegExp(`\\[${group}\\]`, 'gi'),               // [CODEX]
-      new RegExp(`\\(${group}\\)`, 'gi'),               // (CODEX)
-      new RegExp(`${group}[-\\.\\s]`, 'gi'),            // CODEX- at start
-    ];
-    patterns.forEach((pattern) => {
-      cleaned = cleaned.replace(pattern, ' ');
-    });
+    cleaned = cleaned.replace(new RegExp(`\\b${group}\\b`, 'gi'), ' ');
   });
 
-  // Remove version numbers: v1.0, v2.3.1, V1.0.2, etc.
-  cleaned = cleaned.replace(/\b[vV]?\d+(\.\d+){0,3}\b/g, ' ');
+  // Remove content in brackets (usually metadata)
+  cleaned = cleaned.replace(/\[[^\]]*\]/g, ' ');
+  cleaned = cleaned.replace(/\([^)]*\)/g, ' ');
 
-  // Remove "Update" or "Updated" keywords
-  cleaned = cleaned.replace(/\b(update|updated)\b/gi, ' ');
+  // Remove any remaining version patterns after space normalization
+  cleaned = cleaned.replace(/\b[vV]\d+\b/g, ' '); // Standalone v1, v2, etc.
+  cleaned = cleaned.replace(/\b(build|patch|update|updated|hotfix)\s*\d*\b/gi, ' ');
 
-  // Remove common tags
+  // Remove multi-word edition phrases FIRST (before single words)
+  const editionPhrases = [
+    'Game of the Year',
+    "Director'?s Cut",
+    'Directors? Cut',
+    "Collector'?s Edition",
+    'Collectors? Edition',
+    'Limited Edition',
+    'Special Edition',
+    'Gold Edition',
+    'Premium Edition',
+    'Digital Edition',
+    'Digital Deluxe',
+    'Super Deluxe',
+    'Complete Edition',
+    'Definitive Edition',
+    'Enhanced Edition',
+    'Ultimate Edition',
+    'Deluxe Edition',
+    'Standard Edition',
+    'Legendary Edition',
+    'Base Game',
+    'All DLCs?',
+    'incl\\.?\\s*DLCs?',
+    '\\+\\s*DLCs?',
+    'with\\s+DLCs?',
+    'and\\s+DLCs?'
+  ];
+  editionPhrases.forEach((phrase) => {
+    cleaned = cleaned.replace(new RegExp(phrase, 'gi'), ' ');
+  });
+
+  // Remove common single-word tags (be careful not to remove words that are part of game titles)
   const tags = [
-    'Repack', 'MULTi\\d+', 'MULTI', 'RIP', 'Cracked', 'Crack',
-    'DLC', 'GOTY', 'Complete', 'Edition', 'Deluxe', 'Ultimate',
-    'Definitive', 'Enhanced', 'Remastered', 'Anniversary',
-    'Digital', 'Steam', 'GOG\\.com', 'Epic', 'Uplay'
+    'Repack', 'MULTi\\d*', 'RIP', 'Cracked', 'Crack',
+    'DLC', 'DLCs', 'GOTY', 'Complete', 'Edition', 'Deluxe', 'Ultimate',
+    'Definitive', 'Enhanced', 'Remastered', 'Anniversary', 'Remake',
+    'Digital', 'Steam', 'Epic', 'Uplay', 'Origin',
+    'Collectors?', 'Limited', 'Special', 'Gold', 'Premium', 'Standard',
+    'Directors?', 'Extended', 'Expanded', 'Uncut', 'Uncensored',
+    'Bundle', 'Trilogy', 'Anthology',
+    'FHD', '4K', 'UHD', 'SDR', 'HDR',
+    'Windows', 'Win', 'Mac', 'Linux',
+    'Incl', 'Including'
   ];
   tags.forEach((tag) => {
     cleaned = cleaned.replace(new RegExp(`\\b${tag}\\b`, 'gi'), ' ');
   });
 
-  // Remove extra punctuation and normalize spaces
-  cleaned = cleaned
-    .replace(/[._-]/g, ' ')        // Replace dots, underscores, hyphens with spaces
-    .replace(/\s+/g, ' ')          // Normalize multiple spaces
-    .trim();
+  // Note: We intentionally do NOT remove trailing numbers like "4" in "Far Cry 4"
+  // The version number removal earlier handles actual versions like ".v1.2.3"
+  // Any remaining numbers are likely part of the game title
+
+  // Normalize spaces
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
 
   return cleaned;
 }
@@ -167,7 +209,7 @@ library.post('/auto-match', async (c) => {
   }
 });
 
-// POST /api/v1/library/match - Match a library folder to a new game
+// POST /api/v1/library/match - Match a library folder to a game (creates new or links to existing)
 library.post('/match', async (c) => {
   logger.info('POST /api/v1/library/match');
 
@@ -182,42 +224,71 @@ library.post('/match', async (c) => {
       );
     }
 
+    // Support both formats: GameSearchResult format (igdbId) or raw IGDB format (id)
+    const gameIgdbId = igdbGame.igdbId || igdbGame.id;
+    const gameTitle = igdbGame.title || igdbGame.name;
+    const gameYear = igdbGame.year || (igdbGame.first_release_date
+      ? new Date(igdbGame.first_release_date * 1000).getFullYear()
+      : null);
+    const gameCoverUrl = igdbGame.coverUrl || igdbGame.cover?.url || null;
+    const gamePlatform = igdbGame.platforms?.[0]?.name || igdbGame.platforms?.[0] || 'PC';
+
     // Check if game already exists
-    const existingGame = await gameRepository.findByIgdbId(igdbGame.id);
+    const existingGame = await gameRepository.findByIgdbId(gameIgdbId);
+
+    let game;
+    let wasExisting = false;
 
     if (existingGame) {
-      return c.json(
-        { success: false, error: 'This game is already in your library' },
-        400
-      );
+      // Game already exists - link folder to it and update status
+      logger.info(`Game "${existingGame.title}" already exists, linking folder to it`);
+
+      await gameRepository.update(existingGame.id, {
+        status: 'downloaded',
+        folderPath: folderPath || existingGame.folderPath,
+        store: store || existingGame.store,
+      });
+
+      game = { ...existingGame, status: 'downloaded', folderPath: folderPath || existingGame.folderPath };
+      wasExisting = true;
+    } else {
+      // Create new game with downloaded status (since it's already in library)
+      // Include metadata if available from GameSearchResult format
+      game = await gameRepository.create({
+        igdbId: gameIgdbId,
+        title: gameTitle,
+        year: gameYear,
+        coverUrl: gameCoverUrl,
+        platform: gamePlatform,
+        store: store || null,
+        folderPath: folderPath || null,
+        monitored: true,
+        status: 'downloaded',
+        // Metadata from GameSearchResult (if available)
+        summary: igdbGame.summary || null,
+        genres: igdbGame.genres ? JSON.stringify(igdbGame.genres) : null,
+        totalRating: igdbGame.totalRating || null,
+        developer: igdbGame.developer || null,
+        publisher: igdbGame.publisher || null,
+        gameModes: igdbGame.gameModes ? JSON.stringify(igdbGame.gameModes) : null,
+        similarGames: igdbGame.similarGames
+          ? JSON.stringify(igdbGame.similarGames)
+          : null,
+      });
     }
 
-    // Create new game with downloaded status (since it's already in library)
-    const newGame = await gameRepository.create({
-      igdbId: igdbGame.id,
-      title: igdbGame.name,
-      year: igdbGame.first_release_date
-        ? new Date(igdbGame.first_release_date * 1000).getFullYear()
-        : null,
-      coverUrl: igdbGame.cover?.url || null,
-      platform: igdbGame.platforms?.[0]?.name || 'Unknown',
-      store: store || null,
-      folderPath: folderPath || null,
-      monitored: true,
-      status: 'downloaded',
-    });
-
-    // Match folder to game if folderPath is provided
+    // Match folder to game if folderPath is provided (marks it as matched so it won't show in future scans)
     if (folderPath) {
-      await fileService.matchFolderToGame(folderPath, newGame.id);
+      await fileService.matchFolderToGame(folderPath, game.id);
     }
 
-    logger.info(`Matched library folder "${folderName || folderPath}" to game: ${newGame.title}`);
+    const action = wasExisting ? 'Linked' : 'Matched';
+    logger.info(`${action} library folder "${folderName || folderPath}" to game: ${game.title}`);
 
     return c.json({
       success: true,
-      data: newGame,
-      message: `Successfully matched "${folderName || folderPath}" to ${newGame.title}`,
+      data: game,
+      message: `Successfully ${action.toLowerCase()} "${folderName || folderPath}" to ${game.title}`,
     });
   } catch (error) {
     logger.error('Library match failed:', error);

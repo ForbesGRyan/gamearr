@@ -257,7 +257,7 @@ export class FileService {
     try {
       const cachedFiles = await libraryFileRepository.findAll();
 
-      // Filter out ignored folders AND matched folders
+      // Filter out ignored folders AND matched folders, then sort alphabetically
       return cachedFiles
         .filter((file) => !file.ignored && !file.matchedGameId)
         .map((file) => ({
@@ -267,7 +267,8 @@ export class FileService {
           matched: false, // All results are unmatched
           gameId: undefined,
           path: file.folderPath,
-        }));
+        }))
+        .sort((a, b) => a.parsedTitle.localeCompare(b.parsedTitle, undefined, { sensitivity: 'base' }));
     } catch (error) {
       logger.error('Failed to get cached library files:', error);
       return [];
@@ -357,7 +358,10 @@ export class FileService {
         `Library scan refreshed: ${libraryFolders.length} folders, ${libraryFolders.filter((f) => f.matched).length} matched`
       );
 
-      return libraryFolders;
+      // Sort alphabetically by parsed title for consistent display
+      return libraryFolders.sort((a, b) =>
+        a.parsedTitle.localeCompare(b.parsedTitle, undefined, { sensitivity: 'base' })
+      );
     } catch (error) {
       logger.error('Failed to refresh library scan:', error);
       return [];
