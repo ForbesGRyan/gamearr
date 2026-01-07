@@ -8,8 +8,10 @@ Automated game library management following the *arr ecosystem pattern. Built wi
 - **Prowlarr Integration** - Search multiple torrent indexers for game releases
 - **qBittorrent Integration** - Automated download management
 - **Library Scanning** - Scan existing game folders and match to database
+- **Library Health** - Detect duplicate games and organize loose files
 - **RSS Automation** - Automatically grab new releases matching your wanted games
 - **Quality Scoring** - Intelligent release selection (prefers GOG, DRM-Free, repacks)
+- **Multiple View Modes** - Posters, table, or detailed overview
 - **Dry-Run Mode** - Test your configuration without downloading
 
 ## Quick Start
@@ -91,12 +93,27 @@ Gamearr runs two background jobs:
 
 Games meeting the auto-grab criteria (score >= 100, seeders >= 5) are automatically downloaded.
 
-### Library Scanning
+### Library Import
 
-1. Go to **Library** page
-2. Click **Scan Library**
-3. Match unrecognized folders to games in IGDB
-4. Matched games are marked as "downloaded"
+1. Go to **Library** page and click the **Import** tab
+2. Click **Refresh Scan** to scan your library folder
+3. Unmatched folders appear with an **Auto Match** button
+4. Click **Auto Match** to search IGDB, or **Match** to search manually
+5. Confirm the match to add the game as "downloaded"
+
+### Library Health
+
+The **Health** tab helps keep your library organized:
+
+**Duplicate Detection**
+- Finds games with similar titles (>80% match)
+- Shows both games side-by-side with sizes
+- Click **Dismiss** to hide false positives
+
+**Loose Files**
+- Detects standalone archives (.iso, .rar, .zip, .7z) in your library
+- Click **Organize** to create a folder and move the file into it
+- Organized files then appear in the Import tab for matching
 
 ## API Endpoints
 
@@ -117,7 +134,12 @@ All endpoints prefixed with `/api/v1`:
 | `/settings/:key` | GET/PUT | Get/set setting |
 | `/system/status` | GET | Basic health check |
 | `/system/health` | GET | Detailed health with service status |
-| `/library/scan` | POST | Scan library folder |
+| `/library/scan` | GET/POST | Get cached / refresh library scan |
+| `/library/auto-match` | POST | Auto-match folder to IGDB |
+| `/library/match` | POST | Match folder to game |
+| `/library/health/duplicates` | GET | Find potential duplicate games |
+| `/library/health/loose-files` | GET | Find loose archive files |
+| `/library/health/organize-file` | POST | Organize loose file into folder |
 
 ## Development
 
@@ -155,7 +177,7 @@ gamearr/
 │   │   └── utils/           # Logger, errors
 │   └── web/
 │       └── src/
-│           ├── pages/       # Library, Activity, Settings
+│           ├── pages/       # Library (Games/Import/Health), Activity, Settings
 │           ├── components/  # GameCard, AddGameModal, etc.
 │           └── api/         # API client
 ├── data/                    # SQLite database

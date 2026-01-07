@@ -9,6 +9,7 @@ interface Game {
   status: 'wanted' | 'downloading' | 'downloaded';
   platform: string;
   store?: string | null;
+  updateAvailable?: boolean;
 }
 
 interface GameCardProps {
@@ -57,8 +58,20 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, onEdit }: GameCar
           </span>
         </div>
 
+        {/* Update Available Badge */}
+        {game.updateAvailable && (
+          <div className="absolute top-2 left-2">
+            <span className="bg-orange-500 px-2 py-1 rounded text-xs font-semibold flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Update
+            </span>
+          </div>
+        )}
+
         {/* Monitored Badge */}
-        {!game.monitored && (
+        {!game.monitored && !game.updateAvailable && (
           <div className="absolute top-2 left-2">
             <span className="bg-gray-900 px-2 py-1 rounded text-xs font-semibold">
               Unmonitored

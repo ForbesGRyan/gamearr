@@ -4,7 +4,24 @@
       "WebFetch(domain:api-docs.igdb.com)",
       "Bash(bun run:*)",
       "WebSearch",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Skill(beads:create)",
+      "Skill(beads:init)",
+      "Skill(beads:list)",
+      "Bash(cat:*)",
+      "Bash(bd list:*)",
+      "Bash(bd create:*)",
+      "Bash(bd update:*)",
+      "Bash(bd close:*)",
+      "Bash(timeout 8 bun run dev:*)",
+      "Bash(bd admin compact:*)",
+      "Bash(bd compact:*)",
+      "Bash(bun test:*)",
+      "Bash(git commit:*)",
+      "Bash(timeout 5 bun run:*)",
+      "Bash(bun add:*)",
+      "Bash(git push)",
+      "Bash(curl:*)"
     ]
   }
 }

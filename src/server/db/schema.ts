@@ -22,6 +22,15 @@ export const games = sqliteTable('games', {
   publisher: text('publisher'),
   gameModes: text('game_modes'), // JSON array of game mode names
   similarGames: text('similar_games'), // JSON array of {igdbId, name, coverUrl}
+  // Update tracking fields
+  installedVersion: text('installed_version'), // Current downloaded version (e.g., "v1.2.3")
+  installedQuality: text('installed_quality'), // Quality of installed release (GOG, Scene, etc.)
+  latestVersion: text('latest_version'), // Latest available version detected
+  updatePolicy: text('update_policy', {
+    enum: ['notify', 'auto', 'ignore']
+  }).default('notify'),
+  lastUpdateCheck: integer('last_update_check', { mode: 'timestamp' }),
+  updateAvailable: integer('update_available', { mode: 'boolean' }).default(false),
   addedAt: integer('added_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -76,6 +85,29 @@ export const libraryFiles = sqliteTable('library_files', {
     .default(sql`(unixepoch())`),
 });
 
+export const gameUpdates = sqliteTable('game_updates', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  gameId: integer('game_id')
+    .notNull()
+    .references(() => games.id, { onDelete: 'cascade' }),
+  updateType: text('update_type', {
+    enum: ['version', 'dlc', 'better_release']
+  }).notNull(),
+  title: text('title').notNull(), // Release title
+  version: text('version'), // Version if detected
+  size: integer('size'), // Size in bytes
+  quality: text('quality'), // GOG, DRM-Free, Repack, Scene
+  seeders: integer('seeders'),
+  downloadUrl: text('download_url'),
+  indexer: text('indexer'),
+  detectedAt: integer('detected_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  status: text('status', {
+    enum: ['pending', 'grabbed', 'dismissed']
+  }).notNull().default('pending'),
+});
+
 // Type exports
 export type Game = typeof games.$inferSelect;
 export type NewGame = typeof games.$inferInsert;
@@ -91,3 +123,6 @@ export type NewSettings = typeof settings.$inferInsert;
 
 export type LibraryFile = typeof libraryFiles.$inferSelect;
 export type NewLibraryFile = typeof libraryFiles.$inferInsert;
+
+export type GameUpdate = typeof gameUpdates.$inferSelect;
+export type NewGameUpdate = typeof gameUpdates.$inferInsert;

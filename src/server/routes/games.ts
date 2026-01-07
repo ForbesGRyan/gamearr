@@ -18,6 +18,7 @@ const updateGameSchema = z.object({
   status: z.enum(['wanted', 'downloading', 'downloaded']).optional(),
   folderPath: z.string().nullable().optional(),
   store: z.string().nullable().optional(),
+  updatePolicy: z.enum(['notify', 'auto', 'ignore']).optional(),
 });
 
 // GET /api/v1/games - List all games

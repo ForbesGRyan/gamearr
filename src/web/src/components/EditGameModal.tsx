@@ -12,6 +12,12 @@ interface Game {
   platform: string;
   store?: string | null;
   folderPath?: string | null;
+  // Update tracking fields
+  updateAvailable?: boolean;
+  installedVersion?: string | null;
+  latestVersion?: string | null;
+  installedQuality?: string | null;
+  updatePolicy?: 'notify' | 'auto' | 'ignore';
 }
 
 interface EditGameModalProps {
@@ -26,6 +32,7 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
   const [folderPath, setFolderPath] = useState('');
   const [monitored, setMonitored] = useState(true);
   const [status, setStatus] = useState<'wanted' | 'downloading' | 'downloaded'>('wanted');
+  const [updatePolicy, setUpdatePolicy] = useState<'notify' | 'auto' | 'ignore'>('notify');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,6 +43,7 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
       setFolderPath(game.folderPath || '');
       setMonitored(game.monitored);
       setStatus(game.status);
+      setUpdatePolicy(game.updatePolicy || 'notify');
     }
   }, [game]);
 
@@ -51,6 +59,7 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
         folderPath: folderPath || null,
         monitored,
         status,
+        updatePolicy,
       };
 
       const response = await api.updateGame(game.id, updates);
@@ -151,6 +160,60 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
               When monitored, the system will automatically search for and download releases.
             </p>
           </div>
+
+          {/* Update Tracking Section - only show for downloaded games */}
+          {game.status === 'downloaded' && (
+            <div className="border-t border-gray-600 pt-4 mt-4">
+              <h3 className="text-sm font-semibold text-gray-200 mb-3">Update Tracking</h3>
+
+              {/* Version Info */}
+              <div className="bg-gray-800 rounded p-3 mb-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-400">Installed Version:</span>
+                    <span className="ml-2 text-gray-200">
+                      {game.installedVersion || 'Unknown'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Quality:</span>
+                    <span className="ml-2 text-gray-200">
+                      {game.installedQuality || 'Unknown'}
+                    </span>
+                  </div>
+                  {game.updateAvailable && game.latestVersion && (
+                    <div className="col-span-2">
+                      <span className="text-orange-400 flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Update available: v{game.latestVersion}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Update Policy Selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Update Policy
+                </label>
+                <select
+                  value={updatePolicy}
+                  onChange={(e) => setUpdatePolicy(e.target.value as 'notify' | 'auto' | 'ignore')}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="notify">Notify - Show badge when updates are available</option>
+                  <option value="auto">Auto-download - Automatically grab updates</option>
+                  <option value="ignore">Ignore - Don't check for updates</option>
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  Controls how the system handles updates for this game.
+                </p>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div
