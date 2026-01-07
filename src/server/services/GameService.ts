@@ -155,6 +155,48 @@ export class GameService {
   ): Promise<Game> {
     return this.updateGame(id, { status });
   }
+
+  /**
+   * Rematch a game to a different IGDB entry
+   * Updates all metadata from the new IGDB entry while preserving local fields
+   */
+  async rematchGame(id: number, newIgdbId: number): Promise<Game> {
+    const game = await gameRepository.findById(id);
+    if (!game) {
+      throw new Error('Game not found');
+    }
+
+    // Fetch new game details from IGDB
+    const igdbGame = await igdbClient.getGame(newIgdbId);
+    if (!igdbGame) {
+      throw new Error('Game not found on IGDB');
+    }
+
+    logger.info(`Rematching game "${game.title}" to "${igdbGame.title}" (IGDB ID: ${newIgdbId})`);
+
+    // Update with new IGDB metadata while preserving local fields like status, store, folderPath
+    const updates: Partial<NewGame> = {
+      igdbId: igdbGame.igdbId,
+      title: igdbGame.title,
+      year: igdbGame.year,
+      coverUrl: igdbGame.coverUrl,
+      summary: igdbGame.summary || null,
+      genres: igdbGame.genres ? JSON.stringify(igdbGame.genres) : null,
+      totalRating: igdbGame.totalRating || null,
+      developer: igdbGame.developer || null,
+      publisher: igdbGame.publisher || null,
+      gameModes: igdbGame.gameModes ? JSON.stringify(igdbGame.gameModes) : null,
+      similarGames: igdbGame.similarGames ? JSON.stringify(igdbGame.similarGames) : null,
+    };
+
+    const updatedGame = await gameRepository.update(id, updates);
+    if (!updatedGame) {
+      throw new Error('Failed to update game');
+    }
+
+    logger.info(`Game rematched successfully: ${updatedGame.title}`);
+    return updatedGame;
+  }
 }
 
 // Singleton instance

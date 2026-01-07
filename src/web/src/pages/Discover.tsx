@@ -518,9 +518,16 @@ function Discover() {
                       </button>
                     )}
                     {pg.game.totalRating && (
-                      <div className="text-yellow-400 text-sm">
-                        ⭐ {pg.game.totalRating}%
-                      </div>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium text-white ${
+                        pg.game.totalRating >= 95 ? 'bg-sky-500' :
+                        pg.game.totalRating >= 90 ? 'bg-green-700' :
+                        pg.game.totalRating >= 85 ? 'bg-green-600' :
+                        pg.game.totalRating >= 80 ? 'bg-green-500' :
+                        pg.game.totalRating >= 70 ? 'bg-yellow-600' :
+                        pg.game.totalRating >= 60 ? 'bg-orange-600' : 'bg-red-600'
+                      }`}>
+                        {pg.game.totalRating}%
+                      </span>
                     )}
                     {pg.game.developer && (
                       <div className="text-gray-300 text-xs text-center truncate w-full">

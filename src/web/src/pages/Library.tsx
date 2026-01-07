@@ -566,22 +566,16 @@ function Library() {
       // Use streaming import with progress updates
       await api.importSteamGamesStream(
         appIds,
-        // Progress callback
+        // Progress callback - receives game-by-game updates
         (data) => {
-          if (data.phase === 'searching') {
-            const gameList = data.games.length > 0 ? data.games.slice(0, 3).join(', ') + (data.games.length > 3 ? '...' : '') : '';
-            setSteamImportProgress({
-              current: data.batch,
-              total: data.totalBatches,
-              currentGame: `Searching IGDB (batch ${data.batch}/${data.totalBatches})${gameList ? ': ' + gameList : ''}`,
-            });
-          } else if (data.phase === 'importing') {
-            setSteamImportProgress({
-              current: data.totalBatches,
-              total: data.totalBatches,
-              currentGame: 'Saving to library...',
-            });
-          }
+          const statusText = data.status === 'searching' ? 'Searching...' :
+            data.status === 'imported' ? 'Imported' :
+            data.status === 'skipped' ? 'Skipped' : 'Error';
+          setSteamImportProgress({
+            current: data.current,
+            total: data.total,
+            currentGame: `${data.game} (${statusText})`,
+          });
         },
         // Complete callback
         async (result) => {
@@ -1456,9 +1450,13 @@ function Library() {
                           <td className="px-4 py-3 text-gray-400">{game.year || '—'}</td>
                           <td className="px-4 py-3">
                             {game.totalRating ? (
-                              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                                game.totalRating >= 75 ? 'bg-green-600' :
-                                game.totalRating >= 50 ? 'bg-yellow-600' : 'bg-red-600'
+                              <span className={`px-2 py-0.5 rounded text-xs font-medium text-white ${
+                                game.totalRating >= 95 ? 'bg-sky-500' :
+                                game.totalRating >= 90 ? 'bg-green-700' :
+                                game.totalRating >= 85 ? 'bg-green-600' :
+                                game.totalRating >= 80 ? 'bg-green-500' :
+                                game.totalRating >= 70 ? 'bg-yellow-600' :
+                                game.totalRating >= 60 ? 'bg-orange-600' : 'bg-red-600'
                               }`}>
                                 {game.totalRating}%
                               </span>
@@ -1573,9 +1571,13 @@ function Library() {
                             </div>
                             {game.totalRating && (
                               <div className="mt-3 text-center">
-                                <span className={`inline-block px-3 py-1.5 rounded-lg text-sm font-bold ${
-                                  game.totalRating >= 75 ? 'bg-green-600' :
-                                  game.totalRating >= 50 ? 'bg-yellow-600' : 'bg-red-600'
+                                <span className={`inline-block px-3 py-1.5 rounded-lg text-sm font-bold text-white ${
+                                  game.totalRating >= 95 ? 'bg-sky-500' :
+                                  game.totalRating >= 90 ? 'bg-green-700' :
+                                  game.totalRating >= 85 ? 'bg-green-600' :
+                                  game.totalRating >= 80 ? 'bg-green-500' :
+                                  game.totalRating >= 70 ? 'bg-yellow-600' :
+                                  game.totalRating >= 60 ? 'bg-orange-600' : 'bg-red-600'
                                 }`}>
                                   {game.totalRating}%
                                 </span>
@@ -2202,9 +2204,15 @@ function Library() {
 
       {/* Steam Import Modal */}
       {isSteamModalOpen && (
-        <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-lg w-full max-w-4xl max-h-[80vh] flex flex-col">
-            <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
+          <div
+            className="rounded-lg w-full max-w-4xl max-h-[80vh] flex flex-col shadow-2xl border border-gray-600"
+            style={{ backgroundColor: 'rgb(17, 24, 39)' }}
+          >
+            <div
+              className="p-4 border-b border-gray-600 flex items-center justify-between rounded-t-lg"
+              style={{ backgroundColor: 'rgb(31, 41, 55)' }}
+            >
               <h2 className="text-xl font-semibold flex items-center gap-2">
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10c-4.6 0-8.45-3.08-9.64-7.27l3.83 1.58a2.84 2.84 0 0 0 2.78 2.27c1.56 0 2.83-1.27 2.83-2.83v-.13l3.4-2.43h.08c2.08 0 3.77-1.69 3.77-3.77s-1.69-3.77-3.77-3.77-3.77 1.69-3.77 3.77v.05l-2.37 3.46-.16-.01c-.55 0-1.07.16-1.5.44l-5.23-2.16C2.31 6.67 6.63 2 12 2m6.19 8.25c0-1.31-1.07-2.38-2.38-2.38s-2.38 1.07-2.38 2.38 1.07 2.38 2.38 2.38 2.38-1.07 2.38-2.38m-12.7 5.85c0 1.1.9 1.99 1.99 1.99.89 0 1.64-.58 1.9-1.38l-1.73-.71c-.41.13-.86.06-1.21-.21a1.35 1.35 0 0 1-.25-1.9l-1.33-.55c-.49.47-.77 1.11-.77 1.8l.4-.04z"/>
@@ -2396,7 +2404,10 @@ function Library() {
               )}
             </div>
 
-            <div className="p-4 border-t border-gray-700 flex items-center justify-between">
+            <div
+              className="p-4 border-t border-gray-600 flex items-center justify-between rounded-b-lg"
+              style={{ backgroundColor: 'rgb(31, 41, 55)' }}
+            >
               {isImportingSteam ? (
                 <div className="flex-1 mr-4">
                   <div className="flex items-center justify-between mb-1">

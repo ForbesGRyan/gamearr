@@ -8,6 +8,7 @@ interface Game {
   id: number;
   title: string;
   year?: number;
+  igdbId?: number;
   coverUrl?: string;
   monitored: boolean;
   status: 'wanted' | 'downloading' | 'downloaded';
@@ -21,6 +22,14 @@ interface Game {
   latestVersion?: string | null;
   installedQuality?: string | null;
   updatePolicy?: 'notify' | 'auto' | 'ignore';
+}
+
+interface IGDBSearchResult {
+  igdbId: number;
+  title: string;
+  year?: number;
+  coverUrl?: string;
+  developer?: string;
 }
 
 interface GameUpdate {
@@ -61,6 +70,14 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
   const [updateToDismiss, setUpdateToDismiss] = useState<GameUpdate | null>(null);
   const [isProcessingUpdate, setIsProcessingUpdate] = useState(false);
 
+  // Rematch state
+  const [showRematch, setShowRematch] = useState(false);
+  const [rematchQuery, setRematchQuery] = useState('');
+  const [rematchResults, setRematchResults] = useState<IGDBSearchResult[]>([]);
+  const [isSearchingRematch, setIsSearchingRematch] = useState(false);
+  const [selectedRematch, setSelectedRematch] = useState<IGDBSearchResult | null>(null);
+  const [isRematching, setIsRematching] = useState(false);
+
   // Load game data when modal opens
   useEffect(() => {
     if (game) {
@@ -69,6 +86,11 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
       setMonitored(game.monitored);
       setStatus(game.status);
       setUpdatePolicy(game.updatePolicy || 'notify');
+      // Reset rematch state
+      setShowRematch(false);
+      setRematchQuery('');
+      setRematchResults([]);
+      setSelectedRematch(null);
       // Load update history for downloaded games
       if (game.status === 'downloaded') {
         loadGameUpdates(game.id);
@@ -127,6 +149,42 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
     } finally {
       setIsProcessingUpdate(false);
       setUpdateToDismiss(null);
+    }
+  };
+
+  const handleSearchRematch = async () => {
+    if (!rematchQuery.trim()) return;
+    setIsSearchingRematch(true);
+    setRematchResults([]);
+    try {
+      const response = await api.searchGames(rematchQuery);
+      if (response.success && response.data) {
+        setRematchResults(response.data as IGDBSearchResult[]);
+      }
+    } catch (err) {
+      setError('Failed to search IGDB');
+    } finally {
+      setIsSearchingRematch(false);
+    }
+  };
+
+  const handleConfirmRematch = async () => {
+    if (!selectedRematch || !game) return;
+    setIsRematching(true);
+    setError(null);
+    try {
+      const response = await api.rematchGame(game.id, selectedRematch.igdbId);
+      if (response.success) {
+        onGameUpdated();
+        onClose();
+      } else {
+        setError(response.error || 'Failed to rematch game');
+      }
+    } catch (err) {
+      setError('Failed to rematch game');
+    } finally {
+      setIsRematching(false);
+      setSelectedRematch(null);
     }
   };
 
@@ -249,6 +307,92 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
 
         {/* Form */}
         <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+          {/* Change Match Section */}
+          <div className="border border-gray-600 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setShowRematch(!showRematch)}
+              className="w-full flex items-center justify-between p-3 bg-gray-700 hover:bg-gray-600 transition"
+            >
+              <span className="text-sm font-medium text-gray-300">Change IGDB Match</span>
+              <svg
+                className={`w-4 h-4 text-gray-400 transition-transform ${showRematch ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showRematch && (
+              <div className="p-3 bg-gray-800 space-y-3">
+                <p className="text-xs text-gray-400">
+                  Search IGDB to find the correct game if this was matched incorrectly.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={rematchQuery}
+                    onChange={(e) => setRematchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearchRematch()}
+                    placeholder="Search for correct game..."
+                    className="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={handleSearchRematch}
+                    disabled={isSearchingRematch || !rematchQuery.trim()}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded text-sm font-medium transition"
+                  >
+                    {isSearchingRematch ? 'Searching...' : 'Search'}
+                  </button>
+                </div>
+                {/* Search Results */}
+                {rematchResults.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto space-y-2">
+                    {rematchResults.map((result) => (
+                      <button
+                        key={result.igdbId}
+                        onClick={() => setSelectedRematch(result)}
+                        disabled={result.igdbId === game.igdbId}
+                        className={`w-full flex items-center gap-3 p-2 rounded text-left transition ${
+                          result.igdbId === game.igdbId
+                            ? 'bg-gray-600 opacity-50 cursor-not-allowed'
+                            : 'bg-gray-700 hover:bg-gray-600'
+                        }`}
+                      >
+                        {result.coverUrl ? (
+                          <img
+                            src={result.coverUrl}
+                            alt={result.title}
+                            className="w-10 h-14 object-cover rounded"
+                          />
+                        ) : (
+                          <div className="w-10 h-14 bg-gray-600 rounded flex items-center justify-center">
+                            <span className="text-gray-400 text-xs">?</span>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">
+                            {result.title}
+                            {result.igdbId === game.igdbId && (
+                              <span className="ml-2 text-xs text-green-400">(current)</span>
+                            )}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {result.year || 'Unknown year'}
+                            {result.developer && ` • ${result.developer}`}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {isSearchingRematch && (
+                  <p className="text-xs text-gray-400 text-center py-2">Searching IGDB...</p>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Store Selector */}
           <div>
             <StoreSelector value={store} onChange={setStore} label="Digital Store" />
@@ -503,6 +647,18 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
         variant="warning"
         onConfirm={handleDismissUpdate}
         onCancel={() => setUpdateToDismiss(null)}
+      />
+
+      {/* Rematch Confirmation Modal */}
+      <ConfirmModal
+        isOpen={selectedRematch !== null}
+        title="Change Game Match"
+        message={selectedRematch ? `Change this game's IGDB match from "${game.title}" to "${selectedRematch.title}"? This will update the cover, metadata, and other game information.` : ''}
+        confirmText={isRematching ? 'Updating...' : 'Confirm Change'}
+        cancelText="Cancel"
+        variant="info"
+        onConfirm={handleConfirmRematch}
+        onCancel={() => setSelectedRematch(null)}
       />
     </div>
   );

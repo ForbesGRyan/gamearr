@@ -288,7 +288,7 @@ router.post('/import', async (c) => {
  * POST /api/v1/steam/import-stream
  *
  * Returns Server-Sent Events with progress updates:
- * - { type: 'progress', batch: 1, totalBatches: 5, games: ['Game1', 'Game2', ...] }
+ * - { type: 'progress', current: 1, total: 10, game: 'Game Name', status: 'searching' | 'imported' | 'skipped' | 'error' }
  * - { type: 'complete', imported: 10, skipped: 2, errors: [...] }
  * - { type: 'error', message: '...' }
  */
@@ -342,44 +342,47 @@ router.post('/import-stream', async (c) => {
             return;
           }
 
-          // Batch search with progress callback
           const igdbClient = new IGDBClient(igdbClientId as string, igdbClientSecret as string);
-          const gameNames = gamesToImport.map((g) => g.name);
-
-          send({ type: 'progress', phase: 'searching', batch: 0, totalBatches: Math.ceil(gameNames.length / 10), games: [] });
-
-          const igdbResults = await igdbClient.searchGamesBatch(gameNames, 5, (batch, total, names) => {
-            send({ type: 'progress', phase: 'searching', batch, totalBatches: total, games: names });
-          });
-
-          // Process results
-          send({ type: 'progress', phase: 'importing', batch: 0, totalBatches: 1, games: [] });
-
+          const total = gamesToImport.length;
           let imported = 0;
           let skipped = selectedGames.length - gamesToImport.length;
           const errors: string[] = [];
 
-          for (const steamGame of gamesToImport) {
+          // Process games one by one with progress updates
+          for (let i = 0; i < gamesToImport.length; i++) {
+            const steamGame = gamesToImport[i];
+            const current = i + 1;
+
+            // Send searching progress
+            send({ type: 'progress', current, total, game: steamGame.name, status: 'searching' });
+
             try {
-              const searchResults = igdbResults.get(steamGame.name) || [];
+              // Search IGDB for this game (strip trademark symbols for better matching)
+              const searchName = steamGame.name.replace(/[™®©]/g, '').trim();
+              const searchResults = await igdbClient.searchGames({ search: searchName, limit: 5 });
 
               if (searchResults.length === 0) {
-                errors.push(`Could not find "${steamGame.name}" on IGDB - skipping`);
+                errors.push(`Could not find "${steamGame.name}" on IGDB`);
+                send({ type: 'progress', current, total, game: steamGame.name, status: 'error' });
                 continue;
               }
 
+              // Find best match (exact or close title match)
               const exactMatch = searchResults.find(
                 (r) => r.title.toLowerCase() === steamGame.name.toLowerCase()
               );
               const igdbData = exactMatch || searchResults[0];
 
               if (!igdbData?.igdbId) {
-                errors.push(`Could not find "${steamGame.name}" on IGDB - skipping`);
+                errors.push(`Could not find "${steamGame.name}" on IGDB`);
+                send({ type: 'progress', current, total, game: steamGame.name, status: 'error' });
                 continue;
               }
 
+              // Check if already exists by IGDB ID
               if (existingIgdbIds.has(igdbData.igdbId)) {
                 skipped++;
+                send({ type: 'progress', current, total, game: steamGame.name, status: 'skipped' });
                 continue;
               }
 
@@ -406,8 +409,10 @@ router.post('/import-stream', async (c) => {
 
               await gameRepository.create(gameData);
               imported++;
+              send({ type: 'progress', current, total, game: igdbData.title, status: 'imported' });
             } catch (gameError) {
               errors.push(`Failed to import ${steamGame.name}: ${gameError instanceof Error ? gameError.message : 'Unknown error'}`);
+              send({ type: 'progress', current, total, game: steamGame.name, status: 'error' });
             }
           }
 

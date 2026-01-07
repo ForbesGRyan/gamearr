@@ -126,4 +126,27 @@ games.post('/:id/toggle-monitor', async (c) => {
   }
 });
 
+// POST /api/v1/games/:id/rematch - Change the IGDB match for a game
+games.post('/:id/rematch', async (c) => {
+  const id = parseInt(c.req.param('id'));
+  logger.info(`POST /api/v1/games/${id}/rematch`);
+
+  try {
+    const { igdbId } = await c.req.json<{ igdbId: number }>();
+
+    if (!igdbId || typeof igdbId !== 'number') {
+      return c.json({ success: false, error: 'igdbId is required' }, 400);
+    }
+
+    const game = await gameService.rematchGame(id, igdbId);
+    return c.json({ success: true, data: game });
+  } catch (error) {
+    logger.error('Failed to rematch game:', error);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      400
+    );
+  }
+});
+
 export default games;

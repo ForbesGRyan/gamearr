@@ -59,6 +59,13 @@ class ApiClient {
     });
   }
 
+  async rematchGame(id: number, igdbId: number) {
+    return this.request(`/games/${id}/rematch`, {
+      method: 'POST',
+      body: JSON.stringify({ igdbId }),
+    });
+  }
+
   // Search
   async searchGames(query: string) {
     return this.request(`/search/games?q=${encodeURIComponent(query)}`);
@@ -202,13 +209,13 @@ class ApiClient {
   /**
    * Import Steam games with SSE progress streaming
    * @param appIds - Array of Steam app IDs to import
-   * @param onProgress - Callback for progress updates
+   * @param onProgress - Callback for progress updates (current game being processed)
    * @param onComplete - Callback when import completes
    * @param onError - Callback for errors
    */
   async importSteamGamesStream(
     appIds: number[],
-    onProgress: (data: { phase: string; batch: number; totalBatches: number; games: string[] }) => void,
+    onProgress: (data: { current: number; total: number; game: string; status: 'searching' | 'imported' | 'skipped' | 'error' }) => void,
     onComplete: (data: { imported: number; skipped: number; errors?: string[] }) => void,
     onError: (message: string) => void
   ): Promise<void> {

@@ -93,9 +93,15 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-600">
+      <div
+        className="rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-600"
+        style={{ backgroundColor: 'rgb(17, 24, 39)' }}
+      >
         {/* Header */}
-        <div className="bg-gray-800 flex items-center justify-between p-6 border-b border-gray-600">
+        <div
+          className="flex items-center justify-between p-6 border-b border-gray-600 rounded-t-lg"
+          style={{ backgroundColor: 'rgb(31, 41, 55)' }}
+        >
           <h2 className="text-2xl font-bold text-white">Add Game</h2>
           <button
             onClick={onClose}
@@ -133,7 +139,10 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
           </div>
 
           {error && (
-            <div className="bg-red-900 mt-3 p-3 border border-red-700 rounded text-red-200 text-sm">
+            <div
+              className="mt-3 p-3 border border-red-700 rounded text-red-200 text-sm"
+              style={{ backgroundColor: 'rgb(127, 29, 29)' }}
+            >
               {error}
             </div>
           )}
