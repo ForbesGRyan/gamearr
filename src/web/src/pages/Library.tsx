@@ -64,6 +64,8 @@ interface AutoMatchSuggestion {
 
 type Tab = 'games' | 'scan';
 type ViewMode = 'posters' | 'table' | 'overview';
+type SortColumn = 'title' | 'year' | 'rating' | 'developer' | 'store' | 'status';
+type SortDirection = 'asc' | 'desc';
 
 function Library() {
   const [activeTab, setActiveTab] = useState<Tab>('games');
@@ -73,6 +75,8 @@ function Library() {
     const saved = localStorage.getItem('library-view-mode');
     return (saved as ViewMode) || 'posters';
   });
+  const [sortColumn, setSortColumn] = useState<SortColumn>('title');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
@@ -92,6 +96,52 @@ function Library() {
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode);
     localStorage.setItem('library-view-mode', mode);
+  };
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortedGames = () => {
+    return [...games].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortColumn) {
+        case 'title':
+          comparison = a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+          break;
+        case 'year':
+          comparison = (a.year || 0) - (b.year || 0);
+          break;
+        case 'rating':
+          comparison = (a.totalRating || 0) - (b.totalRating || 0);
+          break;
+        case 'developer':
+          comparison = (a.developer || '').localeCompare(b.developer || '', undefined, { sensitivity: 'base' });
+          break;
+        case 'store':
+          comparison = (a.store || '').localeCompare(b.store || '', undefined, { sensitivity: 'base' });
+          break;
+        case 'status':
+          const statusOrder = { wanted: 0, downloading: 1, downloaded: 2 };
+          comparison = statusOrder[a.status] - statusOrder[b.status];
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  };
+
+  const SortIndicator = ({ column }: { column: SortColumn }) => {
+    if (sortColumn !== column) {
+      return <span className="text-gray-500 ml-1">↕</span>;
+    }
+    return <span className="text-blue-400 ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>;
   };
 
   const loadGames = async () => {
@@ -475,17 +525,47 @@ function Library() {
                   <table className="w-full">
                     <thead className="bg-gray-700">
                       <tr>
-                        <th className="text-left px-4 py-3 font-medium">Title</th>
-                        <th className="text-left px-4 py-3 font-medium w-20">Year</th>
-                        <th className="text-left px-4 py-3 font-medium w-16">Rating</th>
-                        <th className="text-left px-4 py-3 font-medium w-32">Developer</th>
-                        <th className="text-left px-4 py-3 font-medium w-24">Store</th>
-                        <th className="text-left px-4 py-3 font-medium w-28">Status</th>
+                        <th
+                          className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-600 transition select-none"
+                          onClick={() => handleSort('title')}
+                        >
+                          Title<SortIndicator column="title" />
+                        </th>
+                        <th
+                          className="text-left px-4 py-3 font-medium w-20 cursor-pointer hover:bg-gray-600 transition select-none"
+                          onClick={() => handleSort('year')}
+                        >
+                          Year<SortIndicator column="year" />
+                        </th>
+                        <th
+                          className="text-left px-4 py-3 font-medium w-20 cursor-pointer hover:bg-gray-600 transition select-none"
+                          onClick={() => handleSort('rating')}
+                        >
+                          Rating<SortIndicator column="rating" />
+                        </th>
+                        <th
+                          className="text-left px-4 py-3 font-medium w-32 cursor-pointer hover:bg-gray-600 transition select-none"
+                          onClick={() => handleSort('developer')}
+                        >
+                          Developer<SortIndicator column="developer" />
+                        </th>
+                        <th
+                          className="text-left px-4 py-3 font-medium w-24 cursor-pointer hover:bg-gray-600 transition select-none"
+                          onClick={() => handleSort('store')}
+                        >
+                          Store<SortIndicator column="store" />
+                        </th>
+                        <th
+                          className="text-left px-4 py-3 font-medium w-28 cursor-pointer hover:bg-gray-600 transition select-none"
+                          onClick={() => handleSort('status')}
+                        >
+                          Status<SortIndicator column="status" />
+                        </th>
                         <th className="text-right px-4 py-3 font-medium w-32">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700">
-                      {games.map((game) => (
+                      {getSortedGames().map((game) => (
                         <tr key={game.id} className="hover:bg-gray-700/50 transition">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
