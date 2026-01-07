@@ -59,4 +59,41 @@ indexers.get('/test', async (c) => {
   }
 });
 
+// GET /api/v1/indexers/torrents - Get top torrents from indexers
+indexers.get('/torrents', async (c) => {
+  const query = c.req.query('query') || 'game';
+  const limit = parseInt(c.req.query('limit') || '50');
+  const maxAgeDays = parseInt(c.req.query('maxAge') || '30'); // Default to 30 days
+
+  logger.info(`GET /api/v1/indexers/torrents - query: ${query}, limit: ${limit}, maxAge: ${maxAgeDays} days`);
+
+  try {
+    const releases = await indexerService.manualSearch(query);
+
+    // Filter by age
+    const now = new Date();
+    const cutoffDate = new Date(now.getTime() - maxAgeDays * 24 * 60 * 60 * 1000);
+
+    const filtered = releases.filter(release => {
+      const publishDate = new Date(release.publishedAt);
+      return publishDate >= cutoffDate;
+    });
+
+    // Sort by seeders descending
+    const sorted = filtered.sort((a, b) => b.seeders - a.seeders);
+
+    // Return top N results
+    return c.json({
+      success: true,
+      data: sorted.slice(0, limit)
+    });
+  } catch (error) {
+    logger.error('Failed to fetch torrents:', error);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : 'Failed to fetch torrents' },
+      500
+    );
+  }
+});
+
 export default indexers;

@@ -52,9 +52,11 @@ interface GameCardProps {
   onDelete: (id: number) => void;
   onSearch?: (game: Game) => void;
   onEdit?: (game: Game) => void;
+  selected?: boolean;
+  onToggleSelect?: (id: number) => void;
 }
 
-function GameCard({ game, onToggleMonitor, onDelete, onSearch, onEdit }: GameCardProps) {
+function GameCard({ game, onToggleMonitor, onDelete, onSearch, onEdit, selected, onToggleSelect }: GameCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const statusColors = {
@@ -74,8 +76,10 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, onEdit }: GameCar
     downloaded: 'Downloaded',
   };
 
+  const selectedClass = selected ? 'ring-2 ring-blue-500' : '';
+
   return (
-    <div className={`bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition group ${downloadingClass}`}>
+    <div className={`bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition group ${downloadingClass} ${selectedClass}`}>
       {/* Cover Image */}
       <div className="relative aspect-[2/3] bg-gray-700">
         {game.coverUrl ? (
@@ -93,6 +97,19 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, onEdit }: GameCar
           </div>
         )}
 
+        {/* Selection Checkbox */}
+        {onToggleSelect && (
+          <div className={`absolute top-2 left-2 transition ${selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+            <input
+              type="checkbox"
+              checked={selected || false}
+              onChange={() => onToggleSelect(game.id)}
+              onClick={(e) => e.stopPropagation()}
+              className="w-5 h-5 rounded bg-gray-800/80 border-gray-500 text-blue-600 focus:ring-blue-500 cursor-pointer"
+            />
+          </div>
+        )}
+
         {/* Status Badge */}
         <div className="absolute top-2 right-2">
           <span
@@ -104,7 +121,7 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, onEdit }: GameCar
 
         {/* Update Available Badge */}
         {game.updateAvailable && (
-          <div className="absolute top-2 left-2">
+          <div className={`absolute ${onToggleSelect ? 'top-9' : 'top-2'} left-2`}>
             <span className="bg-orange-500 px-2 py-1 rounded text-xs font-semibold flex items-center gap-1">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -116,7 +133,7 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, onEdit }: GameCar
 
         {/* Monitored Badge */}
         {!game.monitored && !game.updateAvailable && (
-          <div className="absolute top-2 left-2">
+          <div className={`absolute ${onToggleSelect ? 'top-9' : 'top-2'} left-2`}>
             <span className="bg-gray-900 px-2 py-1 rounded text-xs font-semibold">
               Unmonitored
             </span>

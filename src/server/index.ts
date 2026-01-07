@@ -15,6 +15,7 @@ import systemRouter from './routes/system';
 import libraryRouter from './routes/library';
 import updatesRouter from './routes/updates';
 import discoverRouter from './routes/discover';
+import steamRouter from './routes/steam';
 
 // Initialize database
 import './db';
@@ -42,6 +43,7 @@ app.route('/api/v1/system', systemRouter);
 app.route('/api/v1/library', libraryRouter);
 app.route('/api/v1/updates', updatesRouter);
 app.route('/api/v1/discover', discoverRouter);
+app.route('/api/v1/steam', steamRouter);
 
 // Serve static frontend files (will add in Phase 1)
 app.use('/*', serveStatic({ root: './dist' }));

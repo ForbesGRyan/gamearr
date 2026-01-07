@@ -3,6 +3,7 @@ import Library from './pages/Library';
 import Discover from './pages/Discover';
 import Search from './pages/Search';
 import Activity from './pages/Activity';
+import Updates from './pages/Updates';
 import Settings from './pages/Settings';
 import { GamepadIcon } from './components/Icons';
 
@@ -70,6 +71,18 @@ function App() {
                     Activity
                   </NavLink>
                   <NavLink
+                    to="/updates"
+                    className={({ isActive }) =>
+                      `px-3 py-2 rounded transition ${
+                        isActive
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-300 hover:bg-gray-700'
+                      }`
+                    }
+                  >
+                    Updates
+                  </NavLink>
+                  <NavLink
                     to="/settings"
                     className={({ isActive }) =>
                       `px-3 py-2 rounded transition ${
@@ -94,6 +107,7 @@ function App() {
             <Route path="/discover" element={<Discover />} />
             <Route path="/search" element={<Search />} />
             <Route path="/activity" element={<Activity />} />
+            <Route path="/updates" element={<Updates />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>

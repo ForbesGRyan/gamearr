@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import StoreSelector from './StoreSelector';
+import ConfirmModal from './ConfirmModal';
 import { CloseIcon } from './Icons';
 
 interface Game {
@@ -12,6 +13,7 @@ interface Game {
   status: 'wanted' | 'downloading' | 'downloaded';
   platform: string;
   store?: string | null;
+  steamName?: string | null;
   folderPath?: string | null;
   // Update tracking fields
   updateAvailable?: boolean;
@@ -19,6 +21,21 @@ interface Game {
   latestVersion?: string | null;
   installedQuality?: string | null;
   updatePolicy?: 'notify' | 'auto' | 'ignore';
+}
+
+interface GameUpdate {
+  id: number;
+  gameId: number;
+  updateType: 'version' | 'dlc' | 'better_release';
+  title: string;
+  version?: string;
+  size?: number;
+  quality?: string;
+  seeders?: number;
+  downloadUrl?: string;
+  indexer?: string;
+  detectedAt: string;
+  status: 'pending' | 'grabbed' | 'dismissed';
 }
 
 interface EditGameModalProps {
@@ -37,6 +54,13 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Update history state
+  const [gameUpdates, setGameUpdates] = useState<GameUpdate[]>([]);
+  const [isLoadingUpdates, setIsLoadingUpdates] = useState(false);
+  const [updateToGrab, setUpdateToGrab] = useState<GameUpdate | null>(null);
+  const [updateToDismiss, setUpdateToDismiss] = useState<GameUpdate | null>(null);
+  const [isProcessingUpdate, setIsProcessingUpdate] = useState(false);
+
   // Load game data when modal opens
   useEffect(() => {
     if (game) {
@@ -45,8 +69,112 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
       setMonitored(game.monitored);
       setStatus(game.status);
       setUpdatePolicy(game.updatePolicy || 'notify');
+      // Load update history for downloaded games
+      if (game.status === 'downloaded') {
+        loadGameUpdates(game.id);
+      }
     }
   }, [game]);
+
+  const loadGameUpdates = async (gameId: number) => {
+    setIsLoadingUpdates(true);
+    try {
+      const response = await api.getGameUpdates(gameId);
+      if (response.success && response.data) {
+        setGameUpdates(response.data as GameUpdate[]);
+      }
+    } catch (err) {
+      // Silent fail - updates are supplementary
+    } finally {
+      setIsLoadingUpdates(false);
+    }
+  };
+
+  const handleGrabUpdate = async () => {
+    if (!updateToGrab || !game) return;
+    setIsProcessingUpdate(true);
+    try {
+      const response = await api.grabUpdate(updateToGrab.id);
+      if (response.success) {
+        // Reload updates
+        loadGameUpdates(game.id);
+        onGameUpdated();
+      } else {
+        setError(response.error || 'Failed to grab update');
+      }
+    } catch (err) {
+      setError('Failed to grab update');
+    } finally {
+      setIsProcessingUpdate(false);
+      setUpdateToGrab(null);
+    }
+  };
+
+  const handleDismissUpdate = async () => {
+    if (!updateToDismiss || !game) return;
+    setIsProcessingUpdate(true);
+    try {
+      const response = await api.dismissUpdate(updateToDismiss.id);
+      if (response.success) {
+        // Reload updates
+        loadGameUpdates(game.id);
+        onGameUpdated();
+      } else {
+        setError(response.error || 'Failed to dismiss update');
+      }
+    } catch (err) {
+      setError('Failed to dismiss update');
+    } finally {
+      setIsProcessingUpdate(false);
+      setUpdateToDismiss(null);
+    }
+  };
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+  };
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const getUpdateTypeBadge = (type: string) => {
+    switch (type) {
+      case 'version':
+        return <span className="px-1.5 py-0.5 text-xs rounded bg-blue-600 text-blue-100">Version</span>;
+      case 'dlc':
+        return <span className="px-1.5 py-0.5 text-xs rounded bg-purple-600 text-purple-100">DLC</span>;
+      case 'better_release':
+        return <span className="px-1.5 py-0.5 text-xs rounded bg-green-600 text-green-100">Quality</span>;
+      default:
+        return null;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <span className="px-1.5 py-0.5 text-xs rounded bg-yellow-600 text-yellow-100">Pending</span>;
+      case 'grabbed':
+        return <span className="px-1.5 py-0.5 text-xs rounded bg-green-600 text-green-100">Downloaded</span>;
+      case 'dismissed':
+        return <span className="px-1.5 py-0.5 text-xs rounded bg-gray-600 text-gray-300">Dismissed</span>;
+      default:
+        return null;
+    }
+  };
+
+  const pendingUpdates = gameUpdates.filter(u => u.status === 'pending');
+  const historyUpdates = gameUpdates.filter(u => u.status !== 'pending');
 
   // Handle Escape key to close modal
   useEffect(() => {
@@ -108,6 +236,11 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
             <p className="text-sm text-gray-300 mt-1">
               {game.title} {game.year && `(${game.year})`}
             </p>
+            {game.steamName && (
+              <p className="text-xs text-gray-500 mt-0.5">
+                Steam name: {game.steamName}
+              </p>
+            )}
           </div>
           <button onClick={onClose} className="text-gray-300 hover:text-white">
             <CloseIcon className="w-6 h-6" />
@@ -115,7 +248,7 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
         </div>
 
         {/* Form */}
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
           {/* Store Selector */}
           <div>
             <StoreSelector value={store} onChange={setStore} label="Digital Store" />
@@ -227,6 +360,93 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
                   Controls how the system handles updates for this game.
                 </p>
               </div>
+
+              {/* Pending Updates */}
+              {pendingUpdates.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium text-orange-400 mb-2 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    Pending Updates ({pendingUpdates.length})
+                  </h4>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {pendingUpdates.map((update) => (
+                      <div key={update.id} className="bg-gray-700 rounded p-2 text-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              {getUpdateTypeBadge(update.updateType)}
+                              {update.version && <span className="text-xs text-gray-400">v{update.version}</span>}
+                            </div>
+                            <p className="text-xs text-gray-300 truncate" title={update.title}>
+                              {update.title}
+                            </p>
+                            <div className="flex gap-2 text-xs text-gray-500 mt-1">
+                              {update.size && <span>{formatBytes(update.size)}</span>}
+                              {update.seeders !== undefined && <span>{update.seeders} seeders</span>}
+                            </div>
+                          </div>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => setUpdateToGrab(update)}
+                              disabled={!update.downloadUrl}
+                              className="px-2 py-1 text-xs bg-green-600 hover:bg-green-700 rounded disabled:opacity-50"
+                              title="Download"
+                            >
+                              Grab
+                            </button>
+                            <button
+                              onClick={() => setUpdateToDismiss(update)}
+                              className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded"
+                              title="Dismiss"
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Update History */}
+              {historyUpdates.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium text-gray-300 mb-2">Update History</h4>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {historyUpdates.map((update) => (
+                      <div key={update.id} className="bg-gray-700 rounded p-2 text-sm flex items-center justify-between">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          {getUpdateTypeBadge(update.updateType)}
+                          {getStatusBadge(update.status)}
+                          <span className="text-xs text-gray-400 truncate" title={update.title}>
+                            {update.version ? `v${update.version}` : update.title.substring(0, 30)}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-500 ml-2">
+                          {formatDate(update.detectedAt)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Loading State */}
+              {isLoadingUpdates && (
+                <div className="mt-4 text-center text-sm text-gray-400">
+                  Loading update history...
+                </div>
+              )}
+
+              {/* No Updates */}
+              {!isLoadingUpdates && gameUpdates.length === 0 && (
+                <div className="mt-4 text-center text-sm text-gray-500">
+                  No updates detected yet
+                </div>
+              )}
             </div>
           )}
 
@@ -260,6 +480,30 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
           </button>
         </div>
       </div>
+
+      {/* Grab Update Confirmation Modal */}
+      <ConfirmModal
+        isOpen={updateToGrab !== null}
+        title="Download Update"
+        message={updateToGrab ? `Download "${updateToGrab.title}"?` : ''}
+        confirmText={isProcessingUpdate ? 'Downloading...' : 'Download'}
+        cancelText="Cancel"
+        variant="info"
+        onConfirm={handleGrabUpdate}
+        onCancel={() => setUpdateToGrab(null)}
+      />
+
+      {/* Dismiss Update Confirmation Modal */}
+      <ConfirmModal
+        isOpen={updateToDismiss !== null}
+        title="Dismiss Update"
+        message={updateToDismiss ? `Dismiss "${updateToDismiss.title}"?` : ''}
+        confirmText={isProcessingUpdate ? 'Dismissing...' : 'Dismiss'}
+        cancelText="Cancel"
+        variant="warning"
+        onConfirm={handleDismissUpdate}
+        onCancel={() => setUpdateToDismiss(null)}
+      />
     </div>
   );
 }

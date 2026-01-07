@@ -9,7 +9,12 @@ interface ConnectionTestResult {
   message?: string;
 }
 
+type SettingsTab = 'general' | 'indexers' | 'downloads' | 'metadata' | 'updates';
+
 function Settings() {
+  // Tab state
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -47,6 +52,12 @@ function Settings() {
   const [isSavingUpdateSettings, setIsSavingUpdateSettings] = useState(false);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
 
+  // Steam settings
+  const [steamApiKey, setSteamApiKey] = useState('');
+  const [steamId, setSteamId] = useState('');
+  const [isSavingSteam, setIsSavingSteam] = useState(false);
+  const [steamTest, setSteamTest] = useState<ConnectionTestResult>({ status: 'idle' });
+
   // Global save message
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -73,6 +84,8 @@ function Settings() {
         updateEnabledRes,
         updateScheduleRes,
         defaultPolicyRes,
+        steamApiKeyRes,
+        steamIdRes,
       ] = await Promise.all([
         api.getSetting('prowlarr_url'),
         api.getSetting('prowlarr_api_key'),
@@ -86,6 +99,8 @@ function Settings() {
         api.getSetting('update_check_enabled'),
         api.getSetting('update_check_schedule'),
         api.getSetting('default_update_policy'),
+        api.getSetting('steam_api_key'),
+        api.getSetting('steam_id'),
       ]);
 
       if (prowlarrUrlRes.success && prowlarrUrlRes.data) setProwlarrUrl(prowlarrUrlRes.data as string);
@@ -100,6 +115,8 @@ function Settings() {
       if (updateEnabledRes.success && updateEnabledRes.data !== undefined) setUpdateCheckEnabled(updateEnabledRes.data as boolean);
       if (updateScheduleRes.success && updateScheduleRes.data) setUpdateCheckSchedule(updateScheduleRes.data as 'hourly' | 'daily' | 'weekly');
       if (defaultPolicyRes.success && defaultPolicyRes.data) setDefaultUpdatePolicy(defaultPolicyRes.data as 'notify' | 'auto' | 'ignore');
+      if (steamApiKeyRes.success && steamApiKeyRes.data) setSteamApiKey(steamApiKeyRes.data as string);
+      if (steamIdRes.success && steamIdRes.data) setSteamId(steamIdRes.data as string);
     } catch (err) {
       setLoadError('Failed to load settings. Please refresh the page.');
       console.error('Failed to load settings:', err);
@@ -280,6 +297,36 @@ function Settings() {
     }
   };
 
+  // Steam handlers
+  const handleSaveSteam = async () => {
+    setIsSavingSteam(true);
+    try {
+      await Promise.all([
+        api.updateSetting('steam_api_key', steamApiKey),
+        api.updateSetting('steam_id', steamId),
+      ]);
+      showSaveMessage('success', 'Steam settings saved!');
+    } catch (err) {
+      showSaveMessage('error', 'Failed to save Steam settings');
+    } finally {
+      setIsSavingSteam(false);
+    }
+  };
+
+  const testSteamConnection = async () => {
+    setSteamTest({ status: 'testing' });
+    try {
+      const response = await api.testSteamConnection();
+      if (response.success && response.data) {
+        setSteamTest({ status: 'success', message: 'Connected successfully!' });
+      } else {
+        setSteamTest({ status: 'error', message: response.error || 'Connection failed' });
+      }
+    } catch (err) {
+      setSteamTest({ status: 'error', message: 'Connection test failed' });
+    }
+  };
+
   // Loading state
   if (isLoading) {
     return (
@@ -307,9 +354,61 @@ function Settings() {
     );
   }
 
+  const tabs: { id: SettingsTab; label: string; icon: JSX.Element }[] = [
+    {
+      id: 'general',
+      label: 'General',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'indexers',
+      label: 'Indexers',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+        </svg>
+      ),
+    },
+    {
+      id: 'downloads',
+      label: 'Downloads',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+        </svg>
+      ),
+    },
+    {
+      id: 'metadata',
+      label: 'Metadata',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'updates',
+      label: 'Updates',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+      ),
+    },
+  ];
+
   return (
     <div>
-      <h2 className="text-3xl font-bold mb-6">Settings</h2>
+      <div className="mb-6">
+        <h2 className="text-3xl font-bold mb-2">Settings</h2>
+        <p className="text-gray-400">Configure Gamearr's integrations and preferences</p>
+      </div>
 
       {/* Global save message */}
       {saveMessage && (
@@ -322,370 +421,491 @@ function Settings() {
         </div>
       )}
 
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-700 mb-6">
+        <nav className="flex gap-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-600'
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Tab Content */}
       <div className="space-y-6">
-        {/* Dry-Run Mode */}
-        <div className="bg-yellow-900 bg-opacity-30 border border-yellow-700 rounded-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-semibold mb-2 text-yellow-200 flex items-center gap-2">
-                <svg className="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                </svg>
-                Dry-Run Mode
-              </h3>
-              <p className="text-yellow-300 text-sm">
-                When enabled, Gamearr will log what it would download but won't actually send torrents to qBittorrent.
-                Useful for testing your configuration.
-              </p>
-            </div>
-            <button
-              onClick={handleToggleDryRun}
-              disabled={isSavingDryRun}
-              className={`px-6 py-3 rounded-lg font-semibold transition ${
-                dryRun
-                  ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
-                  : 'bg-gray-600 hover:bg-gray-700 text-gray-200'
-              } disabled:opacity-50`}
-            >
-              {isSavingDryRun ? 'Saving...' : dryRun ? 'Enabled' : 'Disabled'}
-            </button>
-          </div>
-        </div>
-
-        {/* Prowlarr Settings */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-            </svg>
-            Prowlarr
-          </h3>
-          <p className="text-gray-400 mb-4">
-            Configure Prowlarr for indexer management and release searching.
-          </p>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">
-                Prowlarr URL <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                placeholder="http://localhost:9696"
-                value={prowlarrUrl}
-                onChange={(e) => setProwlarrUrl(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">API Key</label>
-              <input
-                type="password"
-                placeholder="Your Prowlarr API Key"
-                value={prowlarrApiKey}
-                onChange={(e) => setProwlarrApiKey(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={handleSaveProwlarr}
-                disabled={isSavingProwlarr}
-                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50"
-              >
-                {isSavingProwlarr ? 'Saving...' : 'Save'}
-              </button>
-              <button
-                onClick={testProwlarrConnection}
-                disabled={prowlarrTest.status === 'testing'}
-                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50"
-              >
-                {prowlarrTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
-              </button>
-            </div>
-            {prowlarrTest.status !== 'idle' && prowlarrTest.status !== 'testing' && (
-              <p className={`text-sm mt-2 ${
-                prowlarrTest.status === 'success' ? 'text-green-400' : 'text-red-400'
-              }`}>
-                {prowlarrTest.message}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* IGDB Settings */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
-            </svg>
-            IGDB API
-          </h3>
-          <p className="text-gray-400 mb-4">
-            Configure your IGDB API credentials for game metadata.
-            Get credentials from the{' '}
-            <a
-              href="https://dev.twitch.tv/console"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:underline"
-            >
-              Twitch Developer Console
-            </a>.
-          </p>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">
-                Client ID <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                placeholder="Your IGDB Client ID"
-                value={igdbClientId}
-                onChange={(e) => setIgdbClientId(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">
-                Client Secret <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="password"
-                placeholder="Your IGDB Client Secret"
-                value={igdbClientSecret}
-                onChange={(e) => setIgdbClientSecret(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            <button
-              onClick={handleSaveIgdb}
-              disabled={isSavingIgdb}
-              className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50"
-            >
-              {isSavingIgdb ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-        </div>
-
-        {/* qBittorrent Settings */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-            </svg>
-            qBittorrent
-          </h3>
-          <p className="text-gray-400 mb-4">
-            Configure qBittorrent Web UI connection for download management.
-          </p>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">
-                Host <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                placeholder="http://localhost:8080"
-                value={qbHost}
-                onChange={(e) => setQbHost(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Username</label>
-              <input
-                type="text"
-                placeholder="admin"
-                value={qbUsername}
-                onChange={(e) => setQbUsername(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Password</label>
-              <input
-                type="password"
-                placeholder="adminadmin"
-                value={qbPassword}
-                onChange={(e) => setQbPassword(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={handleSaveQb}
-                disabled={isSavingQb}
-                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50"
-              >
-                {isSavingQb ? 'Saving...' : 'Save'}
-              </button>
-              <button
-                onClick={testQbConnection}
-                disabled={qbTest.status === 'testing'}
-                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50"
-              >
-                {qbTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
-              </button>
-            </div>
-            {qbTest.status !== 'idle' && qbTest.status !== 'testing' && (
-              <p className={`text-sm mt-2 ${
-                qbTest.status === 'success' ? 'text-green-400' : 'text-red-400'
-              }`}>
-                {qbTest.message}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Library Path */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-            Library Path
-          </h3>
-          <p className="text-gray-400 mb-4">
-            Configure your game library folder. Gamearr will scan this location to detect existing games.
-          </p>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">
-                Library Folder Path <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                value={libraryPath}
-                onChange={(e) => setLibraryPath(e.target.value)}
-                placeholder="e.g., D:\Games or /mnt/games"
-                className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Absolute path where organized game folders will be created
-              </p>
-            </div>
-            <button
-              onClick={handleSaveLibraryPath}
-              disabled={isSavingPath || !libraryPath.trim()}
-              className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSavingPath ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-        </div>
-
-        {/* Update Checking */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <svg className="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Update Checking
-          </h3>
-          <p className="text-gray-400 mb-4">
-            Configure automatic checking for game updates, DLC, and better quality releases.
-          </p>
-          <div className="space-y-4">
-            {/* Enable/Disable */}
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="block text-sm font-medium text-gray-300">Enable Update Checking</label>
-                <p className="text-xs text-gray-500 mt-1">
-                  Automatically check downloaded games for available updates
-                </p>
+        {/* General Tab */}
+        {activeTab === 'general' && (
+          <>
+            {/* Dry-Run Mode */}
+            <div className="bg-yellow-900 bg-opacity-30 border border-yellow-700 rounded-lg p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold mb-2 text-yellow-200 flex items-center gap-2">
+                    <svg className="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                    </svg>
+                    Dry-Run Mode
+                  </h3>
+                  <p className="text-yellow-300 text-sm">
+                    When enabled, Gamearr will log what it would download but won't actually send torrents to qBittorrent.
+                    Useful for testing your configuration.
+                  </p>
+                </div>
+                <button
+                  onClick={handleToggleDryRun}
+                  disabled={isSavingDryRun}
+                  className={`px-6 py-3 rounded-lg font-semibold transition ${
+                    dryRun
+                      ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                      : 'bg-gray-600 hover:bg-gray-700 text-gray-200'
+                  } disabled:opacity-50`}
+                >
+                  {isSavingDryRun ? 'Saving...' : dryRun ? 'Enabled' : 'Disabled'}
+                </button>
               </div>
-              <button
-                onClick={() => setUpdateCheckEnabled(!updateCheckEnabled)}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  updateCheckEnabled ? 'bg-blue-600' : 'bg-gray-600'
-                }`}
-              >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
-                    updateCheckEnabled ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
             </div>
 
-            {/* Schedule */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Check Schedule</label>
-              <select
-                value={updateCheckSchedule}
-                onChange={(e) => setUpdateCheckSchedule(e.target.value as 'hourly' | 'daily' | 'weekly')}
-                disabled={!updateCheckEnabled}
-                className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none disabled:opacity-50"
-              >
-                <option value="hourly">Hourly (for testing)</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-              </select>
-              <p className="text-xs text-gray-500 mt-1">
-                How often to check for updates
+            {/* Library Path */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                Library Path
+              </h3>
+              <p className="text-gray-400 mb-4">
+                Configure your game library folder. Gamearr will scan this location to detect existing games.
               </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    Library Folder Path <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={libraryPath}
+                    onChange={(e) => setLibraryPath(e.target.value)}
+                    placeholder="e.g., D:\Games or /mnt/games"
+                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Absolute path where organized game folders will be created
+                  </p>
+                </div>
+                <button
+                  onClick={handleSaveLibraryPath}
+                  disabled={isSavingPath || !libraryPath.trim()}
+                  className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSavingPath ? 'Saving...' : 'Save'}
+                </button>
+              </div>
             </div>
+          </>
+        )}
 
-            {/* Default Policy */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Default Update Policy</label>
-              <select
-                value={defaultUpdatePolicy}
-                onChange={(e) => setDefaultUpdatePolicy(e.target.value as 'notify' | 'auto' | 'ignore')}
-                className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-              >
-                <option value="notify">Notify - Show badge when updates are available</option>
-                <option value="auto">Auto-download - Automatically grab updates</option>
-                <option value="ignore">Ignore - Don't check for updates</option>
-              </select>
-              <p className="text-xs text-gray-500 mt-1">
-                Default policy for new games (can be overridden per-game)
+        {/* Indexers Tab */}
+        {activeTab === 'indexers' && (
+          <>
+            {/* Prowlarr Settings */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                </svg>
+                Prowlarr
+              </h3>
+              <p className="text-gray-400 mb-4">
+                Configure Prowlarr for indexer management and release searching.
               </p>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={handleSaveUpdateSettings}
-                disabled={isSavingUpdateSettings}
-                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50"
-              >
-                {isSavingUpdateSettings ? 'Saving...' : 'Save Settings'}
-              </button>
-              <button
-                onClick={handleCheckUpdatesNow}
-                disabled={isCheckingUpdates || !updateCheckEnabled}
-                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50 flex items-center gap-2"
-              >
-                {isCheckingUpdates ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    Checking...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Check Now
-                  </>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    Prowlarr URL <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="http://localhost:9696"
+                    value={prowlarrUrl}
+                    onChange={(e) => setProwlarrUrl(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">API Key</label>
+                  <input
+                    type="password"
+                    placeholder="Your Prowlarr API Key"
+                    value={prowlarrApiKey}
+                    onChange={(e) => setProwlarrApiKey(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleSaveProwlarr}
+                    disabled={isSavingProwlarr}
+                    className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50"
+                  >
+                    {isSavingProwlarr ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    onClick={testProwlarrConnection}
+                    disabled={prowlarrTest.status === 'testing'}
+                    className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50"
+                  >
+                    {prowlarrTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
+                  </button>
+                </div>
+                {prowlarrTest.status !== 'idle' && prowlarrTest.status !== 'testing' && (
+                  <p className={`text-sm mt-2 ${
+                    prowlarrTest.status === 'success' ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    {prowlarrTest.message}
+                  </p>
                 )}
-              </button>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Category Selection */}
-        <CategorySelector />
+            {/* Category Selection */}
+            <CategorySelector />
 
-        {/* qBittorrent Category Filter */}
-        <QBittorrentCategorySelector />
+            {/* Indexer Status */}
+            <IndexerStatus />
+          </>
+        )}
 
-        {/* Indexer Status */}
-        <IndexerStatus />
+        {/* Downloads Tab */}
+        {activeTab === 'downloads' && (
+          <>
+            {/* qBittorrent Settings */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                </svg>
+                qBittorrent
+              </h3>
+              <p className="text-gray-400 mb-4">
+                Configure qBittorrent Web UI connection for download management.
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    Host <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="http://localhost:8080"
+                    value={qbHost}
+                    onChange={(e) => setQbHost(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Username</label>
+                  <input
+                    type="text"
+                    placeholder="admin"
+                    value={qbUsername}
+                    onChange={(e) => setQbUsername(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Password</label>
+                  <input
+                    type="password"
+                    placeholder="adminadmin"
+                    value={qbPassword}
+                    onChange={(e) => setQbPassword(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleSaveQb}
+                    disabled={isSavingQb}
+                    className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50"
+                  >
+                    {isSavingQb ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    onClick={testQbConnection}
+                    disabled={qbTest.status === 'testing'}
+                    className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50"
+                  >
+                    {qbTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
+                  </button>
+                </div>
+                {qbTest.status !== 'idle' && qbTest.status !== 'testing' && (
+                  <p className={`text-sm mt-2 ${
+                    qbTest.status === 'success' ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    {qbTest.message}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* qBittorrent Category Filter */}
+            <QBittorrentCategorySelector />
+          </>
+        )}
+
+        {/* Metadata Tab */}
+        {activeTab === 'metadata' && (
+          <>
+            {/* IGDB Settings */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+                </svg>
+                IGDB API
+              </h3>
+              <p className="text-gray-400 mb-4">
+                Configure your IGDB API credentials for game metadata.
+                Get credentials from the{' '}
+                <a
+                  href="https://dev.twitch.tv/console"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:underline"
+                >
+                  Twitch Developer Console
+                </a>.
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    Client ID <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Your IGDB Client ID"
+                    value={igdbClientId}
+                    onChange={(e) => setIgdbClientId(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    Client Secret <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Your IGDB Client Secret"
+                    value={igdbClientSecret}
+                    onChange={(e) => setIgdbClientSecret(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <button
+                  onClick={handleSaveIgdb}
+                  disabled={isSavingIgdb}
+                  className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50"
+                >
+                  {isSavingIgdb ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+
+            {/* Steam Settings */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <svg className="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1v2h3l-.5 3H13v6.95c5.05-.5 9-4.76 9-9.95 0-5.52-4.48-10-10-10z"/>
+                </svg>
+                Steam Integration
+              </h3>
+              <p className="text-gray-400 mb-4">
+                Connect your Steam account to import your owned games.
+                Get your API key from{' '}
+                <a
+                  href="https://steamcommunity.com/dev/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:underline"
+                >
+                  Steam Web API
+                </a>.
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    Steam API Key
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Your Steam Web API Key"
+                    value={steamApiKey}
+                    onChange={(e) => setSteamApiKey(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    Steam ID
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Your 64-bit Steam ID (e.g., 76561198012345678)"
+                    value={steamId}
+                    onChange={(e) => setSteamId(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Find your Steam ID at{' '}
+                    <a href="https://steamid.io" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                      steamid.io
+                    </a>
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveSteam}
+                    disabled={isSavingSteam}
+                    className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50"
+                  >
+                    {isSavingSteam ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    onClick={testSteamConnection}
+                    disabled={steamTest.status === 'testing' || !steamApiKey || !steamId}
+                    className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50"
+                  >
+                    {steamTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
+                  </button>
+                </div>
+                {steamTest.status !== 'idle' && steamTest.status !== 'testing' && (
+                  <div className={`p-3 rounded ${steamTest.status === 'success' ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'}`}>
+                    {steamTest.message}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Updates Tab */}
+        {activeTab === 'updates' && (
+          <>
+            {/* Update Checking */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <svg className="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Update Checking
+              </h3>
+              <p className="text-gray-400 mb-4">
+                Configure automatic checking for game updates, DLC, and better quality releases.
+              </p>
+              <div className="space-y-4">
+                {/* Enable/Disable */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300">Enable Update Checking</label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Automatically check downloaded games for available updates
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setUpdateCheckEnabled(!updateCheckEnabled)}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      updateCheckEnabled ? 'bg-blue-600' : 'bg-gray-600'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
+                        updateCheckEnabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Schedule */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Check Schedule</label>
+                  <select
+                    value={updateCheckSchedule}
+                    onChange={(e) => setUpdateCheckSchedule(e.target.value as 'hourly' | 'daily' | 'weekly')}
+                    disabled={!updateCheckEnabled}
+                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                  >
+                    <option value="hourly">Hourly (for testing)</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    How often to check for updates
+                  </p>
+                </div>
+
+                {/* Default Policy */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Default Update Policy</label>
+                  <select
+                    value={defaultUpdatePolicy}
+                    onChange={(e) => setDefaultUpdatePolicy(e.target.value as 'notify' | 'auto' | 'ignore')}
+                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="notify">Notify - Show badge when updates are available</option>
+                    <option value="auto">Auto-download - Automatically grab updates</option>
+                    <option value="ignore">Ignore - Don't check for updates</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Default policy for new games (can be overridden per-game)
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={handleSaveUpdateSettings}
+                    disabled={isSavingUpdateSettings}
+                    className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50"
+                  >
+                    {isSavingUpdateSettings ? 'Saving...' : 'Save Settings'}
+                  </button>
+                  <button
+                    onClick={handleCheckUpdatesNow}
+                    disabled={isCheckingUpdates || !updateCheckEnabled}
+                    className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {isCheckingUpdates ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Checking...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Check Now
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

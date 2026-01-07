@@ -183,6 +183,87 @@ class ApiClient {
     return this.request<boolean>('/downloads/test');
   }
 
+  async testSteamConnection() {
+    return this.request<boolean>('/steam/test');
+  }
+
+  // Steam Integration
+  async getSteamOwnedGames() {
+    return this.request('/steam/owned-games');
+  }
+
+  async importSteamGames(appIds: number[]) {
+    return this.request('/steam/import', {
+      method: 'POST',
+      body: JSON.stringify({ appIds }),
+    });
+  }
+
+  /**
+   * Import Steam games with SSE progress streaming
+   * @param appIds - Array of Steam app IDs to import
+   * @param onProgress - Callback for progress updates
+   * @param onComplete - Callback when import completes
+   * @param onError - Callback for errors
+   */
+  async importSteamGamesStream(
+    appIds: number[],
+    onProgress: (data: { phase: string; batch: number; totalBatches: number; games: string[] }) => void,
+    onComplete: (data: { imported: number; skipped: number; errors?: string[] }) => void,
+    onError: (message: string) => void
+  ): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE}/steam/import-stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appIds }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        onError(data.error || 'Import failed');
+        return;
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        onError('No response stream');
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'progress') {
+                onProgress(data);
+              } else if (data.type === 'complete') {
+                onComplete(data);
+              } else if (data.type === 'error') {
+                onError(data.message);
+              }
+            } catch (e) {
+              // Ignore parse errors
+            }
+          }
+        }
+      }
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
   // Library
   async scanLibrary() {
     return this.request('/library/scan', {
@@ -265,6 +346,16 @@ class ApiClient {
 
   async getPopularGames(type: number, limit: number = 20) {
     return this.request(`/discover/popular?type=${type}&limit=${limit}`);
+  }
+
+  // Indexer Torrents
+  async getTopTorrents(query?: string, limit?: number, maxAgeDays?: number) {
+    const params = new URLSearchParams();
+    if (query) params.set('query', query);
+    if (limit) params.set('limit', limit.toString());
+    if (maxAgeDays) params.set('maxAge', maxAgeDays.toString());
+    const queryString = params.toString();
+    return this.request(`/indexers/torrents${queryString ? '?' + queryString : ''}`);
   }
 }
 

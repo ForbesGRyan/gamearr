@@ -44,6 +44,7 @@ export interface LibraryFolder {
   parsedTitle: string;
   cleanedTitle: string;
   parsedYear?: number;
+  parsedVersion?: string;
   matched: boolean;
   gameId?: number;
   path: string;
@@ -257,24 +258,92 @@ export class FileService {
   }
 
   /**
-   * Parse folder name to extract title and year
-   * Supports patterns like "Game Title (2023)" or just "Game Title"
+   * Parse version number from a string (folder name or release title)
+   * Returns null if no version pattern is found
    */
-  private parseFolderName(folderName: string): { title: string; year?: number } {
-    // Match pattern: "Title (Year)"
-    const yearMatch = folderName.match(/^(.+?)\s*\((\d{4})\)$/);
+  parseVersion(text: string): string | null {
+    const patterns = [
+      /[._\s]v(\d+(?:\.\d+)+)/i,           // v1.2.3 or v1.2 (with separator before)
+      /[._\s]v(\d+)(?:[._\s-]|$)/i,        // v1 alone (single number version)
+      /version[.\s_]?(\d+(?:\.\d+)*)/i,    // version 1.2.3 or version.1.2
+      /[._\s](\d+\.\d+\.\d+)(?:[._\s-]|$)/, // 1.2.3 (semantic versioning)
+      /build[.\s_]?(\d+)/i,                // build 123 or build.123
+      /update[.\s_]?(\d+)/i,               // update 5 or update.5
+      /[._\s]u(\d+)(?:[._\s-]|$)/i,        // u5 (short for update)
+      /[._\s]r(\d+)(?:[._\s-]|$)/i,        // r5 (revision)
+      /patch[.\s_]?(\d+(?:\.\d+)*)/i,      // patch 1.2 or patch.1
+    ];
 
-    if (yearMatch) {
-      return {
-        title: yearMatch[1].trim(),
-        year: parseInt(yearMatch[2], 10),
-      };
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match) {
+        return match[1];
+      }
     }
 
-    // No year found, return the whole name as title
-    return {
-      title: folderName.trim(),
-    };
+    return null;
+  }
+
+  /**
+   * Parse folder name to extract title, year, and version
+   * Supports patterns like "Game Title (2023)" or "Game.Title.v1.2.3-CODEX"
+   */
+  private parseFolderName(folderName: string): { title: string; year?: number; version?: string } {
+    let workingName = folderName;
+    let year: number | undefined;
+    let version: string | undefined;
+
+    // Extract version first (before cleaning)
+    version = this.parseVersion(workingName) || undefined;
+
+    // Match pattern: "Title (Year)" at the end
+    const yearMatch = workingName.match(/^(.+?)\s*\((\d{4})\)\s*$/);
+    if (yearMatch) {
+      workingName = yearMatch[1].trim();
+      year = parseInt(yearMatch[2], 10);
+    }
+
+    // Also check for year in the middle: "Title (Year) v1.2.3"
+    const yearMiddleMatch = workingName.match(/^(.+?)\s*\((\d{4})\)\s*(.*)$/);
+    if (yearMiddleMatch && !year) {
+      workingName = (yearMiddleMatch[1] + ' ' + yearMiddleMatch[3]).trim();
+      year = parseInt(yearMiddleMatch[2], 10);
+    }
+
+    // Clean the title by removing version patterns and scene tags
+    let title = workingName;
+
+    // Remove version patterns from title
+    const versionPatterns = [
+      /[._\s]v\d+(?:\.\d+)*/gi,
+      /[._\s]version[.\s_]?\d+(?:\.\d+)*/gi,
+      /[._\s]\d+\.\d+\.\d+/g,
+      /[._\s]build[.\s_]?\d+/gi,
+      /[._\s]update[.\s_]?\d+/gi,
+      /[._\s]patch[.\s_]?\d+(?:\.\d+)*/gi,
+      /[._\s][ur]\d+(?=[._\s-]|$)/gi,
+    ];
+
+    for (const pattern of versionPatterns) {
+      title = title.replace(pattern, '');
+    }
+
+    // Remove scene tags
+    const sceneTags = [
+      /-CODEX$/i, /-PLAZA$/i, /-SKIDROW$/i, /-RELOADED$/i, /-FitGirl$/i,
+      /-DODI$/i, /-ElAmigos$/i, /-GOG$/i, /-DARKSiDERS$/i, /-EMPRESS$/i,
+      /-Razor1911$/i, /-RUNE$/i, /-TiNYiSO$/i, /-HOODLUM$/i,
+      /\[GOG\]/gi, /\[REPACK\]/gi, /\[MULTI\d*\]/gi, /\[R\.G\.[^\]]+\]/gi,
+    ];
+
+    for (const tag of sceneTags) {
+      title = title.replace(tag, '');
+    }
+
+    // Replace dots and underscores with spaces, normalize whitespace
+    title = title.replace(/[._]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    return { title, year, version };
   }
 
   /**
@@ -329,12 +398,15 @@ export class FileService {
       return cachedFiles
         .filter((file) => !file.ignored && !file.matchedGameId)
         .map((file) => {
+          const folderName = path.basename(file.folderPath);
           const parsedTitle = file.parsedTitle || '';
+          const version = this.parseVersion(folderName) || undefined;
           return {
-            folderName: path.basename(file.folderPath),
+            folderName,
             parsedTitle,
             cleanedTitle: this.cleanDisplayTitle(parsedTitle),
             parsedYear: file.parsedYear || undefined,
+            parsedVersion: version,
             matched: false, // All results are unmatched
             gameId: undefined,
             path: file.folderPath,
@@ -411,6 +483,7 @@ export class FileService {
             parsedTitle: parsed.title,
             cleanedTitle: this.cleanDisplayTitle(parsed.title),
             parsedYear: parsed.year,
+            parsedVersion: parsed.version,
             matched: false,
             gameId: undefined,
             path: folderPath,
@@ -466,19 +539,23 @@ export class FileService {
 
   /**
    * Match a library folder to a game
+   * Optionally accepts a version to set as installedVersion
    */
-  async matchFolderToGame(folderPath: string, gameId: number): Promise<boolean> {
+  async matchFolderToGame(folderPath: string, gameId: number, version?: string): Promise<boolean> {
     try {
       logger.info(`Matching folder ${folderPath} to game ID ${gameId}`);
+
+      // Parse folder name to extract title, year, and version
+      const folderName = path.basename(folderPath);
+      const parsed = this.parseFolderName(folderName);
+
+      // Use provided version, or parsed version, or undefined
+      const installedVersion = version || parsed.version;
 
       // Ensure the folder exists in library_files table
       const existingFile = await libraryFileRepository.findByPath(folderPath);
 
       if (!existingFile) {
-        // Parse folder name to extract title and year
-        const folderName = path.basename(folderPath);
-        const parsed = this.parseFolderName(folderName);
-
         logger.info(`Folder not in cache, adding it: ${folderPath}`);
 
         // Create the library file entry
@@ -494,11 +571,18 @@ export class FileService {
         await libraryFileRepository.matchToGame(folderPath, gameId);
       }
 
-      // Update game status to downloaded and set folder path
-      await gameRepository.update(gameId, {
+      // Update game status to downloaded, set folder path, and set installed version if found
+      const gameUpdate: Record<string, any> = {
         status: 'downloaded',
-        folderPath: folderPath
-      });
+        folderPath: folderPath,
+      };
+
+      if (installedVersion) {
+        gameUpdate.installedVersion = installedVersion;
+        logger.info(`Setting installed version for game ${gameId}: ${installedVersion}`);
+      }
+
+      await gameRepository.update(gameId, gameUpdate);
 
       logger.info(`Successfully matched folder to game ${gameId}`);
       return true;

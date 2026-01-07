@@ -92,6 +92,148 @@ export class IGDBClient {
   }
 
   /**
+   * Batch search for multiple games using multiquery (up to 10 at a time)
+   * Returns a map of search term -> results
+   * Optional onProgress callback receives (currentBatch, totalBatches, batchNames)
+   * Uses parallel requests (up to 4 concurrent) for faster processing
+   */
+  async searchGamesBatch(
+    names: string[],
+    limit: number = 5,
+    onProgress?: (current: number, total: number, batchNames: string[]) => void
+  ): Promise<Map<string, GameSearchResult[]>> {
+    if (names.length === 0) {
+      return new Map();
+    }
+
+    // IGDB multiquery supports max 10 queries per request
+    // IGDB rate limit is 4 requests per second, so we'll run up to 4 in parallel
+    const batchSize = 10;
+    const parallelLimit = 4;
+    const totalBatches = Math.ceil(names.length / batchSize);
+    const results = new Map<string, GameSearchResult[]>();
+
+    // Create all batch definitions
+    const batches: { names: string[]; batchNum: number }[] = [];
+    for (let i = 0; i < names.length; i += batchSize) {
+      batches.push({
+        names: names.slice(i, i + batchSize),
+        batchNum: Math.floor(i / batchSize) + 1,
+      });
+    }
+
+    // Process batches in parallel groups
+    let completedBatches = 0;
+    for (let i = 0; i < batches.length; i += parallelLimit) {
+      const parallelBatches = batches.slice(i, i + parallelLimit);
+
+      logger.info(`Processing ${parallelBatches.length} batches in parallel (${i + 1}-${Math.min(i + parallelLimit, batches.length)} of ${totalBatches})`);
+
+      // Report progress
+      if (onProgress) {
+        const allNames = parallelBatches.flatMap(b => b.names);
+        onProgress(completedBatches + 1, totalBatches, allNames.slice(0, 10));
+      }
+
+      // Execute batches in parallel
+      const batchPromises = parallelBatches.map(async (batch) => {
+        const queries = this.buildBatchQuery(batch.names, limit);
+
+        try {
+          const response = await this.requestMultiquery(queries);
+          return { batch, response, error: null };
+        } catch (error) {
+          logger.error(`IGDB batch ${batch.batchNum} failed:`, error);
+          return { batch, response: null, error };
+        }
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+
+      // Process results
+      for (const { batch, response } of batchResults) {
+        if (response) {
+          for (const item of response) {
+            const idx = parseInt(item.name, 10);
+            const originalName = batch.names[idx];
+            if (originalName && item.result) {
+              const mapped = item.result.map((game: IGDBGame) => this.mapToSearchResult(game));
+              results.set(originalName, mapped);
+            }
+          }
+        }
+
+        // Fill in empty results for any names that didn't return
+        for (const name of batch.names) {
+          if (!results.has(name)) {
+            results.set(name, []);
+          }
+        }
+
+        completedBatches++;
+      }
+
+      // Report progress after parallel group completes
+      if (onProgress && completedBatches < totalBatches) {
+        onProgress(completedBatches, totalBatches, []);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Build the multiquery body for a batch of game names
+   */
+  private buildBatchQuery(names: string[], limit: number): string {
+    return names
+      .map((name, idx) => {
+        // Clean up game name for pattern matching:
+        // - Remove trademark/copyright symbols that Steam includes
+        // - Escape quotes and special regex chars
+        const escapedName = name
+          .replace(/[™®©]/g, '')  // Remove trademark symbols
+          .replace(/"/g, '\\"')    // Escape quotes
+          .replace(/[*?]/g, '')    // Remove regex wildcards
+          .trim();
+        return `query games "${idx}" {
+          fields name, cover.image_id, first_release_date, summary, platforms,
+                 genres.name, total_rating, game_modes.name,
+                 involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
+                 similar_games.name, similar_games.cover.image_id, game_type,
+                 multiplayer_modes.*, themes.name;
+          where name ~ *"${escapedName}"* & game_type = 0 & platforms = (6);
+          limit ${limit};
+        };`;
+      })
+      .join('\n');
+  }
+
+  /**
+   * Make a multiquery request to IGDB API
+   */
+  private async requestMultiquery(body: string): Promise<Array<{ name: string; result: IGDBGame[] }>> {
+    await this.authenticate();
+
+    const response = await fetch(`${this.apiUrl}/multiquery`, {
+      method: 'POST',
+      headers: {
+        'Client-ID': this.clientId,
+        Authorization: `Bearer ${this.accessToken}`,
+        'Content-Type': 'text/plain',
+      },
+      body,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`IGDB multiquery error: ${response.statusText} - ${text}`);
+    }
+
+    return response.json();
+  }
+
+  /**
    * Search for games by name
    */
   async searchGames(params: IGDBSearchParams): Promise<GameSearchResult[]> {

@@ -8,6 +8,7 @@ export const games = sqliteTable('games', {
   year: integer('year'),
   platform: text('platform').notNull(),
   store: text('store'), // Steam, Epic Games, GOG, etc.
+  steamName: text('steam_name'), // Original name from Steam (for diagnosing mismatches)
   monitored: integer('monitored', { mode: 'boolean' }).notNull().default(true),
   status: text('status', {
     enum: ['wanted', 'downloading', 'downloaded']
