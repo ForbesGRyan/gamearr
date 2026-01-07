@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
+import ConfirmModal from './ConfirmModal';
+import { CloseIcon, SeedersIcon } from './Icons';
 
 interface Game {
   id: number;
@@ -30,12 +32,29 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
   const [releases, setReleases] = useState<Release[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [releaseToGrab, setReleaseToGrab] = useState<Release | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [grabError, setGrabError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && game) {
       searchForReleases();
     }
   }, [isOpen, game]);
+
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, onClose]);
 
   const searchForReleases = async () => {
     if (!game) return;
@@ -86,23 +105,22 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
     }
   };
 
-  const handleGrabRelease = async (release: Release) => {
-    if (!game) return;
-
-    const confirmed = confirm(`Download "${release.title}"?`);
-    if (!confirmed) return;
+  const handleGrabConfirm = async () => {
+    if (!game || !releaseToGrab) return;
 
     try {
-      const response = await api.grabRelease(game.id, release);
+      const response = await api.grabRelease(game.id, releaseToGrab);
 
       if (response.success) {
-        alert('Release added to download queue!');
-        onClose();
+        setReleaseToGrab(null);
+        setSuccessMessage('Release added to download queue!');
       } else {
-        alert(`Failed to grab release: ${response.error || 'Unknown error'}`);
+        setReleaseToGrab(null);
+        setGrabError(`Failed to grab release: ${response.error || 'Unknown error'}`);
       }
     } catch (err) {
-      alert('Failed to grab release. Check your qBittorrent configuration.');
+      setReleaseToGrab(null);
+      setGrabError('Failed to grab release. Check your qBittorrent configuration.');
     }
   };
 
@@ -124,9 +142,9 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
             </div>
             <button
               onClick={onClose}
-              className="text-gray-300 hover:text-white text-2xl"
+              className="text-gray-300 hover:text-white"
             >
-              ✕
+              <CloseIcon className="w-6 h-6" />
             </button>
           </div>
         </div>
@@ -189,8 +207,8 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
                         <span className="text-gray-100 px-2 py-1 rounded" style={{ backgroundColor: 'rgb(75, 85, 99)' }}>
                           {formatBytes(release.size)}
                         </span>
-                        <span className="text-gray-100 px-2 py-1 rounded" style={{ backgroundColor: 'rgb(75, 85, 99)' }}>
-                          💾 {release.seeders} seeders
+                        <span className="text-gray-100 px-2 py-1 rounded flex items-center gap-1" style={{ backgroundColor: 'rgb(75, 85, 99)' }}>
+                          <SeedersIcon className="w-3.5 h-3.5" /> {release.seeders} seeders
                         </span>
                         {release.score !== undefined && (
                           <span className="text-purple-100 px-2 py-1 rounded" style={{ backgroundColor: 'rgb(126, 34, 206)' }}>
@@ -204,7 +222,7 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
                     </div>
 
                     <button
-                      onClick={() => handleGrabRelease(release)}
+                      onClick={() => setReleaseToGrab(release)}
                       className="ml-4 bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition text-sm"
                     >
                       Grab
@@ -232,6 +250,45 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
           </button>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={releaseToGrab !== null}
+        title="Download Release"
+        message={releaseToGrab ? `Download "${releaseToGrab.title}"?` : ''}
+        confirmText="Download"
+        cancelText="Cancel"
+        variant="info"
+        onConfirm={handleGrabConfirm}
+        onCancel={() => setReleaseToGrab(null)}
+      />
+
+      <ConfirmModal
+        isOpen={successMessage !== null}
+        title="Success"
+        message={successMessage || ''}
+        confirmText="OK"
+        cancelText=""
+        variant="info"
+        onConfirm={() => {
+          setSuccessMessage(null);
+          onClose();
+        }}
+        onCancel={() => {
+          setSuccessMessage(null);
+          onClose();
+        }}
+      />
+
+      <ConfirmModal
+        isOpen={grabError !== null}
+        title="Error"
+        message={grabError || ''}
+        confirmText="OK"
+        cancelText=""
+        variant="danger"
+        onConfirm={() => setGrabError(null)}
+        onCancel={() => setGrabError(null)}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import StoreSelector from './StoreSelector';
+import { CloseIcon } from './Icons';
 
 interface Game {
   id: number;
@@ -46,6 +47,20 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
       setUpdatePolicy(game.updatePolicy || 'notify');
     }
   }, [game]);
+
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, onClose]);
 
   if (!isOpen || !game) return null;
 
@@ -94,8 +109,8 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
               {game.title} {game.year && `(${game.year})`}
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-300 hover:text-white text-2xl">
-            ×
+          <button onClick={onClose} className="text-gray-300 hover:text-white">
+            <CloseIcon className="w-6 h-6" />
           </button>
         </div>
 

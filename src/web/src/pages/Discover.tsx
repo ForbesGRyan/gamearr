@@ -442,17 +442,30 @@ function Discover() {
 
           {/* Empty state */}
           {filteredGames.length === 0 && !isLoadingGames && (
-            <div className="text-center py-12 text-gray-400">
+            <div className="bg-gray-800 rounded-lg p-12 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 text-gray-500">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </div>
               {popularGames.length === 0 ? (
-                <p>No games found for this popularity type.</p>
+                <>
+                  <h3 className="text-xl font-medium text-gray-300 mb-2">No games available</h3>
+                  <p className="text-gray-500 max-w-md mx-auto">
+                    We couldn't find any games for this popularity ranking. This may be a temporary issue with IGDB. Try selecting a different ranking type.
+                  </p>
+                </>
               ) : (
                 <>
-                  <p>No games match your filters.</p>
+                  <h3 className="text-xl font-medium text-gray-300 mb-2">No games match your filters</h3>
+                  <p className="text-gray-500 max-w-md mx-auto mb-4">
+                    Try adjusting your genre, theme, or multiplayer filters to see more games.
+                  </p>
                   <button
                     onClick={clearFilters}
-                    className="mt-2 text-blue-400 hover:text-blue-300"
+                    className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition text-white"
                   >
-                    Clear filters
+                    Clear all filters
                   </button>
                 </>
               )}

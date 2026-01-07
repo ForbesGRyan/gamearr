@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import StoreSelector from './StoreSelector';
+import { CloseIcon, GamepadIcon } from './Icons';
 
 interface SearchResult {
   igdbId: number;
@@ -25,8 +26,19 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedStore, setSelectedStore] = useState<string | null>(null);
 
-  // Debug: log whenever searchResults changes
-  console.log('Current searchResults:', searchResults, 'Length:', searchResults.length);
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -41,13 +53,8 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
     try {
       const response = await api.searchGames(searchQuery);
 
-      // Debug logging
-      console.log('Search response:', response);
-      console.log('Response data:', response.data);
-
       if (response.success && response.data) {
         setSearchResults(response.data as SearchResult[]);
-        console.log('Search results set:', response.data);
       } else {
         setError(response.error || 'Search failed');
         setSearchResults([]);
@@ -86,15 +93,15 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
-      <div className="rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-600" style={{ backgroundColor: 'rgb(17, 24, 39)' }}>
+      <div className="bg-gray-900 rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-600">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-600" style={{ backgroundColor: 'rgb(31, 41, 55)' }}>
+        <div className="bg-gray-800 flex items-center justify-between p-6 border-b border-gray-600">
           <h2 className="text-2xl font-bold text-white">Add Game</h2>
           <button
             onClick={onClose}
-            className="text-gray-300 hover:text-white text-2xl"
+            className="text-gray-300 hover:text-white"
           >
-            ×
+            <CloseIcon className="w-6 h-6" />
           </button>
         </div>
 
@@ -106,17 +113,13 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search for a game..."
-              className="flex-1 px-4 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-white"
-              style={{ backgroundColor: 'rgb(55, 65, 81)' }}
+              className="bg-gray-700 flex-1 px-4 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-white"
               autoFocus
             />
             <button
               type="submit"
               disabled={isSearching || !searchQuery.trim()}
-              className="px-6 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
-              style={{ backgroundColor: 'rgb(37, 99, 235)' }}
-              onMouseEnter={(e) => !isSearching && searchQuery.trim() && (e.currentTarget.style.backgroundColor = 'rgb(29, 78, 216)')}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(37, 99, 235)'}
+              className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
             >
               {isSearching ? 'Searching...' : 'Search'}
             </button>
@@ -130,7 +133,7 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
           </div>
 
           {error && (
-            <div className="mt-3 p-3 border border-red-700 rounded text-red-200 text-sm" style={{ backgroundColor: 'rgb(127, 29, 29)' }}>
+            <div className="bg-red-900 mt-3 p-3 border border-red-700 rounded text-red-200 text-sm">
               {error}
             </div>
           )}
@@ -147,13 +150,10 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
               {searchResults.map((game) => (
                 <div
                   key={game.igdbId}
-                  className="flex gap-4 rounded-lg p-4 transition border border-gray-600"
-                  style={{ backgroundColor: 'rgb(55, 65, 81)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(75, 85, 99)'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(55, 65, 81)'}
+                  className="bg-gray-700 hover:bg-gray-600 flex gap-4 rounded-lg p-4 transition border border-gray-600"
                 >
                   {/* Cover */}
-                  <div className="w-20 h-28 rounded flex-shrink-0" style={{ backgroundColor: 'rgb(75, 85, 99)' }}>
+                  <div className="bg-gray-600 w-20 h-28 rounded flex-shrink-0">
                     {game.coverUrl ? (
                       <img
                         src={game.coverUrl}
@@ -161,8 +161,8 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
                         className="w-full h-full object-cover rounded"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400 text-2xl">
-                        🎮
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                        <GamepadIcon className="w-8 h-8" />
                       </div>
                     )}
                   </div>
@@ -192,10 +192,7 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
                     <button
                       onClick={() => handleAddGame(game.igdbId)}
                       disabled={isAdding}
-                      className="px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
-                      style={{ backgroundColor: 'rgb(22, 163, 74)' }}
-                      onMouseEnter={(e) => !isAdding && (e.currentTarget.style.backgroundColor = 'rgb(21, 128, 61)')}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(22, 163, 74)'}
+                      className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
                     >
                       {isAdding ? 'Adding...' : 'Add'}
                     </button>

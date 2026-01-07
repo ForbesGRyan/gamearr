@@ -1,5 +1,26 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
+import ConfirmModal from '../components/ConfirmModal';
+
+// SVG Icon Components
+const PlayIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
+const PauseIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
+const TrashIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
+);
 
 interface Download {
   hash: string;
@@ -19,6 +40,8 @@ function Activity() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [downloadToDelete, setDownloadToDelete] = useState<Download | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const loadDownloads = async () => {
     setIsLoading(true);
@@ -106,7 +129,7 @@ function Activity() {
       await api.pauseDownload(hash);
       loadDownloads();
     } catch (err) {
-      alert('Failed to pause download');
+      setActionError('Failed to pause download');
     }
   };
 
@@ -115,19 +138,20 @@ function Activity() {
       await api.resumeDownload(hash);
       loadDownloads();
     } catch (err) {
-      alert('Failed to resume download');
+      setActionError('Failed to resume download');
     }
   };
 
-  const handleDelete = async (hash: string, name: string) => {
-    const confirmed = confirm(`Delete "${name}"?\n\nThis will remove the torrent but keep the downloaded files.`);
-    if (!confirmed) return;
+  const handleDeleteConfirm = async () => {
+    if (!downloadToDelete) return;
 
     try {
-      await api.cancelDownload(hash, false);
+      await api.cancelDownload(downloadToDelete.hash, false);
       loadDownloads();
     } catch (err) {
-      alert('Failed to delete download');
+      setActionError('Failed to delete download');
+    } finally {
+      setDownloadToDelete(null);
     }
   };
 
@@ -176,14 +200,18 @@ function Activity() {
           <p className="text-gray-400 text-lg">Loading downloads...</p>
         </div>
       ) : filteredDownloads.length === 0 ? (
-        <div className="bg-gray-800 rounded-lg p-8 text-center">
-          <div className="text-6xl mb-4">📥</div>
-          <p className="text-gray-400 text-lg mb-2">
+        <div className="bg-gray-800 rounded-lg p-12 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 text-gray-500">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-medium text-gray-300 mb-2">
             {downloads.length === 0
               ? 'No active downloads'
-              : 'No active downloads (all completed)'}
-          </p>
-          <p className="text-gray-500 text-sm">
+              : 'All downloads completed'}
+          </h3>
+          <p className="text-gray-500 mb-6">
             {downloads.length === 0
               ? 'Download releases from the Search page or game cards to see activity here'
               : 'Click "Show Completed" to view finished downloads'}
@@ -209,26 +237,26 @@ function Activity() {
                   {download.state.includes('paused') ? (
                     <button
                       onClick={() => handleResume(download.hash)}
-                      className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded transition text-sm"
+                      className="bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded transition text-sm"
                       title="Resume"
                     >
-                      ▶️
+                      <PlayIcon />
                     </button>
                   ) : (
                     <button
                       onClick={() => handlePause(download.hash)}
-                      className="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded transition text-sm"
+                      className="bg-yellow-600 hover:bg-yellow-700 px-3 py-1.5 rounded transition text-sm"
                       title="Pause"
                     >
-                      ⏸️
+                      <PauseIcon />
                     </button>
                   )}
                   <button
-                    onClick={() => handleDelete(download.hash, download.name)}
-                    className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded transition text-sm"
+                    onClick={() => setDownloadToDelete(download)}
+                    className="bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded transition text-sm"
                     title="Delete"
                   >
-                    🗑️
+                    <TrashIcon />
                   </button>
                 </div>
               </div>
@@ -276,6 +304,28 @@ function Activity() {
           ))}
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={downloadToDelete !== null}
+        title="Delete Download"
+        message={downloadToDelete ? `Delete "${downloadToDelete.name}"?\n\nThis will remove the torrent but keep the downloaded files.` : ''}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDownloadToDelete(null)}
+      />
+
+      <ConfirmModal
+        isOpen={actionError !== null}
+        title="Error"
+        message={actionError || ''}
+        confirmText="OK"
+        cancelText=""
+        variant="danger"
+        onConfirm={() => setActionError(null)}
+        onCancel={() => setActionError(null)}
+      />
     </div>
   );
 }

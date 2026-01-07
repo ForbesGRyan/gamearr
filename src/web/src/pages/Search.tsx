@@ -154,13 +154,28 @@ function Search() {
       {/* Search Form */}
       <form onSubmit={handleSearch} className="mb-6">
         <div className="flex gap-3">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search for games, releases, or keywords..."
-            className="flex-1 px-4 py-3 bg-gray-800 rounded border border-gray-700 focus:border-blue-500 focus:outline-none"
-          />
+          <div className="relative flex-1">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search for games, releases, or keywords..."
+              className="w-full pl-10 pr-4 py-3 bg-gray-800 rounded border border-gray-700 focus:border-blue-500 focus:outline-none"
+            />
+          </div>
           <button
             type="submit"
             disabled={isLoading}
@@ -193,10 +208,15 @@ function Search() {
         </div>
       ) : hasSearched ? (
         releases.length === 0 ? (
-          <div className="bg-gray-800 rounded-lg p-8 text-center">
-            <p className="text-gray-400 text-lg mb-2">No releases found</p>
-            <p className="text-gray-500 text-sm">
-              Try adjusting your search terms or check your Prowlarr configuration
+          <div className="bg-gray-800 rounded-lg p-12 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 text-gray-500">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-medium text-gray-300 mb-2">No releases found</h3>
+            <p className="text-gray-500 max-w-md mx-auto">
+              We couldn't find any releases for "{query}". Try different search terms, check your Prowlarr configuration, or the game may not be available on your indexers.
             </p>
           </div>
         ) : (
@@ -337,11 +357,15 @@ function Search() {
           </div>
         )
       ) : (
-        <div className="bg-gray-800 rounded-lg p-8 text-center">
-          <div className="text-6xl mb-4">🔍</div>
-          <p className="text-gray-400 text-lg mb-2">Ready to search</p>
-          <p className="text-gray-500 text-sm">
-            Enter a game title or keywords above to search across all indexers
+        <div className="bg-gray-800 rounded-lg p-12 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 text-gray-500">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-medium text-gray-300 mb-2">Ready to search</h3>
+          <p className="text-gray-500 mb-6">
+            Enter a game title or keywords above to search across all your configured indexers
           </p>
         </div>
       )}

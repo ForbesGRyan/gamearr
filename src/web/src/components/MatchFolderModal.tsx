@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import StoreSelector from './StoreSelector';
+import { CloseIcon, GamepadIcon } from './Icons';
 
 interface SearchResult {
   igdbId: number;
@@ -53,6 +54,20 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
       handleAutoSearch(folder.parsedTitle);
     }
   }, [folder]);
+
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, onClose]);
 
   if (!isOpen || !folder) return null;
 
@@ -122,9 +137,9 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
           </div>
           <button
             onClick={onClose}
-            className="text-gray-300 hover:text-white text-2xl"
+            className="text-gray-300 hover:text-white"
           >
-            ×
+            <CloseIcon className="w-6 h-6" />
           </button>
         </div>
 
@@ -191,8 +206,8 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
                         className="w-full h-full object-cover rounded"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400 text-2xl">
-                        🎮
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                        <GamepadIcon className="w-8 h-8" />
                       </div>
                     )}
                   </div>

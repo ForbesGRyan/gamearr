@@ -1,9 +1,10 @@
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
 import Library from './pages/Library';
 import Discover from './pages/Discover';
 import Search from './pages/Search';
 import Activity from './pages/Activity';
 import Settings from './pages/Settings';
+import { GamepadIcon } from './components/Icons';
 
 function App() {
   return (
@@ -14,38 +15,72 @@ function App() {
           <div className="container mx-auto px-4">
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center space-x-8">
-                <h1 className="text-2xl font-bold text-blue-500">🎮 Gamearr</h1>
+                <h1 className="text-2xl font-bold text-blue-500 flex items-center gap-2">
+                  <GamepadIcon className="w-7 h-7" />
+                  Gamearr
+                </h1>
                 <nav className="flex space-x-4">
-                  <Link
+                  <NavLink
                     to="/"
-                    className="px-3 py-2 rounded hover:bg-gray-700 transition"
+                    end
+                    className={({ isActive }) =>
+                      `px-3 py-2 rounded transition ${
+                        isActive
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-300 hover:bg-gray-700'
+                      }`
+                    }
                   >
                     Library
-                  </Link>
-                  <Link
+                  </NavLink>
+                  <NavLink
                     to="/discover"
-                    className="px-3 py-2 rounded hover:bg-gray-700 transition"
+                    className={({ isActive }) =>
+                      `px-3 py-2 rounded transition ${
+                        isActive
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-300 hover:bg-gray-700'
+                      }`
+                    }
                   >
                     Discover
-                  </Link>
-                  <Link
+                  </NavLink>
+                  <NavLink
                     to="/search"
-                    className="px-3 py-2 rounded hover:bg-gray-700 transition"
+                    className={({ isActive }) =>
+                      `px-3 py-2 rounded transition ${
+                        isActive
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-300 hover:bg-gray-700'
+                      }`
+                    }
                   >
                     Search
-                  </Link>
-                  <Link
+                  </NavLink>
+                  <NavLink
                     to="/activity"
-                    className="px-3 py-2 rounded hover:bg-gray-700 transition"
+                    className={({ isActive }) =>
+                      `px-3 py-2 rounded transition ${
+                        isActive
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-300 hover:bg-gray-700'
+                      }`
+                    }
                   >
                     Activity
-                  </Link>
-                  <Link
+                  </NavLink>
+                  <NavLink
                     to="/settings"
-                    className="px-3 py-2 rounded hover:bg-gray-700 transition"
+                    className={({ isActive }) =>
+                      `px-3 py-2 rounded transition ${
+                        isActive
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-300 hover:bg-gray-700'
+                      }`
+                    }
                   >
                     Settings
-                  </Link>
+                  </NavLink>
                 </nav>
               </div>
             </div>

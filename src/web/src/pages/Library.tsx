@@ -4,9 +4,49 @@ import AddGameModal from '../components/AddGameModal';
 import SearchReleasesModal from '../components/SearchReleasesModal';
 import MatchFolderModal from '../components/MatchFolderModal';
 import EditGameModal from '../components/EditGameModal';
+import ConfirmModal from '../components/ConfirmModal';
 import StoreSelector from '../components/StoreSelector';
 import StoreIcon from '../components/StoreIcon';
 import { api } from '../api/client';
+
+// SVG Icon Components
+const EyeIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+  </svg>
+);
+
+const EyeSlashIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+  </svg>
+);
+
+const PencilIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+  </svg>
+);
+
+const TrashIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
+);
+
+const MagnifyingGlassIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+  </svg>
+);
+
+const GamepadIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
 
 interface Game {
   id: number;
@@ -146,6 +186,10 @@ function Library() {
     const saved = localStorage.getItem('dismissed-duplicates');
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
+
+  // Delete confirmation modal state
+  const [gameToDelete, setGameToDelete] = useState<Game | null>(null);
+  const [organizeError, setOrganizeError] = useState<string | null>(null);
 
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode);
@@ -381,17 +425,18 @@ function Library() {
 
   const handleOrganizeFile = async (filePath: string) => {
     setOrganizingFile(filePath);
+    setOrganizeError(null);
     try {
       const response = await api.organizeLooseFile(filePath);
       if (response.success) {
         // Remove the file from the list
         setLooseFiles((prev) => prev.filter((f) => f.path !== filePath));
       } else {
-        alert(response.error || 'Failed to organize file');
+        setOrganizeError(response.error || 'Failed to organize file');
       }
     } catch (err) {
       console.error('Failed to organize file:', err);
-      alert('Failed to organize file');
+      setOrganizeError('Failed to organize file');
     } finally {
       setOrganizingFile(null);
     }
@@ -940,10 +985,20 @@ function Library() {
               <p className="text-gray-400 text-lg">Loading games...</p>
             </div>
           ) : games.length === 0 ? (
-            <div className="bg-gray-800 rounded-lg p-8 text-center">
-              <p className="text-gray-400 text-lg">
-                No games in your library yet. Click "Add Game" to get started!
-              </p>
+            <div className="bg-gray-800 rounded-lg p-12 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 text-gray-500">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-medium text-gray-300 mb-2">No games yet</h3>
+              <p className="text-gray-500 mb-6">Add your first game to start building your library</p>
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition"
+              >
+                Add Game
+              </button>
             </div>
           ) : (
             <>
@@ -1017,7 +1072,9 @@ function Library() {
                                 {game.coverUrl ? (
                                   <img src={game.coverUrl} alt="" className="w-full h-full object-cover" />
                                 ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">🎮</div>
+                                  <div className="w-full h-full flex items-center justify-center text-gray-500">
+                                    <GamepadIcon className="w-4 h-4" />
+                                  </div>
                                 )}
                               </div>
                               <span className="font-medium">{game.title}</span>
@@ -1069,32 +1126,28 @@ function Library() {
                                 className="p-1.5 rounded hover:bg-gray-600 transition"
                                 title={game.monitored ? 'Unmonitor' : 'Monitor'}
                               >
-                                {game.monitored ? '👁️' : '👁️‍🗨️'}
+                                {game.monitored ? <EyeIcon /> : <EyeSlashIcon />}
                               </button>
                               <button
                                 onClick={() => handleSearch(game)}
                                 className="p-1.5 rounded hover:bg-gray-600 transition"
                                 title="Search"
                               >
-                                🔍
+                                <MagnifyingGlassIcon />
                               </button>
                               <button
                                 onClick={() => handleEdit(game)}
                                 className="p-1.5 rounded hover:bg-gray-600 transition"
                                 title="Edit"
                               >
-                                ✏️
+                                <PencilIcon />
                               </button>
                               <button
-                                onClick={() => {
-                                  if (confirm(`Delete "${game.title}"?`)) {
-                                    handleDelete(game.id);
-                                  }
-                                }}
+                                onClick={() => setGameToDelete(game)}
                                 className="p-1.5 rounded hover:bg-red-600 transition"
                                 title="Delete"
                               >
-                                🗑️
+                                <TrashIcon />
                               </button>
                             </div>
                           </td>
@@ -1123,7 +1176,9 @@ function Library() {
                               {game.coverUrl ? (
                                 <img src={game.coverUrl} alt="" className="w-full h-full object-cover" />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-gray-500 text-3xl">🎮</div>
+                                <div className="w-full h-full flex items-center justify-center text-gray-500">
+                                  <GamepadIcon className="w-10 h-10" />
+                                </div>
                               )}
                             </div>
                             {game.totalRating && (
@@ -1236,7 +1291,9 @@ function Library() {
                                             className="w-full h-full object-cover group-hover/similar:scale-110 transition"
                                           />
                                         ) : (
-                                          <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">🎮</div>
+                                          <div className="w-full h-full flex items-center justify-center text-gray-500">
+                                            <GamepadIcon className="w-4 h-4" />
+                                          </div>
                                         )}
                                       </div>
                                       <p className="text-xs text-gray-400 mt-1 truncate text-center">{sg.name}</p>
@@ -1250,31 +1307,27 @@ function Library() {
                             <div className="flex gap-2 mt-4">
                               <button
                                 onClick={() => handleToggleMonitor(game.id)}
-                                className="text-sm px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 transition"
+                                className="text-sm px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 transition flex items-center gap-1.5"
                               >
-                                {game.monitored ? '👁️ Unmonitor' : '👁️‍🗨️ Monitor'}
+                                {game.monitored ? <><EyeIcon /> Unmonitor</> : <><EyeSlashIcon /> Monitor</>}
                               </button>
                               <button
                                 onClick={() => handleSearch(game)}
-                                className="text-sm px-3 py-1.5 rounded bg-green-700 hover:bg-green-600 transition"
+                                className="text-sm px-3 py-1.5 rounded bg-green-700 hover:bg-green-600 transition flex items-center gap-1.5"
                               >
-                                🔍 Search
+                                <MagnifyingGlassIcon /> Search
                               </button>
                               <button
                                 onClick={() => handleEdit(game)}
-                                className="text-sm px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 transition"
+                                className="text-sm px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 transition flex items-center gap-1.5"
                               >
-                                ✏️ Edit
+                                <PencilIcon /> Edit
                               </button>
                               <button
-                                onClick={() => {
-                                  if (confirm(`Delete "${game.title}"?`)) {
-                                    handleDelete(game.id);
-                                  }
-                                }}
-                                className="text-sm px-3 py-1.5 rounded bg-gray-700 hover:bg-red-600 transition"
+                                onClick={() => setGameToDelete(game)}
+                                className="text-sm px-3 py-1.5 rounded bg-gray-700 hover:bg-red-600 transition flex items-center gap-1.5"
                               >
-                                🗑️ Delete
+                                <TrashIcon /> Delete
                               </button>
                             </div>
                           </div>
@@ -1306,9 +1359,15 @@ function Library() {
               </button>
             </div>
           ) : libraryFolders.length === 0 ? (
-            <div className="bg-gray-800 rounded-lg p-8 text-center">
-              <p className="text-gray-400 text-lg">
-                No unmatched folders found. All folders have been imported or ignored!
+            <div className="bg-gray-800 rounded-lg p-12 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 text-green-500">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-medium text-gray-300 mb-2">All folders imported</h3>
+              <p className="text-gray-500 max-w-md mx-auto">
+                Every folder in your library has been matched to a game or ignored. Add new games to your library folder and scan again to import them.
               </p>
             </div>
           ) : (
@@ -1375,8 +1434,8 @@ function Library() {
                                   className="w-full h-full object-cover rounded"
                                 />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-gray-400 text-2xl">
-                                  🎮
+                                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                  <GamepadIcon className="w-8 h-8" />
                                 </div>
                               )}
                             </div>
@@ -1471,7 +1530,17 @@ function Library() {
                 </h3>
 
                 {getVisibleDuplicates().length === 0 ? (
-                  <p className="text-gray-400">No potential duplicates found. Your library looks clean!</p>
+                  <div className="flex items-center gap-3 p-4 bg-gray-700 rounded-lg">
+                    <div className="w-10 h-10 text-green-500 flex-shrink-0">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-gray-200 font-medium">No duplicates detected</p>
+                      <p className="text-gray-400 text-sm">Your library doesn't have any games with similar titles that might be duplicates.</p>
+                    </div>
+                  </div>
                 ) : (
                   <div className="space-y-4">
                     {getVisibleDuplicates().map((group, index) => (
@@ -1531,7 +1600,17 @@ function Library() {
                 </p>
 
                 {looseFiles.length === 0 ? (
-                  <p className="text-gray-400">No loose files found. Your library is well organized!</p>
+                  <div className="flex items-center gap-3 p-4 bg-gray-700 rounded-lg">
+                    <div className="w-10 h-10 text-green-500 flex-shrink-0">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-gray-200 font-medium">No loose files found</p>
+                      <p className="text-gray-400 text-sm">All files in your library folder are properly organized within game folders.</p>
+                    </div>
+                  </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full">
@@ -1617,6 +1696,33 @@ function Library() {
         }}
         onGameUpdated={loadGames}
         game={selectedGameForEdit}
+      />
+
+      <ConfirmModal
+        isOpen={gameToDelete !== null}
+        title="Delete Game"
+        message={gameToDelete ? `Are you sure you want to delete "${gameToDelete.title}"?` : ''}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          if (gameToDelete) {
+            handleDelete(gameToDelete.id);
+            setGameToDelete(null);
+          }
+        }}
+        onCancel={() => setGameToDelete(null)}
+      />
+
+      <ConfirmModal
+        isOpen={organizeError !== null}
+        title="Error"
+        message={organizeError || ''}
+        confirmText="OK"
+        cancelText=""
+        variant="danger"
+        onConfirm={() => setOrganizeError(null)}
+        onCancel={() => setOrganizeError(null)}
       />
     </div>
   );
