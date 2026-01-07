@@ -17,6 +17,18 @@ const SETTINGS_KEYS = {
   DRY_RUN: 'dry_run',
 };
 
+// Map settings keys to their environment variable fallbacks
+const ENV_VAR_FALLBACKS: Record<string, string> = {
+  prowlarr_url: 'PROWLARR_URL',
+  prowlarr_api_key: 'PROWLARR_API_KEY',
+  qbittorrent_host: 'QBITTORRENT_HOST',
+  qbittorrent_username: 'QBITTORRENT_USERNAME',
+  qbittorrent_password: 'QBITTORRENT_PASSWORD',
+  igdb_client_id: 'IGDB_CLIENT_ID',
+  igdb_client_secret: 'IGDB_CLIENT_SECRET',
+  library_path: 'LIBRARY_PATH',
+};
+
 export class SettingsService {
   /**
    * Get Prowlarr search categories
@@ -73,10 +85,21 @@ export class SettingsService {
   }
 
   /**
-   * Get a setting value
+   * Get a setting value (with env var fallback)
    */
   async getSetting(key: string): Promise<string | null> {
-    return settingsRepository.get(key);
+    const dbValue = await settingsRepository.get(key);
+    if (dbValue !== null) {
+      return dbValue;
+    }
+
+    // Fall back to environment variable if available
+    const envVarName = ENV_VAR_FALLBACKS[key];
+    if (envVarName && process.env[envVarName]) {
+      return process.env[envVarName] as string;
+    }
+
+    return null;
   }
 
   /**

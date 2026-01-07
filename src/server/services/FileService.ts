@@ -12,9 +12,37 @@ export interface MoveResult {
   error?: string;
 }
 
+export interface LooseFile {
+  path: string;
+  name: string;
+  extension: string;
+  size: number;
+  modifiedAt: number;
+}
+
+export interface DuplicateGameInfo {
+  id: number;
+  title: string;
+  year?: number;
+  status: string;
+  folderPath?: string;
+  size?: number;
+}
+
+export interface DuplicateGroup {
+  games: DuplicateGameInfo[];
+  similarity: number;
+}
+
+// Loose file extensions to detect
+const LOOSE_FILE_EXTENSIONS = [
+  '.iso', '.rar', '.zip', '.7z', '.tar', '.gz', '.bin', '.cue', '.nrg'
+];
+
 export interface LibraryFolder {
   folderName: string;
   parsedTitle: string;
+  cleanedTitle: string;
   parsedYear?: number;
   matched: boolean;
   gameId?: number;
@@ -250,6 +278,46 @@ export class FileService {
   }
 
   /**
+   * Clean up a title for display purposes
+   * Removes common scene tags, replaces separators with spaces, fixes capitalization
+   */
+  private cleanDisplayTitle(title: string): string {
+    let cleaned = title;
+
+    // Remove common scene/release tags
+    const tagsToRemove = [
+      /\[GOG\]/gi,
+      /\[REPACK\]/gi,
+      /\[MULTI\d*\]/gi,
+      /\[R\.G\.[^\]]+\]/gi,
+      /-CODEX$/i,
+      /-PLAZA$/i,
+      /-SKIDROW$/i,
+      /-RELOADED$/i,
+      /-FitGirl$/i,
+      /-DODI$/i,
+      /-ElAmigos$/i,
+      /-GOG$/i,
+      /-DARKSiDERS$/i,
+      /-EMPRESS$/i,
+      /-Razor1911$/i,
+      /\.v?\d+(\.\d+)*$/i, // Version numbers like .v1.2.3
+    ];
+
+    for (const tag of tagsToRemove) {
+      cleaned = cleaned.replace(tag, '');
+    }
+
+    // Replace dots and underscores with spaces
+    cleaned = cleaned.replace(/[._]/g, ' ');
+
+    // Remove multiple spaces and trim
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+    return cleaned;
+  }
+
+  /**
    * Get cached library files from database (excluding ignored and matched)
    * This is for the import page - only shows unmatched folders
    */
@@ -260,15 +328,19 @@ export class FileService {
       // Filter out ignored folders AND matched folders, then sort alphabetically
       return cachedFiles
         .filter((file) => !file.ignored && !file.matchedGameId)
-        .map((file) => ({
-          folderName: path.basename(file.folderPath),
-          parsedTitle: file.parsedTitle || '',
-          parsedYear: file.parsedYear || undefined,
-          matched: false, // All results are unmatched
-          gameId: undefined,
-          path: file.folderPath,
-        }))
-        .sort((a, b) => a.parsedTitle.localeCompare(b.parsedTitle, undefined, { sensitivity: 'base' }));
+        .map((file) => {
+          const parsedTitle = file.parsedTitle || '';
+          return {
+            folderName: path.basename(file.folderPath),
+            parsedTitle,
+            cleanedTitle: this.cleanDisplayTitle(parsedTitle),
+            parsedYear: file.parsedYear || undefined,
+            matched: false, // All results are unmatched
+            gameId: undefined,
+            path: file.folderPath,
+          };
+        })
+        .sort((a, b) => a.cleanedTitle.localeCompare(b.cleanedTitle, undefined, { sensitivity: 'base' }));
     } catch (error) {
       logger.error('Failed to get cached library files:', error);
       return [];
@@ -337,6 +409,7 @@ export class FileService {
           libraryFolders.push({
             folderName,
             parsedTitle: parsed.title,
+            cleanedTitle: this.cleanDisplayTitle(parsed.title),
             parsedYear: parsed.year,
             matched: false,
             gameId: undefined,
@@ -358,9 +431,9 @@ export class FileService {
         `Library scan refreshed: ${libraryFolders.length} folders, ${libraryFolders.filter((f) => f.matched).length} matched`
       );
 
-      // Sort alphabetically by parsed title for consistent display
+      // Sort alphabetically by cleaned title for consistent display
       return libraryFolders.sort((a, b) =>
-        a.parsedTitle.localeCompare(b.parsedTitle, undefined, { sensitivity: 'base' })
+        a.cleanedTitle.localeCompare(b.cleanedTitle, undefined, { sensitivity: 'base' })
       );
     } catch (error) {
       logger.error('Failed to refresh library scan:', error);
@@ -432,6 +505,208 @@ export class FileService {
     } catch (error) {
       logger.error('Failed to match folder to game:', error);
       return false;
+    }
+  }
+
+  /**
+   * Calculate string similarity using Levenshtein distance
+   * Returns a value between 0 and 100 (percentage similarity)
+   */
+  private calculateSimilarity(str1: string, str2: string): number {
+    const s1 = str1.toLowerCase();
+    const s2 = str2.toLowerCase();
+
+    if (s1 === s2) return 100;
+
+    const len1 = s1.length;
+    const len2 = s2.length;
+
+    // Create distance matrix
+    const matrix: number[][] = [];
+
+    for (let i = 0; i <= len1; i++) {
+      matrix[i] = [i];
+    }
+
+    for (let j = 0; j <= len2; j++) {
+      matrix[0][j] = j;
+    }
+
+    for (let i = 1; i <= len1; i++) {
+      for (let j = 1; j <= len2; j++) {
+        const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,      // deletion
+          matrix[i][j - 1] + 1,      // insertion
+          matrix[i - 1][j - 1] + cost // substitution
+        );
+      }
+    }
+
+    const distance = matrix[len1][len2];
+    const maxLen = Math.max(len1, len2);
+
+    return Math.round((1 - distance / maxLen) * 100);
+  }
+
+  /**
+   * Find loose files (archives, ISOs) in the library folder
+   */
+  async findLooseFiles(): Promise<LooseFile[]> {
+    try {
+      const libraryPath = await this.getLibraryPath();
+
+      if (!fs.existsSync(libraryPath)) {
+        return [];
+      }
+
+      const entries = fs.readdirSync(libraryPath, { withFileTypes: true });
+      const looseFiles: LooseFile[] = [];
+
+      for (const entry of entries) {
+        if (entry.isFile()) {
+          const ext = path.extname(entry.name).toLowerCase();
+
+          if (LOOSE_FILE_EXTENSIONS.includes(ext)) {
+            const filePath = path.join(libraryPath, entry.name);
+            const stats = fs.statSync(filePath);
+
+            looseFiles.push({
+              path: filePath,
+              name: entry.name,
+              extension: ext,
+              size: stats.size,
+              modifiedAt: Math.floor(stats.mtimeMs / 1000),
+            });
+          }
+        }
+      }
+
+      // Sort by size descending
+      return looseFiles.sort((a, b) => b.size - a.size);
+    } catch (error) {
+      logger.error('Failed to find loose files:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Find potential duplicate games based on title similarity
+   */
+  async findDuplicateGames(): Promise<DuplicateGroup[]> {
+    try {
+      const games = await gameRepository.findAll();
+
+      if (games.length < 2) {
+        return [];
+      }
+
+      const duplicateGroups: DuplicateGroup[] = [];
+      const processedPairs = new Set<string>();
+
+      for (let i = 0; i < games.length; i++) {
+        for (let j = i + 1; j < games.length; j++) {
+          const game1 = games[i];
+          const game2 = games[j];
+
+          // Create a unique pair key to avoid duplicates
+          const pairKey = [game1.id, game2.id].sort().join('-');
+          if (processedPairs.has(pairKey)) continue;
+          processedPairs.add(pairKey);
+
+          const similarity = this.calculateSimilarity(game1.title, game2.title);
+
+          // Only flag as duplicate if >80% similar
+          if (similarity >= 80) {
+            // Get folder sizes if paths exist
+            let size1: number | undefined;
+            let size2: number | undefined;
+
+            if (game1.folderPath && fs.existsSync(game1.folderPath)) {
+              size1 = await this.getFolderSize(game1.folderPath);
+            }
+
+            if (game2.folderPath && fs.existsSync(game2.folderPath)) {
+              size2 = await this.getFolderSize(game2.folderPath);
+            }
+
+            duplicateGroups.push({
+              games: [
+                {
+                  id: game1.id,
+                  title: game1.title,
+                  year: game1.year || undefined,
+                  status: game1.status,
+                  folderPath: game1.folderPath || undefined,
+                  size: size1,
+                },
+                {
+                  id: game2.id,
+                  title: game2.title,
+                  year: game2.year || undefined,
+                  status: game2.status,
+                  folderPath: game2.folderPath || undefined,
+                  size: size2,
+                },
+              ],
+              similarity,
+            });
+          }
+        }
+      }
+
+      // Sort by similarity descending
+      return duplicateGroups.sort((a, b) => b.similarity - a.similarity);
+    } catch (error) {
+      logger.error('Failed to find duplicate games:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Organize a loose file by creating a folder and moving the file into it
+   */
+  async organizeLooseFile(filePath: string): Promise<MoveResult> {
+    try {
+      if (!fs.existsSync(filePath)) {
+        return { success: false, error: 'File not found' };
+      }
+
+      const stats = fs.statSync(filePath);
+      if (!stats.isFile()) {
+        return { success: false, error: 'Path is not a file' };
+      }
+
+      const fileName = path.basename(filePath);
+      const fileNameWithoutExt = path.basename(filePath, path.extname(filePath));
+      const parentDir = path.dirname(filePath);
+
+      // Create folder with the file name (without extension)
+      const newFolderPath = path.join(parentDir, fileNameWithoutExt);
+
+      if (fs.existsSync(newFolderPath)) {
+        // Folder already exists, just move the file
+        const targetPath = path.join(newFolderPath, fileName);
+        if (fs.existsSync(targetPath)) {
+          return { success: false, error: 'File already exists in target folder' };
+        }
+        fs.renameSync(filePath, targetPath);
+        logger.info(`Moved ${fileName} into existing folder ${fileNameWithoutExt}`);
+      } else {
+        // Create the folder and move the file
+        fs.mkdirSync(newFolderPath, { recursive: true });
+        const targetPath = path.join(newFolderPath, fileName);
+        fs.renameSync(filePath, targetPath);
+        logger.info(`Created folder ${fileNameWithoutExt} and moved ${fileName} into it`);
+      }
+
+      return { success: true, newPath: newFolderPath };
+    } catch (error) {
+      logger.error('Failed to organize loose file:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
     }
   }
 }

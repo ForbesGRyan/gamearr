@@ -20,6 +20,23 @@ downloads.get('/', async (c) => {
   }
 });
 
+// GET /api/v1/downloads/test - Test qBittorrent connection
+// NOTE: Must be defined BEFORE /:hash route to avoid "test" being treated as a hash
+downloads.get('/test', async (c) => {
+  logger.info('GET /api/v1/downloads/test');
+
+  try {
+    const connected = await downloadService.testConnection();
+    return c.json({ success: true, data: connected });
+  } catch (error) {
+    logger.error('qBittorrent connection test failed:', error);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : 'Connection failed' },
+      500
+    );
+  }
+});
+
 // GET /api/v1/downloads/:hash - Get download by hash
 downloads.get('/:hash', async (c) => {
   const hash = c.req.param('hash');
@@ -90,22 +107,6 @@ downloads.post('/:hash/resume', async (c) => {
     logger.error('Failed to resume download:', error);
     return c.json(
       { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
-  }
-});
-
-// GET /api/v1/downloads/test - Test qBittorrent connection
-downloads.get('/test', async (c) => {
-  logger.info('GET /api/v1/downloads/test');
-
-  try {
-    const connected = await downloadService.testConnection();
-    return c.json({ success: true, data: connected });
-  } catch (error) {
-    logger.error('qBittorrent connection test failed:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Connection failed' },
       500
     );
   }

@@ -439,4 +439,82 @@ library.get('/ignored', async (c) => {
   }
 });
 
+// ========================================
+// Library Health Endpoints
+// ========================================
+
+// GET /api/v1/library/health/duplicates - Get potential duplicate games
+library.get('/health/duplicates', async (c) => {
+  logger.info('GET /api/v1/library/health/duplicates');
+
+  try {
+    const duplicates = await fileService.findDuplicateGames();
+
+    return c.json({
+      success: true,
+      data: duplicates,
+      count: duplicates.length,
+    });
+  } catch (error) {
+    logger.error('Failed to find duplicate games:', error);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
+// GET /api/v1/library/health/loose-files - Get loose files in library
+library.get('/health/loose-files', async (c) => {
+  logger.info('GET /api/v1/library/health/loose-files');
+
+  try {
+    const looseFiles = await fileService.findLooseFiles();
+
+    return c.json({
+      success: true,
+      data: looseFiles,
+      count: looseFiles.length,
+    });
+  } catch (error) {
+    logger.error('Failed to find loose files:', error);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
+// POST /api/v1/library/health/organize-file - Organize a loose file into a folder
+library.post('/health/organize-file', async (c) => {
+  logger.info('POST /api/v1/library/health/organize-file');
+
+  try {
+    const body = await c.req.json();
+    const { filePath } = body;
+
+    if (!filePath) {
+      return c.json({ success: false, error: 'Missing required field: filePath' }, 400);
+    }
+
+    const result = await fileService.organizeLooseFile(filePath);
+
+    if (!result.success) {
+      return c.json({ success: false, error: result.error }, 400);
+    }
+
+    return c.json({
+      success: true,
+      data: { newPath: result.newPath },
+      message: 'File organized successfully',
+    });
+  } catch (error) {
+    logger.error('Failed to organize file:', error);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
 export default library;

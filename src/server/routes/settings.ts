@@ -237,6 +237,18 @@ settings.get('/:key', async (c) => {
 
   try {
     const value = await settingsService.getSetting(key);
+
+    // Try to parse JSON values (for booleans, numbers, arrays stored as JSON)
+    if (value !== null) {
+      try {
+        const parsed = JSON.parse(value);
+        return c.json({ success: true, data: parsed });
+      } catch {
+        // Not JSON, return as-is
+        return c.json({ success: true, data: value });
+      }
+    }
+
     return c.json({ success: true, data: value });
   } catch (error) {
     logger.error(`Failed to get setting ${key}:`, error);
@@ -256,11 +268,13 @@ settings.put('/:key', async (c) => {
     const body = await c.req.json();
     const { value } = body;
 
-    if (typeof value !== 'string') {
-      return c.json({ success: false, error: 'Value must be a string' }, 400);
+    if (value === undefined || value === null) {
+      return c.json({ success: false, error: 'Value is required' }, 400);
     }
 
-    await settingsService.setSetting(key, value);
+    // Store non-strings as JSON, strings as-is
+    const valueToStore = typeof value === 'string' ? value : JSON.stringify(value);
+    await settingsService.setSetting(key, valueToStore);
 
     return c.json({
       success: true,

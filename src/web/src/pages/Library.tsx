@@ -25,6 +25,11 @@ interface Game {
   publisher?: string | null;
   gameModes?: string | null; // JSON string array
   similarGames?: string | null; // JSON array of {igdbId, name, coverUrl}
+  // Update tracking fields
+  updateAvailable?: boolean;
+  installedVersion?: string | null;
+  latestVersion?: string | null;
+  updatePolicy?: 'notify' | 'auto' | 'ignore';
 }
 
 interface SimilarGame {
@@ -36,6 +41,7 @@ interface SimilarGame {
 interface LibraryFolder {
   folderName: string;
   parsedTitle: string;
+  cleanedTitle: string;
   parsedYear?: number;
   matched: boolean;
   gameId?: number;
@@ -62,10 +68,41 @@ interface AutoMatchSuggestion {
   }>;
 }
 
-type Tab = 'games' | 'scan';
+interface LooseFile {
+  path: string;
+  name: string;
+  extension: string;
+  size: number;
+  modifiedAt: number;
+}
+
+interface DuplicateGameInfo {
+  id: number;
+  title: string;
+  year?: number;
+  status: string;
+  folderPath?: string;
+  size?: number;
+}
+
+interface DuplicateGroup {
+  games: DuplicateGameInfo[];
+  similarity: number;
+}
+
+type Tab = 'games' | 'scan' | 'health';
 type ViewMode = 'posters' | 'table' | 'overview';
 type SortColumn = 'title' | 'year' | 'rating' | 'developer' | 'store' | 'status';
 type SortDirection = 'asc' | 'desc';
+type StatusFilter = 'all' | 'wanted' | 'downloading' | 'downloaded';
+type MonitoredFilter = 'all' | 'monitored' | 'unmonitored';
+
+interface Filters {
+  status: StatusFilter;
+  monitored: MonitoredFilter;
+  genres: string[];
+  gameModes: string[];
+}
 
 function Library() {
   const [activeTab, setActiveTab] = useState<Tab>('games');
@@ -77,6 +114,12 @@ function Library() {
   });
   const [sortColumn, setSortColumn] = useState<SortColumn>('title');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [filters, setFilters] = useState<Filters>({
+    status: 'all',
+    monitored: 'all',
+    genres: [],
+    gameModes: [],
+  });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
@@ -93,6 +136,17 @@ function Library() {
   const [isAutoMatching, setIsAutoMatching] = useState<Record<string, boolean>>({});
   const [selectedStore, setSelectedStore] = useState<Record<string, string | null>>({});
 
+  // Health tab state
+  const [looseFiles, setLooseFiles] = useState<LooseFile[]>([]);
+  const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
+  const [isHealthLoading, setIsHealthLoading] = useState(false);
+  const [isHealthLoaded, setIsHealthLoaded] = useState(false);
+  const [organizingFile, setOrganizingFile] = useState<string | null>(null);
+  const [dismissedDuplicates, setDismissedDuplicates] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('dismissed-duplicates');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
+
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode);
     localStorage.setItem('library-view-mode', mode);
@@ -107,8 +161,8 @@ function Library() {
     }
   };
 
-  const getSortedGames = () => {
-    return [...games].sort((a, b) => {
+  const getSortedGames = (gamesToSort: Game[] = games) => {
+    return [...gamesToSort].sort((a, b) => {
       let comparison = 0;
 
       switch (sortColumn) {
@@ -135,6 +189,122 @@ function Library() {
 
       return sortDirection === 'asc' ? comparison : -comparison;
     });
+  };
+
+  // Extract unique genres and game modes from all games
+  const getAllGenres = (): string[] => {
+    const genreSet = new Set<string>();
+    games.forEach((game) => {
+      if (game.genres) {
+        try {
+          const parsed = JSON.parse(game.genres) as string[];
+          parsed.forEach((g) => genreSet.add(g));
+        } catch {
+          // ignore parse errors
+        }
+      }
+    });
+    return Array.from(genreSet).sort();
+  };
+
+  const getAllGameModes = (): string[] => {
+    const modeSet = new Set<string>();
+    games.forEach((game) => {
+      if (game.gameModes) {
+        try {
+          const parsed = JSON.parse(game.gameModes) as string[];
+          parsed.forEach((m) => modeSet.add(m));
+        } catch {
+          // ignore parse errors
+        }
+      }
+    });
+    return Array.from(modeSet).sort();
+  };
+
+  // Get filtered and sorted games
+  const getFilteredAndSortedGames = (): Game[] => {
+    let filtered = games;
+
+    // Filter by status
+    if (filters.status !== 'all') {
+      filtered = filtered.filter((game) => game.status === filters.status);
+    }
+
+    // Filter by monitored state
+    if (filters.monitored !== 'all') {
+      filtered = filtered.filter((game) =>
+        filters.monitored === 'monitored' ? game.monitored : !game.monitored
+      );
+    }
+
+    // Filter by genres
+    if (filters.genres.length > 0) {
+      filtered = filtered.filter((game) => {
+        if (!game.genres) return false;
+        try {
+          const gameGenres = JSON.parse(game.genres) as string[];
+          return filters.genres.some((g) => gameGenres.includes(g));
+        } catch {
+          return false;
+        }
+      });
+    }
+
+    // Filter by game modes
+    if (filters.gameModes.length > 0) {
+      filtered = filtered.filter((game) => {
+        if (!game.gameModes) return false;
+        try {
+          const modes = JSON.parse(game.gameModes) as string[];
+          return filters.gameModes.some((m) => modes.includes(m));
+        } catch {
+          return false;
+        }
+      });
+    }
+
+    return getSortedGames(filtered);
+  };
+
+  // Count active filters
+  const getActiveFilterCount = (): number => {
+    let count = 0;
+    if (filters.status !== 'all') count++;
+    if (filters.monitored !== 'all') count++;
+    count += filters.genres.length;
+    count += filters.gameModes.length;
+    return count;
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setFilters({
+      status: 'all',
+      monitored: 'all',
+      genres: [],
+      gameModes: [],
+    });
+  };
+
+  // Toggle a genre filter
+  const toggleGenreFilter = (genre: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      genres: prev.genres.includes(genre)
+        ? prev.genres.filter((g) => g !== genre)
+        : [...prev.genres, genre],
+    }));
+  };
+
+  // Toggle a game mode filter
+  const toggleGameModeFilter = (mode: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      gameModes: prev.gameModes.includes(mode)
+        ? prev.gameModes.filter((m) => m !== mode)
+        : [...prev.gameModes, mode],
+    }));
   };
 
   const SortIndicator = ({ column }: { column: SortColumn }) => {
@@ -177,6 +347,83 @@ function Library() {
       loadScanData();
     }
   }, [activeTab]);
+
+  // Load health data when switching to health tab
+  useEffect(() => {
+    if (activeTab === 'health' && !isHealthLoaded) {
+      loadHealthData();
+    }
+  }, [activeTab]);
+
+  const loadHealthData = async () => {
+    setIsHealthLoading(true);
+    try {
+      const [duplicatesRes, looseFilesRes] = await Promise.all([
+        api.getLibraryDuplicates(),
+        api.getLibraryLooseFiles(),
+      ]);
+
+      if (duplicatesRes.success && duplicatesRes.data) {
+        setDuplicates(duplicatesRes.data as DuplicateGroup[]);
+      }
+
+      if (looseFilesRes.success && looseFilesRes.data) {
+        setLooseFiles(looseFilesRes.data as LooseFile[]);
+      }
+
+      setIsHealthLoaded(true);
+    } catch (err) {
+      console.error('Failed to load health data:', err);
+    } finally {
+      setIsHealthLoading(false);
+    }
+  };
+
+  const handleOrganizeFile = async (filePath: string) => {
+    setOrganizingFile(filePath);
+    try {
+      const response = await api.organizeLooseFile(filePath);
+      if (response.success) {
+        // Remove the file from the list
+        setLooseFiles((prev) => prev.filter((f) => f.path !== filePath));
+      } else {
+        alert(response.error || 'Failed to organize file');
+      }
+    } catch (err) {
+      console.error('Failed to organize file:', err);
+      alert('Failed to organize file');
+    } finally {
+      setOrganizingFile(null);
+    }
+  };
+
+  const handleDismissDuplicate = (group: DuplicateGroup) => {
+    // Create a key from the game IDs
+    const key = group.games.map((g) => g.id).sort().join('-');
+    const newDismissed = new Set(dismissedDuplicates);
+    newDismissed.add(key);
+    setDismissedDuplicates(newDismissed);
+    localStorage.setItem('dismissed-duplicates', JSON.stringify([...newDismissed]));
+  };
+
+  const getVisibleDuplicates = () => {
+    return duplicates.filter((group) => {
+      const key = group.games.map((g) => g.id).sort().join('-');
+      return !dismissedDuplicates.has(key);
+    });
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  };
+
+  const formatDate = (timestamp: number): string => {
+    return new Date(timestamp * 1000).toLocaleDateString();
+  };
 
   const loadScanData = async () => {
     setIsLoading(true);
@@ -430,6 +677,18 @@ function Library() {
               {isScanning ? 'Scanning...' : 'Refresh Scan'}
             </button>
           )}
+          {activeTab === 'health' && (
+            <button
+              onClick={() => {
+                setIsHealthLoaded(false);
+                loadHealthData();
+              }}
+              disabled={isHealthLoading}
+              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isHealthLoading ? 'Scanning...' : 'Refresh'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -461,12 +720,197 @@ function Library() {
               </span>
             )}
           </button>
+          <button
+            onClick={() => setActiveTab('health')}
+            className={`px-4 py-2 border-b-2 transition ${
+              activeTab === 'health'
+                ? 'border-blue-500 text-blue-500'
+                : 'border-transparent text-gray-400 hover:text-gray-300'
+            }`}
+          >
+            Health
+            {(getVisibleDuplicates().length > 0 || looseFiles.length > 0) && (
+              <span className="ml-2 bg-yellow-600 text-white text-xs px-2 py-0.5 rounded-full">
+                {getVisibleDuplicates().length + looseFiles.length}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
+      {/* Filter Bar and Sort Dropdown - only show on games tab when there are games */}
+      {activeTab === 'games' && games.length > 0 && (
+        <div className="mb-6 bg-gray-800 rounded-lg p-4">
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Sort Dropdown - shown for Poster and Overview views */}
+            {(viewMode === 'posters' || viewMode === 'overview') && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-400">Sort by:</label>
+                <select
+                  value={`${sortColumn}-${sortDirection}`}
+                  onChange={(e) => {
+                    const [col, dir] = e.target.value.split('-') as [SortColumn, SortDirection];
+                    setSortColumn(col);
+                    setSortDirection(dir);
+                  }}
+                  className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="title-asc">Title (A-Z)</option>
+                  <option value="title-desc">Title (Z-A)</option>
+                  <option value="year-desc">Year (Newest)</option>
+                  <option value="year-asc">Year (Oldest)</option>
+                  <option value="rating-desc">Rating (Highest)</option>
+                  <option value="rating-asc">Rating (Lowest)</option>
+                  <option value="developer-asc">Developer (A-Z)</option>
+                  <option value="developer-desc">Developer (Z-A)</option>
+                  <option value="store-asc">Store (A-Z)</option>
+                  <option value="store-desc">Store (Z-A)</option>
+                  <option value="status-asc">Status (Wanted first)</option>
+                  <option value="status-desc">Status (Downloaded first)</option>
+                </select>
+              </div>
+            )}
+
+            {/* Divider */}
+            {(viewMode === 'posters' || viewMode === 'overview') && (
+              <div className="h-6 w-px bg-gray-600" />
+            )}
+
+            {/* Status Filter */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-400">Status:</label>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value as StatusFilter }))}
+                className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All</option>
+                <option value="wanted">Wanted</option>
+                <option value="downloading">Downloading</option>
+                <option value="downloaded">Downloaded</option>
+              </select>
+            </div>
+
+            {/* Monitored Filter */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-400">Monitored:</label>
+              <select
+                value={filters.monitored}
+                onChange={(e) => setFilters((prev) => ({ ...prev, monitored: e.target.value as MonitoredFilter }))}
+                className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All</option>
+                <option value="monitored">Monitored</option>
+                <option value="unmonitored">Unmonitored</option>
+              </select>
+            </div>
+
+            {/* Genre Filter */}
+            {getAllGenres().length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-400">Genres:</label>
+                <div className="relative">
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) toggleGenreFilter(e.target.value);
+                    }}
+                    className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">
+                      {filters.genres.length > 0 ? `${filters.genres.length} selected` : 'Select...'}
+                    </option>
+                    {getAllGenres().map((genre) => (
+                      <option key={genre} value={genre}>
+                        {filters.genres.includes(genre) ? `[x] ${genre}` : genre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Game Modes Filter */}
+            {getAllGameModes().length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-400">Modes:</label>
+                <div className="relative">
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) toggleGameModeFilter(e.target.value);
+                    }}
+                    className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">
+                      {filters.gameModes.length > 0 ? `${filters.gameModes.length} selected` : 'Select...'}
+                    </option>
+                    {getAllGameModes().map((mode) => (
+                      <option key={mode} value={mode}>
+                        {filters.gameModes.includes(mode) ? `[x] ${mode}` : mode}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Clear Filters Button */}
+            {getActiveFilterCount() > 0 && (
+              <button
+                onClick={clearFilters}
+                className="ml-auto text-sm px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 transition flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Clear Filters ({getActiveFilterCount()})
+              </button>
+            )}
+          </div>
+
+          {/* Active Filter Chips */}
+          {(filters.genres.length > 0 || filters.gameModes.length > 0) && (
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-700">
+              {filters.genres.map((genre) => (
+                <button
+                  key={genre}
+                  onClick={() => toggleGenreFilter(genre)}
+                  className="text-xs bg-blue-600 hover:bg-blue-500 px-2.5 py-1 rounded-full flex items-center gap-1 transition"
+                >
+                  {genre}
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              ))}
+              {filters.gameModes.map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => toggleGameModeFilter(mode)}
+                  className="text-xs bg-purple-600 hover:bg-purple-500 px-2.5 py-1 rounded-full flex items-center gap-1 transition"
+                >
+                  {mode}
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Results Count */}
+          {getActiveFilterCount() > 0 && (
+            <div className="text-sm text-gray-400 mt-3">
+              Showing {getFilteredAndSortedGames().length} of {games.length} games
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Floating error toast notification - doesn't affect page layout */}
       {error && (
-        <div className="fixed bottom-4 left-4 z-50 p-4 bg-red-900 border border-red-700 rounded-lg shadow-lg text-red-200 max-w-md animate-fade-in">
+        <div className="fixed top-4 left-4 z-50 p-4 bg-red-900 border border-red-700 rounded-lg shadow-lg text-red-200 max-w-md animate-fade-in">
           <div className="flex items-center gap-2">
             <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -478,7 +922,7 @@ function Library() {
 
       {/* Floating toast notification - doesn't affect page layout */}
       {scanMessage && (
-        <div className="fixed bottom-4 right-4 z-50 p-4 bg-green-900 border border-green-700 rounded-lg shadow-lg text-green-200 max-w-md animate-fade-in">
+        <div className="fixed top-4 right-4 z-50 p-4 bg-green-900 border border-green-700 rounded-lg shadow-lg text-green-200 max-w-md animate-fade-in">
           <div className="flex items-center gap-2">
             <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -506,7 +950,7 @@ function Library() {
               {/* Poster View */}
               {viewMode === 'posters' && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                  {games.map((game) => (
+                  {getFilteredAndSortedGames().map((game) => (
                     <GameCard
                       key={game.id}
                       game={game}
@@ -565,7 +1009,7 @@ function Library() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700">
-                      {getSortedGames().map((game) => (
+                      {getFilteredAndSortedGames().map((game) => (
                         <tr key={game.id} className="hover:bg-gray-700/50 transition">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
@@ -577,6 +1021,14 @@ function Library() {
                                 )}
                               </div>
                               <span className="font-medium">{game.title}</span>
+                              {game.updateAvailable && (
+                                <span className="text-xs bg-orange-500 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  </svg>
+                                  Update
+                                </span>
+                              )}
                               {!game.monitored && (
                                 <span className="text-xs bg-gray-600 px-1.5 py-0.5 rounded">Unmonitored</span>
                               )}
@@ -656,7 +1108,7 @@ function Library() {
               {/* Overview View */}
               {viewMode === 'overview' && (
                 <div className="space-y-4">
-                  {games.map((game) => {
+                  {getFilteredAndSortedGames().map((game) => {
                     // Parse JSON fields
                     const genres = game.genres ? JSON.parse(game.genres) as string[] : [];
                     const gameModes = game.gameModes ? JSON.parse(game.gameModes) as string[] : [];
@@ -705,6 +1157,14 @@ function Library() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 flex-shrink-0">
+                                {game.updateAvailable && (
+                                  <span className="text-xs bg-orange-500 px-2 py-1 rounded flex items-center gap-1">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Update Available
+                                  </span>
+                                )}
                                 {!game.monitored && (
                                   <span className="text-xs bg-gray-600 px-2 py-1 rounded">Unmonitored</span>
                                 )}
@@ -870,10 +1330,12 @@ function Library() {
                       {/* Folder Info */}
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="font-medium">{folder.folderName}</div>
-                          <div className="text-sm text-gray-400">
-                            Parsed: {folder.parsedTitle}
+                          <div className="font-medium">
+                            {folder.cleanedTitle}
                             {folder.parsedYear && ` (${folder.parsedYear})`}
+                          </div>
+                          <div className="text-sm text-gray-400">
+                            Folder: {folder.folderName}
                           </div>
                         </div>
                         {!suggestion && (
@@ -979,6 +1441,143 @@ function Library() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Health Tab */}
+      {activeTab === 'health' && (
+        <>
+          {isHealthLoading && !isHealthLoaded ? (
+            <div className="text-center py-12">
+              <p className="text-gray-400 text-lg">Scanning library health...</p>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {/* Duplicates Section */}
+              <div className="bg-gray-800 rounded-lg p-6">
+                <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                  <svg className="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Potential Duplicates
+                  {getVisibleDuplicates().length > 0 && (
+                    <span className="ml-2 bg-yellow-600 text-white text-sm px-2 py-0.5 rounded-full">
+                      {getVisibleDuplicates().length}
+                    </span>
+                  )}
+                </h3>
+
+                {getVisibleDuplicates().length === 0 ? (
+                  <p className="text-gray-400">No potential duplicates found. Your library looks clean!</p>
+                ) : (
+                  <div className="space-y-4">
+                    {getVisibleDuplicates().map((group, index) => (
+                      <div key={index} className="bg-gray-700 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm text-yellow-400 font-medium">
+                            {group.similarity}% similar
+                          </span>
+                          <button
+                            onClick={() => handleDismissDuplicate(group)}
+                            className="text-gray-400 hover:text-white text-sm px-3 py-1 rounded hover:bg-gray-600 transition"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          {group.games.map((game) => (
+                            <div key={game.id} className="bg-gray-800 rounded p-3">
+                              <h4 className="font-medium truncate" title={game.title}>
+                                {game.title}
+                              </h4>
+                              <div className="text-sm text-gray-400 mt-1 space-y-1">
+                                {game.year && <p>Year: {game.year}</p>}
+                                <p>Status: <span className={`capitalize ${
+                                  game.status === 'downloaded' ? 'text-green-400' :
+                                  game.status === 'downloading' ? 'text-blue-400' : 'text-yellow-400'
+                                }`}>{game.status}</span></p>
+                                {game.size !== undefined && (
+                                  <p>Size: {formatFileSize(game.size)}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Loose Files Section */}
+              <div className="bg-gray-800 rounded-lg p-6">
+                <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                  <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  Loose Files
+                  {looseFiles.length > 0 && (
+                    <span className="ml-2 bg-orange-600 text-white text-sm px-2 py-0.5 rounded-full">
+                      {looseFiles.length}
+                    </span>
+                  )}
+                </h3>
+                <p className="text-gray-400 text-sm mb-4">
+                  These archive and ISO files are sitting directly in your library folder.
+                  Click "Organize" to create a folder and move the file into it.
+                </p>
+
+                {looseFiles.length === 0 ? (
+                  <p className="text-gray-400">No loose files found. Your library is well organized!</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="text-left text-gray-400 border-b border-gray-700">
+                          <th className="pb-3 pr-4">Name</th>
+                          <th className="pb-3 pr-4">Size</th>
+                          <th className="pb-3 pr-4">Type</th>
+                          <th className="pb-3 pr-4">Modified</th>
+                          <th className="pb-3">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {looseFiles.map((file) => (
+                          <tr key={file.path} className="border-b border-gray-700 hover:bg-gray-750">
+                            <td className="py-3 pr-4">
+                              <span className="font-medium truncate block max-w-md" title={file.name}>
+                                {file.name}
+                              </span>
+                            </td>
+                            <td className="py-3 pr-4 text-gray-400">
+                              {formatFileSize(file.size)}
+                            </td>
+                            <td className="py-3 pr-4">
+                              <span className="uppercase text-xs bg-gray-600 px-2 py-1 rounded">
+                                {file.extension.replace('.', '')}
+                              </span>
+                            </td>
+                            <td className="py-3 pr-4 text-gray-400">
+                              {formatDate(file.modifiedAt)}
+                            </td>
+                            <td className="py-3">
+                              <button
+                                onClick={() => handleOrganizeFile(file.path)}
+                                disabled={organizingFile === file.path}
+                                className="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm transition disabled:opacity-50"
+                              >
+                                {organizingFile === file.path ? 'Organizing...' : 'Organize'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}

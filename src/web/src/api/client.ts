@@ -203,6 +203,60 @@ class ApiClient {
       body: JSON.stringify({ folderPath, folderName, igdbGame, store }),
     });
   }
+
+  // Library Health
+  async getLibraryDuplicates() {
+    return this.request('/library/health/duplicates');
+  }
+
+  async getLibraryLooseFiles() {
+    return this.request('/library/health/loose-files');
+  }
+
+  async organizeLooseFile(filePath: string) {
+    return this.request('/library/health/organize-file', {
+      method: 'POST',
+      body: JSON.stringify({ filePath }),
+    });
+  }
+
+  // Updates
+  async getPendingUpdates() {
+    return this.request('/updates');
+  }
+
+  async checkAllUpdates() {
+    return this.request('/updates/check');
+  }
+
+  async getGameUpdates(gameId: number) {
+    return this.request(`/updates/games/${gameId}`);
+  }
+
+  async checkGameForUpdates(gameId: number) {
+    return this.request(`/updates/games/${gameId}/check`, {
+      method: 'POST',
+    });
+  }
+
+  async setUpdatePolicy(gameId: number, policy: 'notify' | 'auto' | 'ignore') {
+    return this.request(`/updates/games/${gameId}/policy`, {
+      method: 'POST',
+      body: JSON.stringify({ policy }),
+    });
+  }
+
+  async grabUpdate(updateId: number) {
+    return this.request(`/updates/${updateId}/grab`, {
+      method: 'POST',
+    });
+  }
+
+  async dismissUpdate(updateId: number) {
+    return this.request(`/updates/${updateId}/dismiss`, {
+      method: 'POST',
+    });
+  }
 }
 
 export const api = new ApiClient();
