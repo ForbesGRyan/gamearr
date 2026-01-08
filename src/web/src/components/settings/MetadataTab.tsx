@@ -105,6 +105,9 @@ export default function MetadataTab({
           </a>.
         </p>
         <div className="space-y-3">
+          <p className="text-xs text-gray-500">
+            Register an application in the Twitch Developer Console. Use <span className="text-gray-400 font-mono">http://localhost</span> for the OAuth Redirect URL.
+          </p>
           <div>
             <label className="block text-sm text-gray-400 mb-1">
               Client ID <span className="text-red-400">*</span>
@@ -128,6 +131,9 @@ export default function MetadataTab({
               onChange={(e) => setIgdbClientSecret(e.target.value)}
               className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Found under your application's settings in the Twitch Developer Console
+            </p>
           </div>
           <button
             onClick={handleSaveIgdb}
