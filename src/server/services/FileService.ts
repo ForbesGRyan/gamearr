@@ -4,9 +4,10 @@ import { logger } from '../utils/logger';
 import { parseVersion } from '../utils/version';
 import { validatePathWithinBase, isPathWithinBase } from '../utils/pathSecurity';
 import { settingsService } from './SettingsService';
+import { libraryService } from './LibraryService';
 import { gameRepository } from '../repositories/GameRepository';
 import { libraryFileRepository } from '../repositories/LibraryFileRepository';
-import type { Game, LibraryFile } from '../db/schema';
+import type { Game, LibraryFile, Library } from '../db/schema';
 
 export interface MoveResult {
   success: boolean;
@@ -41,6 +42,7 @@ interface GameUpdateFields {
   status: 'wanted' | 'downloading' | 'downloaded';
   folderPath: string;
   installedVersion?: string;
+  libraryId?: number | null;
 }
 
 // Loose file extensions to detect
@@ -57,17 +59,52 @@ export interface LibraryFolder {
   matched: boolean;
   gameId?: number;
   path: string;
+  libraryId?: number;
+  libraryName?: string;
 }
 
 export class FileService {
   /**
-   * Get the library path from settings
+   * Get a library by ID
    */
-  private async getLibraryPath(): Promise<string> {
+  async getLibraryById(libraryId: number): Promise<Library | undefined> {
+    return libraryService.getLibrary(libraryId);
+  }
+
+  /**
+   * Get all libraries
+   */
+  async getAllLibraries(): Promise<Library[]> {
+    return libraryService.getAllLibraries();
+  }
+
+  /**
+   * Get the library path from settings (legacy support) or by library ID
+   * If libraryId is provided, returns that library's path
+   * Otherwise falls back to legacy library_path setting or first library
+   */
+  private async getLibraryPath(libraryId?: number): Promise<string> {
+    // If libraryId is provided, get that specific library
+    if (libraryId !== undefined) {
+      const library = await libraryService.getLibrary(libraryId);
+      if (!library) {
+        throw new Error(`Library not found: ${libraryId}`);
+      }
+      return library.path;
+    }
+
+    // Try to get libraries from new system first
+    const libraries = await libraryService.getAllLibraries();
+    if (libraries.length > 0) {
+      // Return first library's path as default
+      return libraries[0].path;
+    }
+
+    // Fall back to legacy library_path setting
     const libraryPath = await settingsService.getSetting('library_path');
 
     if (!libraryPath) {
-      throw new Error('Library path not configured. Please set library_path in settings.');
+      throw new Error('No libraries configured. Please add a library in Settings.');
     }
 
     // Ensure library path exists
@@ -393,10 +430,17 @@ export class FileService {
   /**
    * Get cached library files from database (excluding ignored and matched)
    * This is for the import page - only shows unmatched folders
+   * @param libraryId Optional library ID to filter by
    */
-  async getCachedLibraryFiles(): Promise<LibraryFolder[]> {
+  async getCachedLibraryFiles(libraryId?: number): Promise<LibraryFolder[]> {
     try {
-      const cachedFiles = await libraryFileRepository.findAll();
+      const cachedFiles = libraryId !== undefined
+        ? await libraryFileRepository.findByLibraryId(libraryId)
+        : await libraryFileRepository.findAll();
+
+      // Get library info for adding to results
+      const libraries = await libraryService.getAllLibraries();
+      const libraryMap = new Map(libraries.map(lib => [lib.id, lib]));
 
       // Filter out ignored folders AND matched folders, then sort alphabetically
       return cachedFiles
@@ -405,6 +449,7 @@ export class FileService {
           const folderName = path.basename(file.folderPath);
           const parsedTitle = file.parsedTitle || '';
           const version = parseVersion(folderName) || undefined;
+          const library = file.libraryId ? libraryMap.get(file.libraryId) : undefined;
           return {
             folderName,
             parsedTitle,
@@ -414,6 +459,8 @@ export class FileService {
             matched: false, // All results are unmatched
             gameId: undefined,
             path: file.folderPath,
+            libraryId: file.libraryId || undefined,
+            libraryName: library?.name,
           };
         })
         .sort((a, b) => a.cleanedTitle.localeCompare(b.cleanedTitle, undefined, { sensitivity: 'base' }));
@@ -425,20 +472,30 @@ export class FileService {
 
   /**
    * Refresh library scan and update cache
+   * @param libraryId Optional library ID to scan a specific library. If not provided, scans all libraries.
    */
-  async refreshLibraryScan(): Promise<LibraryFolder[]> {
+  async refreshLibraryScan(libraryId?: number): Promise<LibraryFolder[]> {
     try {
-      logger.info('Refreshing library scan...');
+      // If no libraryId provided, scan all libraries
+      if (libraryId === undefined) {
+        return this.refreshAllLibrariesScan();
+      }
 
-      const libraryPath = await this.getLibraryPath();
-
-      const libraryExists = await this.pathExists(libraryPath);
-      if (!libraryExists) {
-        logger.warn('Library path does not exist');
+      const library = await libraryService.getLibrary(libraryId);
+      if (!library) {
+        logger.error(`Library not found: ${libraryId}`);
         return [];
       }
 
-      const dirents = await fsPromises.readdir(libraryPath, { withFileTypes: true });
+      logger.info(`Refreshing library scan for: ${library.name} (${library.path})`);
+
+      const libraryExists = await this.pathExists(library.path);
+      if (!libraryExists) {
+        logger.warn(`Library path does not exist: ${library.path}`);
+        return [];
+      }
+
+      const dirents = await fsPromises.readdir(library.path, { withFileTypes: true });
       const folderNames = dirents
         .filter((dirent) => dirent.isDirectory())
         .map((dirent) => dirent.name);
@@ -446,8 +503,8 @@ export class FileService {
       // Get all games from database to check for matches
       const allGames = await gameRepository.findAll();
 
-      // Get existing cached files
-      const existingFiles = await libraryFileRepository.findAll();
+      // Get existing cached files for this library
+      const existingFiles = await libraryFileRepository.findByLibraryId(libraryId);
       const existingPaths = new Set(existingFiles.map((f) => f.folderPath));
 
       // Parse and cache each folder
@@ -455,7 +512,7 @@ export class FileService {
 
       for (const folderName of folderNames) {
         const parsed = this.parseFolderName(folderName);
-        const folderPath = path.join(libraryPath, folderName);
+        const folderPath = path.join(library.path, folderName);
 
         // Try to find a matching game
         const matchedGame = allGames.find((game) => {
@@ -471,12 +528,13 @@ export class FileService {
         // Check if we have existing match data
         const existingFile = existingFiles.find((f) => f.folderPath === folderPath);
 
-        // Upsert to database - preserve ignored status
+        // Upsert to database - preserve ignored status, set libraryId
         await libraryFileRepository.upsert({
           folderPath,
           parsedTitle: parsed.title,
           parsedYear: parsed.year || null,
           matchedGameId: existingFile?.matchedGameId || matchedGame?.id || null,
+          libraryId: libraryId,
           ignored: existingFile?.ignored || false, // Preserve ignored status
         });
 
@@ -493,6 +551,8 @@ export class FileService {
             matched: false,
             gameId: undefined,
             path: folderPath,
+            libraryId: libraryId,
+            libraryName: library.name,
           });
         }
 
@@ -507,7 +567,7 @@ export class FileService {
       }
 
       logger.info(
-        `Library scan refreshed: ${libraryFolders.length} folders, ${libraryFolders.filter((f) => f.matched).length} matched`
+        `Library scan refreshed: ${libraryFolders.length} unmatched folders in ${library.name}`
       );
 
       // Sort alphabetically by cleaned title for consistent display
@@ -521,22 +581,128 @@ export class FileService {
   }
 
   /**
+   * Refresh scan for all libraries
+   */
+  private async refreshAllLibrariesScan(): Promise<LibraryFolder[]> {
+    const libraries = await libraryService.getAllLibraries();
+
+    if (libraries.length === 0) {
+      // Fall back to legacy single library
+      const legacyPath = await settingsService.getSetting('library_path');
+      if (!legacyPath) {
+        logger.warn('No libraries configured');
+        return [];
+      }
+      // Use legacy scan logic for backwards compatibility
+      return this.refreshLegacyLibraryScan(legacyPath);
+    }
+
+    const allFolders: LibraryFolder[] = [];
+
+    for (const library of libraries) {
+      const folders = await this.refreshLibraryScan(library.id);
+      allFolders.push(...folders);
+    }
+
+    // Sort alphabetically by cleaned title
+    return allFolders.sort((a, b) =>
+      a.cleanedTitle.localeCompare(b.cleanedTitle, undefined, { sensitivity: 'base' })
+    );
+  }
+
+  /**
+   * Legacy library scan for backwards compatibility
+   */
+  private async refreshLegacyLibraryScan(libraryPath: string): Promise<LibraryFolder[]> {
+    logger.info(`Refreshing legacy library scan at: ${libraryPath}`);
+
+    const libraryExists = await this.pathExists(libraryPath);
+    if (!libraryExists) {
+      logger.warn('Library path does not exist');
+      return [];
+    }
+
+    const dirents = await fsPromises.readdir(libraryPath, { withFileTypes: true });
+    const folderNames = dirents
+      .filter((dirent) => dirent.isDirectory())
+      .map((dirent) => dirent.name);
+
+    const allGames = await gameRepository.findAll();
+    const existingFiles = await libraryFileRepository.findAll();
+    const existingPaths = new Set(existingFiles.map((f) => f.folderPath));
+    const libraryFolders: LibraryFolder[] = [];
+
+    for (const folderName of folderNames) {
+      const parsed = this.parseFolderName(folderName);
+      const folderPath = path.join(libraryPath, folderName);
+
+      const matchedGame = allGames.find((game) => {
+        const titleMatch = game.title.toLowerCase() === parsed.title.toLowerCase();
+        if (parsed.year && game.year) {
+          return titleMatch && game.year === parsed.year;
+        }
+        return titleMatch;
+      });
+
+      const existingFile = existingFiles.find((f) => f.folderPath === folderPath);
+
+      await libraryFileRepository.upsert({
+        folderPath,
+        parsedTitle: parsed.title,
+        parsedYear: parsed.year || null,
+        matchedGameId: existingFile?.matchedGameId || matchedGame?.id || null,
+        ignored: existingFile?.ignored || false,
+      });
+
+      const isMatched = !!(existingFile?.matchedGameId || matchedGame);
+      if (!existingFile?.ignored && !isMatched) {
+        libraryFolders.push({
+          folderName,
+          parsedTitle: parsed.title,
+          cleanedTitle: this.cleanDisplayTitle(parsed.title),
+          parsedYear: parsed.year,
+          parsedVersion: parsed.version,
+          matched: false,
+          gameId: undefined,
+          path: folderPath,
+        });
+      }
+
+      existingPaths.delete(folderPath);
+    }
+
+    for (const missingPath of existingPaths) {
+      logger.info(`Removing cached file that no longer exists: ${missingPath}`);
+      await libraryFileRepository.delete(missingPath);
+    }
+
+    logger.info(`Legacy library scan refreshed: ${libraryFolders.length} unmatched folders`);
+
+    return libraryFolders.sort((a, b) =>
+      a.cleanedTitle.localeCompare(b.cleanedTitle, undefined, { sensitivity: 'base' })
+    );
+  }
+
+  /**
    * Scan library folder and return detailed folder information
    * This method now uses cached data if available
+   * @param libraryId Optional library ID to scan a specific library. If not provided, scans all libraries.
    */
-  async scanLibrary(): Promise<LibraryFolder[]> {
+  async scanLibrary(libraryId?: number): Promise<LibraryFolder[]> {
     try {
-      // Check if we have cached data
-      const cachedFiles = await libraryFileRepository.findAll();
+      // Check if we have cached data for this library
+      const cachedFiles = libraryId !== undefined
+        ? await libraryFileRepository.findByLibraryId(libraryId)
+        : await libraryFileRepository.findAll();
 
       if (cachedFiles.length > 0) {
         logger.info(`Using cached library data: ${cachedFiles.length} files`);
-        return this.getCachedLibraryFiles();
+        return this.getCachedLibraryFiles(libraryId);
       }
 
       // No cached data, perform fresh scan
       logger.info('No cached data, performing fresh scan');
-      return this.refreshLibraryScan();
+      return this.refreshLibraryScan(libraryId);
     } catch (error) {
       logger.error('Failed to scan library:', error);
       return [];
@@ -544,16 +710,53 @@ export class FileService {
   }
 
   /**
+   * Scan all libraries and return combined results
+   */
+  async scanAllLibraries(): Promise<LibraryFolder[]> {
+    const libraries = await libraryService.getAllLibraries();
+    const allFolders: LibraryFolder[] = [];
+
+    for (const library of libraries) {
+      const folders = await this.scanLibrary(library.id);
+      allFolders.push(...folders);
+    }
+
+    // Sort alphabetically by cleaned title
+    return allFolders.sort((a, b) =>
+      a.cleanedTitle.localeCompare(b.cleanedTitle, undefined, { sensitivity: 'base' })
+    );
+  }
+
+  /**
    * Match a library folder to a game
    * Optionally accepts a version to set as installedVersion
+   * @param folderPath Path to the folder to match
+   * @param gameId ID of the game to match to
+   * @param version Optional version string to set
+   * @param libraryId Optional library ID (will be detected from path if not provided)
    */
-  async matchFolderToGame(folderPath: string, gameId: number, version?: string): Promise<boolean> {
+  async matchFolderToGame(folderPath: string, gameId: number, version?: string, libraryId?: number): Promise<boolean> {
     try {
       logger.info(`Matching folder ${folderPath} to game ID ${gameId}`);
 
-      // Security: Validate that the folder path is within the library
-      const libraryPath = await this.getLibraryPath();
-      validatePathWithinBase(folderPath, libraryPath, 'matchFolderToGame');
+      // Find the library this folder belongs to
+      let detectedLibraryId = libraryId;
+      if (detectedLibraryId === undefined) {
+        const library = await libraryService.getLibraryForPath(folderPath);
+        detectedLibraryId = library?.id;
+      }
+
+      // Security: Validate that the folder path is within a valid library
+      if (detectedLibraryId !== undefined) {
+        const library = await libraryService.getLibrary(detectedLibraryId);
+        if (library) {
+          validatePathWithinBase(folderPath, library.path, 'matchFolderToGame');
+        }
+      } else {
+        // Fall back to legacy validation
+        const libraryPath = await this.getLibraryPath();
+        validatePathWithinBase(folderPath, libraryPath, 'matchFolderToGame');
+      }
 
       // Parse folder name to extract title, year, and version
       const folderName = path.basename(folderPath);
@@ -574,6 +777,7 @@ export class FileService {
           parsedTitle: parsed.title,
           parsedYear: parsed.year || null,
           matchedGameId: gameId,
+          libraryId: detectedLibraryId || null,
           ignored: false,
         });
       } else {
@@ -581,10 +785,11 @@ export class FileService {
         await libraryFileRepository.matchToGame(folderPath, gameId);
       }
 
-      // Update game status to downloaded, set folder path, and set installed version if found
+      // Update game status to downloaded, set folder path, library, and installed version
       const gameUpdate: GameUpdateFields = {
         status: 'downloaded',
         folderPath: folderPath,
+        libraryId: detectedLibraryId,
       };
 
       if (installedVersion) {
@@ -594,7 +799,7 @@ export class FileService {
 
       await gameRepository.update(gameId, gameUpdate);
 
-      logger.info(`Successfully matched folder to game ${gameId}`);
+      logger.info(`Successfully matched folder to game ${gameId} (library: ${detectedLibraryId || 'none'})`);
       return true;
     } catch (error) {
       logger.error('Failed to match folder to game:', error);

@@ -10,6 +10,7 @@ const libraryFileFields = {
   parsedTitle: libraryFiles.parsedTitle,
   parsedYear: libraryFiles.parsedYear,
   matchedGameId: libraryFiles.matchedGameId,
+  libraryId: libraryFiles.libraryId,
   ignored: libraryFiles.ignored,
   scannedAt: libraryFiles.scannedAt,
 };
@@ -20,6 +21,17 @@ export class LibraryFileRepository {
    */
   async findAll(): Promise<LibraryFile[]> {
     return db.select(libraryFileFields).from(libraryFiles).orderBy(desc(libraryFiles.scannedAt));
+  }
+
+  /**
+   * Get library files by library ID
+   */
+  async findByLibraryId(libraryId: number): Promise<LibraryFile[]> {
+    return db
+      .select(libraryFileFields)
+      .from(libraryFiles)
+      .where(eq(libraryFiles.libraryId, libraryId))
+      .orderBy(desc(libraryFiles.scannedAt));
   }
 
   /**

@@ -32,6 +32,7 @@ import type {
   SortColumn,
   SortDirection,
   Filters,
+  LibraryInfo,
 } from '../components/library';
 
 type Tab = 'games' | 'scan' | 'health';
@@ -51,6 +52,7 @@ function Library() {
     monitored: 'all',
     genres: [],
     gameModes: [],
+    libraryId: 'all',
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -109,6 +111,9 @@ function Library() {
   const [steamSearchQuery, setSteamSearchQuery] = useState('');
   const [steamMinPlaytime, setSteamMinPlaytime] = useState<number>(0); // in hours
   const [steamShowOwned, setSteamShowOwned] = useState(true); // show already in library
+
+  // Libraries state
+  const [libraries, setLibraries] = useState<LibraryInfo[]>([]);
 
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode);
@@ -248,6 +253,11 @@ function Library() {
       });
     }
 
+    // Filter by library
+    if (filters.libraryId !== 'all') {
+      filtered = filtered.filter((game) => game.libraryId === filters.libraryId);
+    }
+
     return getSortedGames(filtered);
   }, [games, searchQuery, filters, sortColumn, sortDirection]);
 
@@ -291,6 +301,7 @@ function Library() {
     if (searchQuery.trim()) count++;
     if (filters.status !== 'all') count++;
     if (filters.monitored !== 'all') count++;
+    if (filters.libraryId !== 'all') count++;
     count += filters.genres.length;
     count += filters.gameModes.length;
     return count;
@@ -307,6 +318,7 @@ function Library() {
       monitored: 'all',
       genres: [],
       gameModes: [],
+      libraryId: 'all',
     });
   };
 
@@ -543,8 +555,24 @@ function Library() {
     }
   };
 
+  const loadLibraries = async () => {
+    try {
+      const response = await api.getLibraries();
+      if (response.success && response.data) {
+        setLibraries(response.data.map(lib => ({
+          id: lib.id,
+          name: lib.name,
+          platform: lib.platform,
+        })));
+      }
+    } catch (err) {
+      console.error('Failed to load libraries:', err);
+    }
+  };
+
   useEffect(() => {
     loadGames();
+    loadLibraries();
     // Load scan and health data in background for badge counts
     loadScanData();
     loadHealthData();
@@ -1067,6 +1095,32 @@ function Library() {
                 <option value="unmonitored">Unmonitored</option>
               </select>
             </div>
+
+            {/* Library Filter */}
+            {libraries.length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-400">Library:</label>
+                <select
+                  value={filters.libraryId}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFilters((prev) => ({
+                      ...prev,
+                      libraryId: value === 'all' ? 'all' : parseInt(value, 10),
+                    }));
+                  }}
+                  className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Libraries</option>
+                  {libraries.map((lib) => (
+                    <option key={lib.id} value={lib.id}>
+                      {lib.name}
+                      {lib.platform ? ` (${lib.platform})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Genre Filter */}
             {getAllGenres().length > 0 && (

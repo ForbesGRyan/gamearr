@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import StoreSelector from './StoreSelector';
+import LibrarySelector from './LibrarySelector';
 import { CloseIcon, GamepadIcon } from './Icons';
 
 interface SearchResult {
@@ -25,6 +26,7 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedStore, setSelectedStore] = useState<string | null>(null);
+  const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
 
   // Handle Escape key to close modal
   useEffect(() => {
@@ -73,7 +75,12 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
     setError(null);
 
     try {
-      const response = await api.addGame({ igdbId, monitored: true, store: selectedStore });
+      const response = await api.addGame({
+        igdbId,
+        monitored: true,
+        store: selectedStore,
+        libraryId: selectedLibraryId ?? undefined,
+      });
 
       if (response.success) {
         onGameAdded();
@@ -81,6 +88,7 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
         setSearchQuery('');
         setSearchResults([]);
         setSelectedStore(null);
+        setSelectedLibraryId(null);
       } else {
         setError(response.error || 'Failed to add game');
       }
@@ -132,11 +140,19 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
             </button>
           </form>
 
-          <div className="mt-4">
-            <StoreSelector value={selectedStore} onChange={setSelectedStore} label="Digital Store (Optional)" />
-            <p className="text-xs text-gray-400 mt-1">
-              If you select a store, the game will be marked as already owned (no download needed).
-            </p>
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <StoreSelector value={selectedStore} onChange={setSelectedStore} label="Digital Store (Optional)" />
+              <p className="text-xs text-gray-400 mt-1">
+                If you select a store, the game will be marked as already owned.
+              </p>
+            </div>
+            <LibrarySelector
+              value={selectedLibraryId}
+              onChange={setSelectedLibraryId}
+              label="Library (Optional)"
+              optional={true}
+            />
           </div>
 
           {error && (

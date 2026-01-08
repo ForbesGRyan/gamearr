@@ -24,6 +24,7 @@ import indexersRouter from './routes/indexers';
 import settingsRouter from './routes/settings';
 import systemRouter from './routes/system';
 import libraryRouter from './routes/library';
+import librariesRouter from './routes/libraries';
 import updatesRouter from './routes/updates';
 import discoverRouter from './routes/discover';
 import steamRouter from './routes/steam';
@@ -44,6 +45,7 @@ import { qbittorrentClient } from './integrations/qbittorrent/QBittorrentClient'
 import { prowlarrClient } from './integrations/prowlarr/ProwlarrClient';
 import { igdbClient } from './integrations/igdb/IGDBClient';
 import { settingsService } from './services/SettingsService';
+import { libraryService } from './services/LibraryService';
 
 const app = new Hono();
 
@@ -96,6 +98,7 @@ app.route('/api/v1/indexers', indexersRouter);
 app.route('/api/v1/settings', settingsRouter);
 app.route('/api/v1/system', systemRouter);
 app.route('/api/v1/library', libraryRouter);
+app.route('/api/v1/libraries', librariesRouter);
 app.route('/api/v1/updates', updatesRouter);
 app.route('/api/v1/discover', discoverRouter);
 app.route('/api/v1/steam', steamRouter);
@@ -184,7 +187,17 @@ async function initializeClients() {
 }
 
 // Initialize clients and start jobs
-initializeClients().then(() => {
+initializeClients().then(async () => {
+  // Run migrations
+  try {
+    const migratedLibrary = await libraryService.migrateFromSingleLibrary();
+    if (migratedLibrary) {
+      logger.info(`✅ Migrated library_path to libraries table: ${migratedLibrary.name}`);
+    }
+  } catch (error) {
+    logger.error('Failed to migrate library_path:', error);
+  }
+
   // Start background jobs
   downloadMonitor.start();
   searchScheduler.start();

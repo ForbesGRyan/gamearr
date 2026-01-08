@@ -16,6 +16,7 @@ const gameFields = {
   status: games.status,
   coverUrl: games.coverUrl,
   folderPath: games.folderPath,
+  libraryId: games.libraryId,
   summary: games.summary,
   genres: games.genres,
   totalRating: games.totalRating,
@@ -41,6 +42,7 @@ const gameMinimalFields = {
   status: games.status,
   monitored: games.monitored,
   coverUrl: games.coverUrl,
+  libraryId: games.libraryId,
 };
 
 export interface GameStats {

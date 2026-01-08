@@ -1,6 +1,20 @@
 import { sqliteTable, integer, text, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
+// Libraries table - must be defined before games for foreign key reference
+export const libraries = sqliteTable('libraries', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  path: text('path').notNull().unique(),
+  platform: text('platform'), // "PC", "PlayStation", "Nintendo", etc. for filtering
+  monitored: integer('monitored', { mode: 'boolean' }).notNull().default(true),
+  downloadEnabled: integer('download_enabled', { mode: 'boolean' }).notNull().default(true),
+  priority: integer('priority').notNull().default(0), // For ordering in UI
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
 export const games = sqliteTable('games', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   igdbId: integer('igdb_id').notNull().unique(),
@@ -15,6 +29,7 @@ export const games = sqliteTable('games', {
   }).notNull().default('wanted'),
   coverUrl: text('cover_url'),
   folderPath: text('folder_path'),
+  libraryId: integer('library_id').references(() => libraries.id, { onDelete: 'set null' }),
   // Metadata fields from IGDB
   summary: text('summary'),
   genres: text('genres'), // JSON array of genre names
@@ -38,6 +53,7 @@ export const games = sqliteTable('games', {
 }, (table) => ({
   statusIdx: index('games_status_idx').on(table.status),
   monitoredIdx: index('games_monitored_idx').on(table.monitored),
+  libraryIdIdx: index('games_library_id_idx').on(table.libraryId),
 }));
 
 export const releases = sqliteTable('releases', {
@@ -92,12 +108,14 @@ export const libraryFiles = sqliteTable('library_files', {
   parsedTitle: text('parsed_title'),
   parsedYear: integer('parsed_year'),
   matchedGameId: integer('matched_game_id').references(() => games.id, { onDelete: 'set null' }),
+  libraryId: integer('library_id').references(() => libraries.id, { onDelete: 'cascade' }),
   ignored: integer('ignored', { mode: 'boolean' }).notNull().default(false),
   scannedAt: integer('scanned_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
 }, (table) => ({
   matchedGameIdIdx: index('library_files_matched_game_id_idx').on(table.matchedGameId),
+  libraryIdIdx: index('library_files_library_id_idx').on(table.libraryId),
   ignoredIdx: index('library_files_ignored_idx').on(table.ignored),
 }));
 
@@ -128,6 +146,9 @@ export const gameUpdates = sqliteTable('game_updates', {
 }));
 
 // Type exports
+export type Library = typeof libraries.$inferSelect;
+export type NewLibrary = typeof libraries.$inferInsert;
+
 export type Game = typeof games.$inferSelect;
 export type NewGame = typeof games.$inferInsert;
 

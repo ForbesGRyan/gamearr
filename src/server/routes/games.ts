@@ -12,6 +12,7 @@ const addGameSchema = z.object({
   igdbId: z.number(),
   monitored: z.boolean().optional().default(true),
   store: z.string().nullable().optional(),
+  libraryId: z.number().optional(),
 });
 
 const updateGameSchema = z.object({
@@ -70,8 +71,8 @@ games.post('/', zValidator('json', addGameSchema), async (c) => {
   logger.info('POST /api/v1/games');
 
   try {
-    const { igdbId, monitored, store } = c.req.valid('json');
-    const game = await gameService.addGameFromIGDB(igdbId, monitored, store);
+    const { igdbId, monitored, store, libraryId } = c.req.valid('json');
+    const game = await gameService.addGameFromIGDB(igdbId, monitored, store, libraryId);
     return c.json({ success: true, data: game }, 201);
   } catch (error) {
     logger.error('Failed to add game:', error);

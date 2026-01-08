@@ -23,4 +23,5 @@ export type {
   Filters,
   SteamGame,
   SteamImportProgress,
+  LibraryInfo,
 } from './types';

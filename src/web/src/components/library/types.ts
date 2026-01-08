@@ -22,6 +22,7 @@ export interface Game {
   installedVersion?: string | null;
   latestVersion?: string | null;
   updatePolicy?: 'notify' | 'auto' | 'ignore';
+  libraryId?: number | null;
 }
 
 export interface SimilarGame {
@@ -93,6 +94,7 @@ export interface Filters {
   monitored: MonitoredFilter;
   genres: string[];
   gameModes: string[];
+  libraryId: number | 'all';
 }
 
 export interface SteamGame {
@@ -107,4 +109,10 @@ export interface SteamImportProgress {
   current: number;
   total: number;
   currentGame: string;
+}
+
+export interface LibraryInfo {
+  id: number;
+  name: string;
+  platform?: string | null;
 }

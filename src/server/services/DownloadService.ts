@@ -2,6 +2,7 @@ import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient
 import { releaseRepository } from '../repositories/ReleaseRepository';
 import { gameRepository } from '../repositories/GameRepository';
 import { settingsService } from './SettingsService';
+import { libraryService } from './LibraryService';
 import type { NewRelease, NewDownloadHistory, Release } from '../db/schema';
 import type { ScoredRelease } from './IndexerService';
 import type { TorrentInfo } from '../integrations/qbittorrent/types';
@@ -671,8 +672,42 @@ export class DownloadService {
       // Use Set to deduplicate game IDs
       const uniqueGameIds = [...new Set(gameIdsToMarkDownloaded)];
       await gameRepository.batchUpdateStatus(uniqueGameIds, 'downloaded');
+
+      // Assign library to games that don't have one yet
+      // This happens when downloads complete and the game needs a library assignment
+      if (uniqueGameIds.length > 0) {
+        await this.assignLibrariesToGames(uniqueGameIds);
+      }
     } catch (error) {
       logger.error('Failed to sync download status:', error);
+    }
+  }
+
+  /**
+   * Assign libraries to games that don't have one yet
+   * Uses platform matching when possible, falls back to default library
+   */
+  private async assignLibrariesToGames(gameIds: number[]): Promise<void> {
+    try {
+      const games = await gameRepository.findByIds(gameIds);
+
+      for (const [, game] of games) {
+        // Skip if already assigned to a library
+        if (game.libraryId) {
+          continue;
+        }
+
+        // Find appropriate library based on platform
+        const library = await libraryService.getLibraryForGame(game.platform);
+        if (library) {
+          await gameRepository.update(game.id, { libraryId: library.id });
+          logger.info(`Assigned game "${game.title}" to library "${library.name}"`);
+        } else {
+          logger.debug(`No library available for game "${game.title}" (platform: ${game.platform || 'unknown'})`);
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to assign libraries to games:', error);
     }
   }
 

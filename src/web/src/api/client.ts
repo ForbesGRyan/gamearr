@@ -51,7 +51,7 @@ export interface ApiResponse<T> {
 // Request interfaces for API methods
 export interface AddGameRequest {
   igdbId: number;
-  title: string;
+  title?: string;
   year?: number;
   platform?: string;
   coverUrl?: string;
@@ -63,6 +63,8 @@ export interface AddGameRequest {
   developer?: string;
   publisher?: string;
   gameModes?: string;
+  libraryId?: number;
+  store?: string | null;
 }
 
 export interface UpdateGameRequest {
@@ -267,6 +269,35 @@ export interface LooseFile {
   path: string;
   name: string;
   size: number;
+}
+
+export interface Library {
+  id: number;
+  name: string;
+  path: string;
+  platform?: string | null;
+  monitored: boolean;
+  downloadEnabled: boolean;
+  priority: number;
+  createdAt: Date;
+}
+
+export interface CreateLibraryRequest {
+  name: string;
+  path: string;
+  platform?: string;
+  monitored?: boolean;
+  downloadEnabled?: boolean;
+  priority?: number;
+}
+
+export interface UpdateLibraryRequest {
+  name?: string;
+  path?: string;
+  platform?: string | null;
+  monitored?: boolean;
+  downloadEnabled?: boolean;
+  priority?: number;
 }
 
 class ApiClient {
@@ -654,6 +685,46 @@ class ApiClient {
     if (maxAgeDays) params.set('maxAge', maxAgeDays.toString());
     const queryString = params.toString();
     return this.request<Release[]>(`/indexers/torrents${queryString ? '?' + queryString : ''}`);
+  }
+
+  // Libraries
+  async getLibraries(): Promise<ApiResponse<Library[]>> {
+    return this.request<Library[]>('/libraries');
+  }
+
+  async getLibrary(id: number): Promise<ApiResponse<Library>> {
+    return this.request<Library>(`/libraries/${id}`);
+  }
+
+  async createLibrary(library: CreateLibraryRequest): Promise<ApiResponse<Library>> {
+    return this.request<Library>('/libraries', {
+      method: 'POST',
+      body: JSON.stringify(library),
+    });
+  }
+
+  async updateLibrary(id: number, library: UpdateLibraryRequest): Promise<ApiResponse<Library>> {
+    return this.request<Library>(`/libraries/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(library),
+    });
+  }
+
+  async deleteLibrary(id: number): Promise<ApiResponse<void>> {
+    return this.request<void>(`/libraries/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async testLibraryPath(path: string): Promise<ApiResponse<{ valid: boolean; error?: string }>> {
+    return this.request<{ valid: boolean; error?: string }>('/libraries/test-path', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    });
+  }
+
+  async getLibraryPlatforms(): Promise<ApiResponse<string[]>> {
+    return this.request<string[]>('/libraries/platforms');
   }
 }
 

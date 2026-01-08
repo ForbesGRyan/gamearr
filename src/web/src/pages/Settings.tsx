@@ -4,12 +4,13 @@ import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
 
 // Lazy load tab components
 const GeneralTab = lazy(() => import('../components/settings/GeneralTab'));
+const LibrariesTab = lazy(() => import('../components/settings/LibrariesTab'));
 const IndexersTab = lazy(() => import('../components/settings/IndexersTab'));
 const DownloadsTab = lazy(() => import('../components/settings/DownloadsTab'));
 const MetadataTab = lazy(() => import('../components/settings/MetadataTab'));
 const UpdatesTab = lazy(() => import('../components/settings/UpdatesTab'));
 
-type SettingsTab = 'general' | 'indexers' | 'downloads' | 'metadata' | 'updates';
+type SettingsTab = 'general' | 'libraries' | 'indexers' | 'downloads' | 'metadata' | 'updates';
 
 // Loading fallback component
 function TabLoading() {
@@ -199,6 +200,15 @@ function Settings() {
       ),
     },
     {
+      id: 'libraries',
+      label: 'Libraries',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+        </svg>
+      ),
+    },
+    {
       id: 'indexers',
       label: 'Indexers',
       icon: (
@@ -291,6 +301,10 @@ function Settings() {
               setAutoGrabMinSeeders={setAutoGrabMinSeeders}
               showSaveMessage={showSaveMessage}
             />
+          )}
+
+          {activeTab === 'libraries' && (
+            <LibrariesTab showSaveMessage={showSaveMessage} />
           )}
 
           {activeTab === 'indexers' && (
