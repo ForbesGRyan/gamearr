@@ -849,36 +849,46 @@ export class FileService {
   }
 
   /**
-   * Find loose files (archives, ISOs) in the library folder
+   * Find loose files (archives, ISOs) in all library folders
    */
   async findLooseFiles(): Promise<LooseFile[]> {
     try {
-      const libraryPath = await this.getLibraryPath();
-
-      const libraryExists = await this.pathExists(libraryPath);
-      if (!libraryExists) {
+      const libraries = await libraryService.getAllLibraries();
+      if (libraries.length === 0) {
         return [];
       }
 
-      const entries = await fsPromises.readdir(libraryPath, { withFileTypes: true });
       const looseFiles: LooseFile[] = [];
 
-      for (const entry of entries) {
-        if (entry.isFile()) {
-          const ext = path.extname(entry.name).toLowerCase();
+      for (const library of libraries) {
+        const libraryExists = await this.pathExists(library.path);
+        if (!libraryExists) {
+          continue;
+        }
 
-          if (LOOSE_FILE_EXTENSIONS.includes(ext)) {
-            const filePath = path.join(libraryPath, entry.name);
-            const stats = await fsPromises.stat(filePath);
+        try {
+          const entries = await fsPromises.readdir(library.path, { withFileTypes: true });
 
-            looseFiles.push({
-              path: filePath,
-              name: entry.name,
-              extension: ext,
-              size: stats.size,
-              modifiedAt: Math.floor(stats.mtimeMs / 1000),
-            });
+          for (const entry of entries) {
+            if (entry.isFile()) {
+              const ext = path.extname(entry.name).toLowerCase();
+
+              if (LOOSE_FILE_EXTENSIONS.includes(ext)) {
+                const filePath = path.join(library.path, entry.name);
+                const stats = await fsPromises.stat(filePath);
+
+                looseFiles.push({
+                  path: filePath,
+                  name: entry.name,
+                  extension: ext,
+                  size: stats.size,
+                  modifiedAt: Math.floor(stats.mtimeMs / 1000),
+                });
+              }
+            }
           }
+        } catch (err) {
+          logger.warn(`Failed to scan library ${library.name} for loose files:`, err);
         }
       }
 
