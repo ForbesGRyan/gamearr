@@ -1887,6 +1887,9 @@ function Library() {
                               <span className="font-medium truncate block max-w-md" title={file.name}>
                                 {file.name}
                               </span>
+                              <span className="text-xs text-gray-500 block truncate max-w-lg" title={file.path}>
+                                {file.path}
+                              </span>
                             </td>
                             <td className="py-3 pr-4 text-gray-400">
                               {formatBytes(file.size)}
