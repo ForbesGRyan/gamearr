@@ -951,8 +951,8 @@ export class FileService {
         }
       }
 
-      // Sort by size descending
-      return looseFiles.sort((a, b) => b.size - a.size);
+      // Sort alphabetically by filename
+      return looseFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
     } catch (error) {
       logger.error('Failed to find loose files:', error);
       return [];
