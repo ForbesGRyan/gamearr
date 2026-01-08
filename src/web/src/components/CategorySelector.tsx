@@ -133,7 +133,7 @@ function CategorySelector() {
       {categoryGroups.map((group) => (
         <div key={group.name} className="mb-6">
           <h4 className="text-lg font-semibold mb-3 text-blue-400">{group.name}</h4>
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {group.categories.map((category) => {
               const isSelected = selectedCategories.includes(category.id);
               const isParent = category.id % 1000 === 0; // Parent categories end in 000
