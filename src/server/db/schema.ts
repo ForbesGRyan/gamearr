@@ -9,6 +9,7 @@ export const libraries = sqliteTable('libraries', {
   platform: text('platform'), // "PC", "PlayStation", "Nintendo", etc. for filtering
   monitored: integer('monitored', { mode: 'boolean' }).notNull().default(true),
   downloadEnabled: integer('download_enabled', { mode: 'boolean' }).notNull().default(true),
+  downloadCategory: text('download_category').default('gamearr'), // qBittorrent category for downloads
   priority: integer('priority').notNull().default(0), // For ordering in UI
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()

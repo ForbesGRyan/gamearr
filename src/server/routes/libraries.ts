@@ -12,6 +12,7 @@ const createLibrarySchema = z.object({
   platform: z.string().optional(),
   monitored: z.boolean().optional(),
   downloadEnabled: z.boolean().optional(),
+  downloadCategory: z.string().optional(),
   priority: z.number().int().min(0).optional(),
 });
 
@@ -21,6 +22,7 @@ const updateLibrarySchema = z.object({
   platform: z.string().nullable().optional(),
   monitored: z.boolean().optional(),
   downloadEnabled: z.boolean().optional(),
+  downloadCategory: z.string().nullable().optional(),
   priority: z.number().int().min(0).optional(),
 });
 

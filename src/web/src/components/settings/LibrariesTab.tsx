@@ -11,6 +11,7 @@ interface LibraryFormData {
   platform: string;
   monitored: boolean;
   downloadEnabled: boolean;
+  downloadCategory: string;
   priority: number;
 }
 
@@ -20,6 +21,7 @@ const emptyFormData: LibraryFormData = {
   platform: '',
   monitored: true,
   downloadEnabled: true,
+  downloadCategory: 'gamearr',
   priority: 0,
 };
 
@@ -27,6 +29,9 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // qBittorrent categories
+  const [qbCategories, setQbCategories] = useState<string[]>([]);
 
   // Form state
   const [showForm, setShowForm] = useState(false);
@@ -59,6 +64,12 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
 
   useEffect(() => {
     loadLibraries();
+    // Load qBittorrent categories for the dropdown
+    api.getQBittorrentCategories().then((response) => {
+      if (response.success && response.data) {
+        setQbCategories(response.data as string[]);
+      }
+    });
   }, [loadLibraries]);
 
   const handleTestPath = useCallback(async () => {
@@ -101,6 +112,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
           platform: formData.platform.trim() || null,
           monitored: formData.monitored,
           downloadEnabled: formData.downloadEnabled,
+          downloadCategory: formData.downloadCategory.trim() || null,
           priority: formData.priority,
         };
         const response = await api.updateLibrary(editingId, updateData);
@@ -119,6 +131,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
           platform: formData.platform.trim() || undefined,
           monitored: formData.monitored,
           downloadEnabled: formData.downloadEnabled,
+          downloadCategory: formData.downloadCategory.trim() || undefined,
           priority: formData.priority,
         };
         const response = await api.createLibrary(createData);
@@ -144,6 +157,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
       platform: library.platform || '',
       monitored: library.monitored,
       downloadEnabled: library.downloadEnabled,
+      downloadCategory: library.downloadCategory || 'gamearr',
       priority: library.priority,
     });
     setEditingId(library.id);
@@ -295,6 +309,36 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
               )}
             </div>
 
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">
+                Download Category
+              </label>
+              <div className="flex gap-2">
+                <select
+                  value={formData.downloadCategory}
+                  onChange={(e) => setFormData({ ...formData, downloadCategory: e.target.value })}
+                  className="flex-1 px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="gamearr">gamearr (default)</option>
+                  {qbCategories.filter(c => c !== 'gamearr').map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={formData.downloadCategory}
+                  onChange={(e) => setFormData({ ...formData, downloadCategory: e.target.value })}
+                  placeholder="Or type a new category..."
+                  className="flex-1 px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                qBittorrent category for downloads to this library. Select existing or enter a new one.
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-1">
@@ -395,6 +439,11 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
                   {library.downloadEnabled && (
                     <span className="px-2 py-0.5 bg-purple-900 text-purple-300 text-xs rounded">
                       Downloads
+                    </span>
+                  )}
+                  {library.downloadCategory && library.downloadCategory !== 'gamearr' && (
+                    <span className="px-2 py-0.5 bg-gray-700 text-gray-300 text-xs rounded font-mono">
+                      {library.downloadCategory}
                     </span>
                   )}
                 </div>

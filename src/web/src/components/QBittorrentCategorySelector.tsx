@@ -95,7 +95,7 @@ function QBittorrentCategorySelector() {
     <div className="bg-gray-700 rounded-lg p-6">
       <h3 className="text-xl font-semibold mb-2 text-white">Activity Page Filter</h3>
       <p className="text-gray-300 mb-4 text-sm">
-        Select which qBittorrent category to show in the Activity page. Only torrents in this category will be displayed.
+        Filter which torrents appear in the Activity page. This does not affect downloads - configure download categories per-library in Settings → Libraries.
       </p>
 
       {error && (
@@ -150,7 +150,7 @@ function QBittorrentCategorySelector() {
           </div>
 
           <p className="text-xs text-gray-400 mt-3">
-            Default: "gamearr" - This category is automatically assigned when you download releases through Gamearr.
+            This only filters what's shown in Activity. Download categories are set per-library in Settings → Libraries.
           </p>
         </div>
       )}

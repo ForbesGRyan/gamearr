@@ -401,8 +401,14 @@ export class DownloadService {
       throw new NotFoundError('Game', gameId);
     }
 
-    // Get configured category
-    const category = await settingsService.getQBittorrentCategory();
+    // Get category from library if available, otherwise use global setting
+    let category = await settingsService.getQBittorrentCategory();
+    if (game.libraryId) {
+      const library = await libraryService.getLibrary(game.libraryId);
+      if (library?.downloadCategory) {
+        category = library.downloadCategory;
+      }
+    }
     const tags = `gamearr,game-${gameId}`;
 
     if (isDryRun) {

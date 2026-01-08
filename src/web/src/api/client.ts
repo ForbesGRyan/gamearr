@@ -278,6 +278,7 @@ export interface Library {
   platform?: string | null;
   monitored: boolean;
   downloadEnabled: boolean;
+  downloadCategory?: string | null;
   priority: number;
   createdAt: Date;
 }
@@ -288,6 +289,7 @@ export interface CreateLibraryRequest {
   platform?: string;
   monitored?: boolean;
   downloadEnabled?: boolean;
+  downloadCategory?: string;
   priority?: number;
 }
 
@@ -297,6 +299,7 @@ export interface UpdateLibraryRequest {
   platform?: string | null;
   monitored?: boolean;
   downloadEnabled?: boolean;
+  downloadCategory?: string | null;
   priority?: number;
 }
 
