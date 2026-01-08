@@ -80,6 +80,39 @@ function Library() {
     const saved = localStorage.getItem('dismissed-duplicates');
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
+  const [looseFileSortColumn, setLooseFileSortColumn] = useState<'name' | 'size' | 'type' | 'modified'>('name');
+  const [looseFileSortDirection, setLooseFileSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  // Sorted loose files
+  const sortedLooseFiles = useMemo(() => {
+    return [...looseFiles].sort((a, b) => {
+      let comparison = 0;
+      switch (looseFileSortColumn) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+          break;
+        case 'size':
+          comparison = a.size - b.size;
+          break;
+        case 'type':
+          comparison = a.extension.localeCompare(b.extension);
+          break;
+        case 'modified':
+          comparison = a.modifiedAt - b.modifiedAt;
+          break;
+      }
+      return looseFileSortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [looseFiles, looseFileSortColumn, looseFileSortDirection]);
+
+  const handleLooseFileSort = (column: 'name' | 'size' | 'type' | 'modified') => {
+    if (looseFileSortColumn === column) {
+      setLooseFileSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setLooseFileSortColumn(column);
+      setLooseFileSortDirection('asc');
+    }
+  };
 
   // Delete confirmation modal state
   const [gameToDelete, setGameToDelete] = useState<Game | null>(null);
@@ -1873,15 +1906,31 @@ function Library() {
                     <table className="w-full">
                       <thead>
                         <tr className="text-left text-gray-400 border-b border-gray-700">
-                          <th className="pb-3 pr-4">Name</th>
-                          <th className="pb-3 pr-4">Size</th>
-                          <th className="pb-3 pr-4">Type</th>
-                          <th className="pb-3 pr-4">Modified</th>
+                          <th className="pb-3 pr-4">
+                            <button onClick={() => handleLooseFileSort('name')} className="hover:text-white flex items-center gap-1">
+                              Name {looseFileSortColumn === 'name' && (looseFileSortDirection === 'asc' ? '↑' : '↓')}
+                            </button>
+                          </th>
+                          <th className="pb-3 pr-4">
+                            <button onClick={() => handleLooseFileSort('size')} className="hover:text-white flex items-center gap-1">
+                              Size {looseFileSortColumn === 'size' && (looseFileSortDirection === 'asc' ? '↑' : '↓')}
+                            </button>
+                          </th>
+                          <th className="pb-3 pr-4">
+                            <button onClick={() => handleLooseFileSort('type')} className="hover:text-white flex items-center gap-1">
+                              Type {looseFileSortColumn === 'type' && (looseFileSortDirection === 'asc' ? '↑' : '↓')}
+                            </button>
+                          </th>
+                          <th className="pb-3 pr-4">
+                            <button onClick={() => handleLooseFileSort('modified')} className="hover:text-white flex items-center gap-1">
+                              Modified {looseFileSortColumn === 'modified' && (looseFileSortDirection === 'asc' ? '↑' : '↓')}
+                            </button>
+                          </th>
                           <th className="pb-3">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {looseFiles.map((file) => (
+                        {sortedLooseFiles.map((file) => (
                           <tr key={file.path} className="border-b border-gray-700 hover:bg-gray-750">
                             <td className="py-3 pr-4">
                               <span className="font-medium truncate block max-w-md" title={file.name}>
