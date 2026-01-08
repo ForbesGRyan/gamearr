@@ -43,3 +43,9 @@ bun.lockb
 # Build artifacts
 gamearr
 gamearr.exe
+
+# Claude Code local files
+.claude/*.local.md
+
+# Downloaded docs
+igdb-api-docs.html
