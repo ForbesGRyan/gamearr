@@ -850,7 +850,7 @@ export class FileService {
   }
 
   /**
-   * Find loose files (archives, ISOs) in all library folders
+   * Find loose files (archives, ISOs) in all library folders recursively
    */
   async findLooseFiles(): Promise<LooseFile[]> {
     try {
@@ -868,27 +868,7 @@ export class FileService {
         }
 
         try {
-          const entries = await fsPromises.readdir(library.path, { withFileTypes: true });
-
-          for (const entry of entries) {
-            if (entry.isFile()) {
-              const ext = path.extname(entry.name).toLowerCase();
-
-              if (LOOSE_FILE_EXTENSIONS.includes(ext)) {
-                const filePath = path.join(library.path, entry.name);
-                const stats = await fsPromises.stat(filePath);
-
-                looseFiles.push({
-                  path: filePath,
-                  name: entry.name,
-                  extension: ext,
-                  size: stats.size,
-                  modifiedAt: Math.floor(stats.mtimeMs / 1000),
-                  libraryName: library.name,
-                });
-              }
-            }
-          }
+          await this.scanDirectoryForLooseFiles(library.path, library.path, library.name, looseFiles);
         } catch (err) {
           logger.warn(`Failed to scan library ${library.name} for loose files:`, err);
         }
@@ -899,6 +879,49 @@ export class FileService {
     } catch (error) {
       logger.error('Failed to find loose files:', error);
       return [];
+    }
+  }
+
+  /**
+   * Recursively scan a directory for loose files
+   */
+  private async scanDirectoryForLooseFiles(
+    dirPath: string,
+    libraryRoot: string,
+    libraryName: string,
+    looseFiles: LooseFile[]
+  ): Promise<void> {
+    const entries = await fsPromises.readdir(dirPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+
+      if (entry.isDirectory()) {
+        // Recursively scan subdirectories
+        try {
+          await this.scanDirectoryForLooseFiles(fullPath, libraryRoot, libraryName, looseFiles);
+        } catch (err) {
+          logger.warn(`Failed to scan subdirectory ${fullPath}:`, err);
+        }
+      } else if (entry.isFile()) {
+        const ext = path.extname(entry.name).toLowerCase();
+
+        if (LOOSE_FILE_EXTENSIONS.includes(ext)) {
+          const stats = await fsPromises.stat(fullPath);
+          // Get relative path from library root for display
+          const relativePath = path.relative(libraryRoot, dirPath);
+          const folderDisplay = relativePath ? `${libraryName}/${relativePath}` : libraryName;
+
+          looseFiles.push({
+            path: fullPath,
+            name: entry.name,
+            extension: ext,
+            size: stats.size,
+            modifiedAt: Math.floor(stats.mtimeMs / 1000),
+            libraryName: folderDisplay,
+          });
+        }
+      }
     }
   }
 
