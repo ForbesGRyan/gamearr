@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import GameCard from '../components/GameCard';
 import AddGameModal from '../components/AddGameModal';
 import SearchReleasesModal from '../components/SearchReleasesModal';
@@ -38,7 +39,28 @@ import type {
 type Tab = 'games' | 'scan' | 'health';
 
 function Library() {
-  const [activeTab, setActiveTab] = useState<Tab>('games');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'games' || tabParam === 'scan' || tabParam === 'health') {
+      return tabParam;
+    }
+    return 'games';
+  });
+
+  // Update URL when tab changes
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (activeTab !== currentTab) {
+      if (activeTab === 'games') {
+        // Remove tab param for default tab
+        searchParams.delete('tab');
+      } else {
+        searchParams.set('tab', activeTab);
+      }
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [activeTab, searchParams, setSearchParams]);
   const [games, setGames] = useState<Game[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
