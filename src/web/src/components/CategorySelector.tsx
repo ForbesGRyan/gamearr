@@ -56,12 +56,76 @@ function CategorySelector() {
     }
   };
 
+  // Get the parent category ID for a given category (e.g., 4050 -> 4000)
+  const getParentId = (categoryId: number): number => {
+    return Math.floor(categoryId / 1000) * 1000;
+  };
+
+  // Check if a category is a parent (ends in 000)
+  const isParentCategory = (categoryId: number): boolean => {
+    return categoryId % 1000 === 0;
+  };
+
+  // Get all subcategory IDs for a parent within a group
+  const getSubcategoryIds = (parentId: number, group: CategoryGroup): number[] => {
+    return group.categories
+      .filter((cat) => !isParentCategory(cat.id) && getParentId(cat.id) === parentId)
+      .map((cat) => cat.id);
+  };
+
+  // Find which group a category belongs to
+  const findGroupForCategory = (categoryId: number): CategoryGroup | undefined => {
+    return categoryGroups.find((group) =>
+      group.categories.some((cat) => cat.id === categoryId)
+    );
+  };
+
+  // Check if a category should appear selected (either directly or via parent)
+  const isCategoryEffectivelySelected = (categoryId: number): boolean => {
+    if (selectedCategories.includes(categoryId)) return true;
+    // Check if parent is selected
+    const parentId = getParentId(categoryId);
+    return selectedCategories.includes(parentId);
+  };
+
   const toggleCategory = (categoryId: number) => {
+    const group = findGroupForCategory(categoryId);
+    if (!group) return;
+
     setSelectedCategories((prev) => {
-      if (prev.includes(categoryId)) {
-        return prev.filter((id) => id !== categoryId);
+      const isCurrentlySelected = prev.includes(categoryId);
+      const parentId = getParentId(categoryId);
+      const isParent = isParentCategory(categoryId);
+
+      if (isParent) {
+        // Toggling a parent category
+        const subcategoryIds = getSubcategoryIds(categoryId, group);
+        if (isCurrentlySelected) {
+          // Unselect parent and all subcategories
+          return prev.filter((id) => id !== categoryId && !subcategoryIds.includes(id));
+        } else {
+          // Select parent and all subcategories (for visual feedback)
+          const newSelected = prev.filter((id) => !subcategoryIds.includes(id));
+          return [...newSelected, categoryId, ...subcategoryIds];
+        }
       } else {
-        return [...prev, categoryId];
+        // Toggling a subcategory
+        const parentSelected = prev.includes(parentId);
+
+        if (parentSelected) {
+          // Parent is selected - unselect parent and toggle this subcategory off
+          // Add all other subcategories that were implicitly selected
+          const subcategoryIds = getSubcategoryIds(parentId, group);
+          const otherSubcategories = subcategoryIds.filter((id) => id !== categoryId);
+          return [...prev.filter((id) => id !== parentId), ...otherSubcategories];
+        } else {
+          // Normal toggle
+          if (isCurrentlySelected) {
+            return prev.filter((id) => id !== categoryId);
+          } else {
+            return [...prev, categoryId];
+          }
+        }
       }
     });
     setSaveMessage(null);
@@ -135,8 +199,8 @@ function CategorySelector() {
           <h4 className="text-lg font-semibold mb-3 text-blue-400">{group.name}</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {group.categories.map((category) => {
-              const isSelected = selectedCategories.includes(category.id);
-              const isParent = category.id % 1000 === 0; // Parent categories end in 000
+              const isSelected = isCategoryEffectivelySelected(category.id);
+              const isParent = isParentCategory(category.id);
 
               return (
                 <label
