@@ -13,6 +13,8 @@
     "db:generate": "drizzle-kit generate:sqlite",
     "db:push": "drizzle-kit push:sqlite",
     "db:studio": "drizzle-kit studio",
+    "db:migrate": "bun src/server/db/migrate.ts",
+    "db:migrate:download-category": "bun src/server/db/migrations/add-download-category.ts",
     "test": "bun test",
     "test:watch": "bun test --watch"
   },
