@@ -21,6 +21,7 @@ export interface LooseFile {
   extension: string;
   size: number;
   modifiedAt: number;
+  libraryName: string;
 }
 
 export interface DuplicateGameInfo {
@@ -883,6 +884,7 @@ export class FileService {
                   extension: ext,
                   size: stats.size,
                   modifiedAt: Math.floor(stats.mtimeMs / 1000),
+                  libraryName: library.name,
                 });
               }
             }

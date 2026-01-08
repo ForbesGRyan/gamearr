@@ -67,6 +67,7 @@ export interface LooseFile {
   extension: string;
   size: number;
   modifiedAt: number;
+  libraryName?: string;
 }
 
 export interface DuplicateGameInfo {
