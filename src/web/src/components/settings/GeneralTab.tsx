@@ -2,8 +2,6 @@ import { useState, useCallback } from 'react';
 import { api } from '../../api/client';
 
 interface GeneralTabProps {
-  libraryPath: string;
-  setLibraryPath: (path: string) => void;
   rssSyncInterval: number;
   setRssSyncInterval: (value: number) => void;
   searchSchedulerInterval: number;
@@ -16,8 +14,6 @@ interface GeneralTabProps {
 }
 
 export default function GeneralTab({
-  libraryPath,
-  setLibraryPath,
   rssSyncInterval,
   setRssSyncInterval,
   searchSchedulerInterval,
@@ -28,29 +24,7 @@ export default function GeneralTab({
   setAutoGrabMinSeeders,
   showSaveMessage,
 }: GeneralTabProps) {
-  const [isSavingPath, setIsSavingPath] = useState(false);
   const [isSavingAutomation, setIsSavingAutomation] = useState(false);
-
-  const handleSaveLibraryPath = useCallback(async () => {
-    if (!libraryPath.trim()) {
-      showSaveMessage('error', 'Library path is required');
-      return;
-    }
-
-    setIsSavingPath(true);
-    try {
-      const response = await api.updateSetting('library_path', libraryPath.trim());
-      if (response.success) {
-        showSaveMessage('success', 'Library path saved!');
-      } else {
-        showSaveMessage('error', response.error || 'Failed to save library path');
-      }
-    } catch {
-      showSaveMessage('error', 'Failed to save library path');
-    } finally {
-      setIsSavingPath(false);
-    }
-  }, [libraryPath, showSaveMessage]);
 
   const handleSaveAutomation = useCallback(async () => {
     setIsSavingAutomation(true);
@@ -77,43 +51,6 @@ export default function GeneralTab({
 
   return (
     <>
-      {/* Library Path */}
-      <div className="bg-gray-800 rounded-lg p-6">
-        <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-          </svg>
-          Library Path
-        </h3>
-        <p className="text-gray-400 mb-4">
-          Configure your game library folder. Gamearr will scan this location to detect existing games.
-        </p>
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">
-              Library Folder Path <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              value={libraryPath}
-              onChange={(e) => setLibraryPath(e.target.value)}
-              placeholder="e.g., D:\Games or /mnt/games"
-              className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Absolute path where organized game folders will be created
-            </p>
-          </div>
-          <button
-            onClick={handleSaveLibraryPath}
-            disabled={isSavingPath || !libraryPath.trim()}
-            className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSavingPath ? 'Saving...' : 'Save'}
-          </button>
-        </div>
-      </div>
-
       {/* Automation Settings */}
       <div className="bg-gray-800 rounded-lg p-6">
         <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">

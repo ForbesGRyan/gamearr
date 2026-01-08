@@ -42,9 +42,6 @@ function Settings() {
   const [qbUsername, setQbUsername] = useState('');
   const [qbPassword, setQbPassword] = useState('');
 
-  // Library path
-  const [libraryPath, setLibraryPath] = useState('');
-
   // Dry-run mode (default ON for safety)
   const [dryRun, setDryRun] = useState(true);
 
@@ -94,7 +91,6 @@ function Settings() {
         qbHostRes,
         qbUserRes,
         qbPassRes,
-        libraryRes,
         dryRunRes,
         updateEnabledRes,
         updateScheduleRes,
@@ -113,7 +109,6 @@ function Settings() {
         api.getSetting('qbittorrent_host'),
         api.getSetting('qbittorrent_username'),
         api.getSetting('qbittorrent_password'),
-        api.getSetting('library_path'),
         api.getSetting('dry_run'),
         api.getSetting('update_check_enabled'),
         api.getSetting('update_check_schedule'),
@@ -133,7 +128,6 @@ function Settings() {
       if (qbHostRes.success && qbHostRes.data) setQbHost(qbHostRes.data as string);
       if (qbUserRes.success && qbUserRes.data) setQbUsername(qbUserRes.data as string);
       if (qbPassRes.success && qbPassRes.data) setQbPassword(qbPassRes.data as string);
-      if (libraryRes.success && libraryRes.data) setLibraryPath(libraryRes.data as string);
       if (dryRunRes.success && dryRunRes.data !== undefined) setDryRun(dryRunRes.data as boolean);
       if (updateEnabledRes.success && updateEnabledRes.data !== undefined) setUpdateCheckEnabled(updateEnabledRes.data as boolean);
       if (updateScheduleRes.success && updateScheduleRes.data) setUpdateCheckSchedule(updateScheduleRes.data as 'hourly' | 'daily' | 'weekly');
@@ -289,8 +283,6 @@ function Settings() {
         <Suspense fallback={<TabLoading />}>
           {activeTab === 'general' && (
             <GeneralTab
-              libraryPath={libraryPath}
-              setLibraryPath={setLibraryPath}
               rssSyncInterval={rssSyncInterval}
               setRssSyncInterval={setRssSyncInterval}
               searchSchedulerInterval={searchSchedulerInterval}
