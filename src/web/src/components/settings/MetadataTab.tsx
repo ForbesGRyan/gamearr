@@ -184,7 +184,7 @@ export default function MetadataTab({
               className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
             />
             <p className="text-xs text-gray-500 mt-1">
-              View your Steam profile - the ID is in the URL (e.g., steamcommunity.com/profiles/<span className="text-gray-400">76561198012345678</span>)
+              View your Steam profile - copy the number from the URL: steamcommunity.com/profiles/<span className="text-blue-400 font-mono">XXXXXXXXXXXXXXXXX</span>
             </p>
           </div>
           <div className="flex gap-2">
