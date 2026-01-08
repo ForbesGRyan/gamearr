@@ -171,6 +171,9 @@ export default function MetadataTab({
               onChange={(e) => setSteamApiKey(e.target.value)}
               className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
             />
+            <p className="text-xs text-gray-500 mt-1">
+              When registering, you can use <span className="text-gray-400 font-mono">localhost</span> for the domain name
+            </p>
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-1">
