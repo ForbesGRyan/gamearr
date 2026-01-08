@@ -92,28 +92,28 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
-      <div
-        className="rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-600"
-        style={{ backgroundColor: 'rgb(17, 24, 39)' }}
-      >
+    <div
+      className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-game-modal-title"
+    >
+      <div className="bg-gray-900 rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-600">
         {/* Header */}
-        <div
-          className="flex items-center justify-between p-6 border-b border-gray-600 rounded-t-lg"
-          style={{ backgroundColor: 'rgb(31, 41, 55)' }}
-        >
-          <h2 className="text-2xl font-bold text-white">Add Game</h2>
+        <div className="bg-gray-700 flex items-center justify-between p-6 border-b border-gray-600 rounded-t-lg">
+          <h2 id="add-game-modal-title" className="text-2xl font-bold text-white">Add Game</h2>
           <button
             onClick={onClose}
             className="text-gray-300 hover:text-white"
+            aria-label="Close modal"
           >
-            <CloseIcon className="w-6 h-6" />
+            <CloseIcon className="w-6 h-6" aria-hidden="true" />
           </button>
         </div>
 
         {/* Search Form */}
         <div className="p-6 border-b border-gray-600">
-          <form onSubmit={handleSearch} className="flex gap-2">
+          <form onSubmit={handleSearch} className="flex gap-2" role="search">
             <input
               type="text"
               value={searchQuery}
@@ -121,6 +121,7 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
               placeholder="Search for a game..."
               className="bg-gray-700 flex-1 px-4 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-white"
               autoFocus
+              aria-label="Search for games"
             />
             <button
               type="submit"
@@ -139,10 +140,7 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
           </div>
 
           {error && (
-            <div
-              className="mt-3 p-3 border border-red-700 rounded text-red-200 text-sm"
-              style={{ backgroundColor: 'rgb(127, 29, 29)' }}
-            >
+            <div className="bg-red-900 mt-3 p-3 border border-red-700 rounded text-red-200 text-sm">
               {error}
             </div>
           )}
@@ -166,12 +164,12 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
                     {game.coverUrl ? (
                       <img
                         src={game.coverUrl}
-                        alt={game.title}
+                        alt={`Cover art for ${game.title}`}
                         className="w-full h-full object-cover rounded"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400">
-                        <GamepadIcon className="w-8 h-8" />
+                      <div className="w-full h-full flex items-center justify-center text-gray-400" aria-label={`No cover art for ${game.title}`}>
+                        <GamepadIcon className="w-8 h-8" aria-hidden="true" />
                       </div>
                     )}
                   </div>
@@ -202,6 +200,7 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
                       onClick={() => handleAddGame(game.igdbId)}
                       disabled={isAdding}
                       className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                      aria-label={`Add ${game.title} to library`}
                     >
                       {isAdding ? 'Adding...' : 'Add'}
                     </button>

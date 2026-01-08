@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { downloadService } from '../services/DownloadService';
 import { logger } from '../utils/logger';
+import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
 
 const downloads = new Hono();
 
@@ -13,10 +14,7 @@ downloads.get('/', async (c) => {
     return c.json({ success: true, data: activeDownloads });
   } catch (error) {
     logger.error('Failed to get downloads:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -30,10 +28,7 @@ downloads.get('/test', async (c) => {
     return c.json({ success: true, data: connected });
   } catch (error) {
     logger.error('qBittorrent connection test failed:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Connection failed' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -46,16 +41,13 @@ downloads.get('/:hash', async (c) => {
     const download = await downloadService.getDownload(hash);
 
     if (!download) {
-      return c.json({ success: false, error: 'Download not found' }, 404);
+      return c.json({ success: false, error: 'Download not found', code: ErrorCode.NOT_FOUND }, 404);
     }
 
     return c.json({ success: true, data: download });
   } catch (error) {
     logger.error('Failed to get download:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -71,10 +63,7 @@ downloads.delete('/:hash', async (c) => {
     return c.json({ success: true, message: 'Download cancelled successfully' });
   } catch (error) {
     logger.error('Failed to cancel download:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -88,10 +77,7 @@ downloads.post('/:hash/pause', async (c) => {
     return c.json({ success: true, message: 'Download paused successfully' });
   } catch (error) {
     logger.error('Failed to pause download:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -105,10 +91,7 @@ downloads.post('/:hash/resume', async (c) => {
     return c.json({ success: true, message: 'Download resumed successfully' });
   } catch (error) {
     logger.error('Failed to resume download:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 

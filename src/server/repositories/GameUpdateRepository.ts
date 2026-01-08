@@ -1,14 +1,31 @@
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, count } from 'drizzle-orm';
 import { db } from '../db';
 import { gameUpdates, type GameUpdate, type NewGameUpdate } from '../db/schema';
 import { logger } from '../utils/logger';
+import type { PaginationParams, PaginatedResult } from './GameRepository';
+
+// Explicit field selection to avoid SELECT *
+const gameUpdateFields = {
+  id: gameUpdates.id,
+  gameId: gameUpdates.gameId,
+  updateType: gameUpdates.updateType,
+  title: gameUpdates.title,
+  version: gameUpdates.version,
+  size: gameUpdates.size,
+  quality: gameUpdates.quality,
+  seeders: gameUpdates.seeders,
+  downloadUrl: gameUpdates.downloadUrl,
+  indexer: gameUpdates.indexer,
+  detectedAt: gameUpdates.detectedAt,
+  status: gameUpdates.status,
+};
 
 export class GameUpdateRepository {
   /**
    * Get all updates
    */
   async findAll(): Promise<GameUpdate[]> {
-    return db.select().from(gameUpdates).orderBy(desc(gameUpdates.detectedAt));
+    return db.select(gameUpdateFields).from(gameUpdates).orderBy(desc(gameUpdates.detectedAt));
   }
 
   /**
@@ -16,7 +33,7 @@ export class GameUpdateRepository {
    */
   async findByGameId(gameId: number): Promise<GameUpdate[]> {
     return db
-      .select()
+      .select(gameUpdateFields)
       .from(gameUpdates)
       .where(eq(gameUpdates.gameId, gameId))
       .orderBy(desc(gameUpdates.detectedAt));
@@ -27,10 +44,39 @@ export class GameUpdateRepository {
    */
   async findPending(): Promise<GameUpdate[]> {
     return db
-      .select()
+      .select(gameUpdateFields)
       .from(gameUpdates)
       .where(eq(gameUpdates.status, 'pending'))
       .orderBy(desc(gameUpdates.detectedAt));
+  }
+
+  /**
+   * Get pending updates with pagination
+   */
+  async findPendingPaginated(params: PaginationParams = {}): Promise<PaginatedResult<GameUpdate>> {
+    const limit = params.limit ?? 20;
+    const offset = params.offset ?? 0;
+
+    const [items, totalResult] = await Promise.all([
+      db
+        .select(gameUpdateFields)
+        .from(gameUpdates)
+        .where(eq(gameUpdates.status, 'pending'))
+        .orderBy(desc(gameUpdates.detectedAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ count: count() })
+        .from(gameUpdates)
+        .where(eq(gameUpdates.status, 'pending')),
+    ]);
+
+    return {
+      items,
+      total: totalResult[0]?.count ?? 0,
+      limit,
+      offset,
+    };
   }
 
   /**
@@ -38,7 +84,7 @@ export class GameUpdateRepository {
    */
   async findPendingByGameId(gameId: number): Promise<GameUpdate[]> {
     return db
-      .select()
+      .select(gameUpdateFields)
       .from(gameUpdates)
       .where(
         and(
@@ -54,7 +100,7 @@ export class GameUpdateRepository {
    */
   async findByDownloadUrl(downloadUrl: string): Promise<GameUpdate | undefined> {
     const results = await db
-      .select()
+      .select(gameUpdateFields)
       .from(gameUpdates)
       .where(eq(gameUpdates.downloadUrl, downloadUrl));
     return results[0];
@@ -65,7 +111,7 @@ export class GameUpdateRepository {
    */
   async findByTitleAndGameId(title: string, gameId: number): Promise<GameUpdate | undefined> {
     const results = await db
-      .select()
+      .select(gameUpdateFields)
       .from(gameUpdates)
       .where(
         and(
@@ -84,6 +130,20 @@ export class GameUpdateRepository {
 
     const results = await db.insert(gameUpdates).values(update).returning();
     return results[0];
+  }
+
+  /**
+   * Create multiple updates in a single batch insert
+   */
+  async createMany(updates: NewGameUpdate[]): Promise<GameUpdate[]> {
+    if (updates.length === 0) {
+      return [];
+    }
+
+    logger.info(`Creating ${updates.length} game updates in batch`);
+
+    const results = await db.insert(gameUpdates).values(updates).returning();
+    return results;
   }
 
   /**
@@ -129,7 +189,7 @@ export class GameUpdateRepository {
    */
   async findById(id: number): Promise<GameUpdate | undefined> {
     const results = await db
-      .select()
+      .select(gameUpdateFields)
       .from(gameUpdates)
       .where(eq(gameUpdates.id, id));
     return results[0];

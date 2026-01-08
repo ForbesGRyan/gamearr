@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, integer, text, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 export const games = sqliteTable('games', {
@@ -35,7 +35,10 @@ export const games = sqliteTable('games', {
   addedAt: integer('added_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
-});
+}, (table) => ({
+  statusIdx: index('games_status_idx').on(table.status),
+  monitoredIdx: index('games_monitored_idx').on(table.monitored),
+}));
 
 export const releases = sqliteTable('releases', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -48,11 +51,16 @@ export const releases = sqliteTable('releases', {
   downloadUrl: text('download_url').notNull(),
   indexer: text('indexer').notNull(),
   quality: text('quality'),
+  torrentHash: text('torrent_hash'), // qBittorrent torrent hash for reliable matching
   grabbedAt: integer('grabbed_at', { mode: 'timestamp' }),
   status: text('status', {
     enum: ['pending', 'downloading', 'completed', 'failed']
   }).notNull().default('pending'),
-});
+}, (table) => ({
+  gameIdIdx: index('releases_game_id_idx').on(table.gameId),
+  statusIdx: index('releases_status_idx').on(table.status),
+  torrentHashIdx: index('releases_torrent_hash_idx').on(table.torrentHash),
+}));
 
 export const downloadHistory = sqliteTable('download_history', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -62,11 +70,15 @@ export const downloadHistory = sqliteTable('download_history', {
   releaseId: integer('release_id')
     .notNull()
     .references(() => releases.id, { onDelete: 'cascade' }),
-  downloadId: text('download_id').notNull(),
+  downloadId: text('download_id').notNull().unique(),
   status: text('status').notNull(),
   progress: integer('progress').notNull().default(0),
   completedAt: integer('completed_at', { mode: 'timestamp' }),
-});
+}, (table) => ({
+  gameIdIdx: index('download_history_game_id_idx').on(table.gameId),
+  releaseIdIdx: index('download_history_release_id_idx').on(table.releaseId),
+  statusIdx: index('download_history_status_idx').on(table.status),
+}));
 
 export const settings = sqliteTable('settings', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -84,7 +96,10 @@ export const libraryFiles = sqliteTable('library_files', {
   scannedAt: integer('scanned_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
-});
+}, (table) => ({
+  matchedGameIdIdx: index('library_files_matched_game_id_idx').on(table.matchedGameId),
+  ignoredIdx: index('library_files_ignored_idx').on(table.ignored),
+}));
 
 export const gameUpdates = sqliteTable('game_updates', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -107,7 +122,10 @@ export const gameUpdates = sqliteTable('game_updates', {
   status: text('status', {
     enum: ['pending', 'grabbed', 'dismissed']
   }).notNull().default('pending'),
-});
+}, (table) => ({
+  gameIdIdx: index('game_updates_game_id_idx').on(table.gameId),
+  statusIdx: index('game_updates_status_idx').on(table.status),
+}));
 
 // Type exports
 export type Game = typeof games.$inferSelect;

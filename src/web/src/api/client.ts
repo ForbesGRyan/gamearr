@@ -1,9 +1,272 @@
+import type {
+  SteamImportProgressEvent,
+  SteamImportCompleteEvent,
+} from '../../../shared/types';
+
 const API_BASE = '/api/v1';
+
+// Auth token storage key
+const AUTH_TOKEN_KEY = 'gamearr_auth_token';
+
+// Event for auth state changes
+export type AuthEventType = 'logout' | 'unauthorized';
+type AuthEventListener = (event: AuthEventType) => void;
+const authEventListeners: Set<AuthEventListener> = new Set();
+
+export function onAuthEvent(listener: AuthEventListener): () => void {
+  authEventListeners.add(listener);
+  return () => authEventListeners.delete(listener);
+}
+
+function emitAuthEvent(event: AuthEventType) {
+  authEventListeners.forEach((listener) => listener(event));
+}
+
+// Auth token management
+export function getAuthToken(): string | null {
+  return localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+export function setAuthToken(token: string): void {
+  localStorage.setItem(AUTH_TOKEN_KEY, token);
+}
+
+export function clearAuthToken(): void {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  emitAuthEvent('logout');
+}
+
+// Handle 401 unauthorized responses
+function handleUnauthorized(): void {
+  clearAuthToken();
+  emitAuthEvent('unauthorized');
+}
 
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+// Request interfaces for API methods
+export interface AddGameRequest {
+  igdbId: number;
+  title: string;
+  year?: number;
+  platform?: string;
+  coverUrl?: string;
+  status?: 'wanted' | 'downloading' | 'downloaded';
+  monitored?: boolean;
+  summary?: string;
+  genres?: string;
+  totalRating?: number;
+  developer?: string;
+  publisher?: string;
+  gameModes?: string;
+}
+
+export interface UpdateGameRequest {
+  title?: string;
+  year?: number;
+  platform?: string;
+  status?: 'wanted' | 'downloading' | 'downloaded';
+  monitored?: boolean;
+  folderPath?: string;
+  installedVersion?: string;
+  updatePolicy?: 'notify' | 'auto' | 'ignore';
+}
+
+export interface ReleaseData {
+  title: string;
+  size?: number;
+  seeders?: number;
+  downloadUrl: string;
+  indexer: string;
+  quality?: string;
+}
+
+export interface SettingsUpdate {
+  prowlarr_url?: string;
+  prowlarr_api_key?: string;
+  qbittorrent_host?: string;
+  qbittorrent_username?: string;
+  qbittorrent_password?: string;
+  igdb_client_id?: string;
+  igdb_client_secret?: string;
+  library_path?: string;
+  steam_api_key?: string;
+  steam_id?: string;
+  dry_run?: boolean;
+}
+
+export interface IGDBGame {
+  igdbId: number;
+  title: string;
+  year?: number;
+  coverUrl?: string;
+  summary?: string;
+  genres?: string[];
+  totalRating?: number;
+  developer?: string;
+  publisher?: string;
+  gameModes?: string[];
+}
+
+// Response data types
+export interface Game {
+  id: number;
+  title: string;
+  year?: number;
+  igdbId?: number;
+  coverUrl?: string;
+  monitored: boolean;
+  status: 'wanted' | 'downloading' | 'downloaded';
+  platform: string;
+  store?: string | null;
+  steamName?: string | null;
+  folderPath?: string | null;
+  updateAvailable?: boolean;
+  installedVersion?: string | null;
+  latestVersion?: string | null;
+  installedQuality?: string | null;
+  updatePolicy?: 'notify' | 'auto' | 'ignore';
+  summary?: string;
+  genres?: string;
+  totalRating?: number;
+  developer?: string;
+  publisher?: string;
+  gameModes?: string;
+}
+
+export interface Download {
+  hash: string;
+  name: string;
+  size: number;
+  progress: number;
+  downloadSpeed: number;
+  uploadSpeed: number;
+  eta: number;
+  state: string;
+  savePath: string;
+  addedOn: string;
+}
+
+export interface Release {
+  guid: string;
+  title: string;
+  indexer: string;
+  size: number;
+  seeders: number;
+  downloadUrl: string;
+  publishedAt: string;
+  quality?: string;
+  score?: number;
+  matchConfidence?: 'high' | 'medium' | 'low';
+}
+
+export interface SearchResult {
+  igdbId: number;
+  title: string;
+  year?: number;
+  coverUrl?: string;
+  summary?: string;
+  platforms?: string[];
+  genres?: string[];
+  totalRating?: number;
+  developer?: string;
+  publisher?: string;
+  gameModes?: string[];
+}
+
+export interface SystemStatus {
+  version: string;
+  uptime: number;
+  database: boolean;
+  prowlarr: boolean;
+  qbittorrent: boolean;
+}
+
+export interface Indexer {
+  id: number;
+  name: string;
+  enable: boolean;
+  protocol: 'torrent' | 'usenet';
+  privacy: 'public' | 'private' | 'semiPrivate';
+  capabilities?: {
+    categories?: Array<{
+      id: number;
+      name: string;
+    }>;
+  };
+}
+
+export interface Settings {
+  prowlarr_url?: string;
+  prowlarr_api_key?: string;
+  qbittorrent_host?: string;
+  qbittorrent_username?: string;
+  qbittorrent_password?: string;
+  igdb_client_id?: string;
+  igdb_client_secret?: string;
+  library_path?: string;
+  steam_api_key?: string;
+  steam_id?: string;
+  dry_run?: boolean;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  subCategories?: Category[];
+}
+
+export interface LibraryFolder {
+  folderName: string;
+  parsedTitle: string;
+  parsedYear?: number;
+  matched: boolean;
+  gameId?: number;
+  path: string;
+}
+
+export interface GameUpdate {
+  id: number;
+  gameId: number;
+  updateType: 'version' | 'dlc' | 'better_release';
+  title: string;
+  version?: string;
+  size?: number;
+  quality?: string;
+  seeders?: number;
+  downloadUrl?: string;
+  indexer?: string;
+  detectedAt: string;
+  status: 'pending' | 'grabbed' | 'dismissed';
+}
+
+export interface PopularityType {
+  id: number;
+  name: string;
+}
+
+export interface SteamGame {
+  appId: number;
+  name: string;
+  playtimeMinutes: number;
+  headerImageUrl: string;
+  alreadyInLibrary: boolean;
+}
+
+export interface LibraryDuplicate {
+  igdbId: number;
+  title: string;
+  games: Game[];
+}
+
+export interface LooseFile {
+  path: string;
+  name: string;
+  size: number;
 }
 
 class ApiClient {
@@ -12,13 +275,29 @@ class ApiClient {
     options?: RequestInit
   ): Promise<ApiResponse<T>> {
     try {
+      // Include auth token if available
+      const authToken = getAuthToken();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      };
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
       const response = await fetch(`${API_BASE}${endpoint}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...options?.headers,
-        },
+        headers,
         ...options,
       });
+
+      // Handle 401 Unauthorized - clear auth token and notify listeners
+      if (response.status === 401) {
+        handleUnauthorized();
+        return {
+          success: false,
+          error: 'Unauthorized - please log in again',
+        };
+      }
 
       const data = await response.json();
       return data;
@@ -31,176 +310,174 @@ class ApiClient {
   }
 
   // Games
-  async getGames() {
-    return this.request('/games');
+  async getGames(): Promise<ApiResponse<Game[]>> {
+    return this.request<Game[]>('/games');
   }
 
-  async getGame(id: number) {
-    return this.request(`/games/${id}`);
+  async getGame(id: number): Promise<ApiResponse<Game>> {
+    return this.request<Game>(`/games/${id}`);
   }
 
-  async addGame(game: any) {
-    return this.request('/games', {
+  async addGame(game: AddGameRequest): Promise<ApiResponse<Game>> {
+    return this.request<Game>('/games', {
       method: 'POST',
       body: JSON.stringify(game),
     });
   }
 
-  async updateGame(id: number, game: any) {
-    return this.request(`/games/${id}`, {
+  async updateGame(id: number, game: UpdateGameRequest): Promise<ApiResponse<Game>> {
+    return this.request<Game>(`/games/${id}`, {
       method: 'PUT',
       body: JSON.stringify(game),
     });
   }
 
-  async deleteGame(id: number) {
-    return this.request(`/games/${id}`, {
+  async deleteGame(id: number): Promise<ApiResponse<void>> {
+    return this.request<void>(`/games/${id}`, {
       method: 'DELETE',
     });
   }
 
-  async rematchGame(id: number, igdbId: number) {
-    return this.request(`/games/${id}/rematch`, {
-      method: 'POST',
+  async rematchGame(id: number, igdbId: number): Promise<ApiResponse<Game>> {
+    return this.request<Game>(`/games/${id}/rematch`, {
+      method: 'PATCH',
       body: JSON.stringify({ igdbId }),
     });
   }
 
   // Search
-  async searchGames(query: string) {
-    return this.request(`/search/games?q=${encodeURIComponent(query)}`);
+  async searchGames(query: string): Promise<ApiResponse<SearchResult[]>> {
+    return this.request<SearchResult[]>(`/search/games?q=${encodeURIComponent(query)}`);
   }
 
-  async searchReleases(gameId: number) {
-    return this.request(`/search/releases/${gameId}`, {
-      method: 'POST',
-    });
+  async searchReleases(gameId: number): Promise<ApiResponse<Release[]>> {
+    return this.request<Release[]>(`/search/releases/${gameId}`);
   }
 
-  async manualSearchReleases(query: string) {
-    return this.request(`/search/releases?q=${encodeURIComponent(query)}`);
+  async manualSearchReleases(query: string): Promise<ApiResponse<Release[]>> {
+    return this.request<Release[]>(`/search/releases?q=${encodeURIComponent(query)}`);
   }
 
   // Downloads
-  async getDownloads() {
-    return this.request('/downloads');
+  async getDownloads(): Promise<ApiResponse<Download[]>> {
+    return this.request<Download[]>('/downloads');
   }
 
-  async getDownload(hash: string) {
-    return this.request(`/downloads/${hash}`);
+  async getDownload(hash: string): Promise<ApiResponse<Download>> {
+    return this.request<Download>(`/downloads/${hash}`);
   }
 
-  async cancelDownload(hash: string, deleteFiles: boolean = false) {
-    return this.request(`/downloads/${hash}?deleteFiles=${deleteFiles}`, {
+  async cancelDownload(hash: string, deleteFiles: boolean = false): Promise<ApiResponse<void>> {
+    return this.request<void>(`/downloads/${hash}?deleteFiles=${deleteFiles}`, {
       method: 'DELETE',
     });
   }
 
-  async pauseDownload(hash: string) {
-    return this.request(`/downloads/${hash}/pause`, {
+  async pauseDownload(hash: string): Promise<ApiResponse<void>> {
+    return this.request<void>(`/downloads/${hash}/pause`, {
       method: 'POST',
     });
   }
 
-  async resumeDownload(hash: string) {
-    return this.request(`/downloads/${hash}/resume`, {
+  async resumeDownload(hash: string): Promise<ApiResponse<void>> {
+    return this.request<void>(`/downloads/${hash}/resume`, {
       method: 'POST',
     });
   }
 
   // Grab release
-  async grabRelease(gameId: number, release: any) {
-    return this.request('/search/grab', {
+  async grabRelease(gameId: number, release: ReleaseData): Promise<ApiResponse<{ hash: string }>> {
+    return this.request<{ hash: string }>('/search/grab', {
       method: 'POST',
       body: JSON.stringify({ gameId, release }),
     });
   }
 
   // System
-  async getSystemStatus() {
-    return this.request('/system/status');
+  async getSystemStatus(): Promise<ApiResponse<SystemStatus>> {
+    return this.request<SystemStatus>('/system/status');
   }
 
   // Indexers
-  async getIndexers() {
-    return this.request('/indexers');
+  async getIndexers(): Promise<ApiResponse<Indexer[]>> {
+    return this.request<Indexer[]>('/indexers');
   }
 
   // Settings
-  async getSettings() {
-    return this.request('/settings');
+  async getSettings(): Promise<ApiResponse<Settings>> {
+    return this.request<Settings>('/settings');
   }
 
-  async updateSettings(settings: any) {
-    return this.request('/settings', {
+  async updateSettings(settings: SettingsUpdate): Promise<ApiResponse<void>> {
+    return this.request<void>('/settings', {
       method: 'PUT',
       body: JSON.stringify(settings),
     });
   }
 
-  async getCategories() {
-    return this.request('/settings/categories');
+  async getCategories(): Promise<ApiResponse<Category[]>> {
+    return this.request<Category[]>('/settings/categories');
   }
 
-  async getSelectedCategories() {
-    return this.request('/settings/categories/selected');
+  async getSelectedCategories(): Promise<ApiResponse<number[]>> {
+    return this.request<number[]>('/settings/categories/selected');
   }
 
-  async updateCategories(categories: number[]) {
-    return this.request('/settings/categories', {
+  async updateCategories(categories: number[]): Promise<ApiResponse<void>> {
+    return this.request<void>('/settings/categories', {
       method: 'PUT',
       body: JSON.stringify({ categories }),
     });
   }
 
   // qBittorrent category
-  async getQBittorrentCategories() {
-    return this.request('/settings/qbittorrent/categories');
+  async getQBittorrentCategories(): Promise<ApiResponse<string[]>> {
+    return this.request<string[]>('/settings/qbittorrent/categories');
   }
 
-  async getQBittorrentCategory() {
-    return this.request('/settings/qbittorrent/category');
+  async getQBittorrentCategory(): Promise<ApiResponse<string>> {
+    return this.request<string>('/settings/qbittorrent/category');
   }
 
-  async updateQBittorrentCategory(category: string) {
-    return this.request('/settings/qbittorrent/category', {
+  async updateQBittorrentCategory(category: string): Promise<ApiResponse<void>> {
+    return this.request<void>('/settings/qbittorrent/category', {
       method: 'PUT',
       body: JSON.stringify({ category }),
     });
   }
 
   // Individual setting get/set
-  async getSetting(key: string) {
-    return this.request(`/settings/${key}`);
+  async getSetting<T = string>(key: string): Promise<ApiResponse<T>> {
+    return this.request<T>(`/settings/${key}`);
   }
 
-  async updateSetting(key: string, value: string | boolean | number) {
-    return this.request(`/settings/${key}`, {
+  async updateSetting(key: string, value: string | boolean | number): Promise<ApiResponse<void>> {
+    return this.request<void>(`/settings/${key}`, {
       method: 'PUT',
       body: JSON.stringify({ value }),
     });
   }
 
   // Connection tests
-  async testProwlarrConnection() {
+  async testProwlarrConnection(): Promise<ApiResponse<boolean>> {
     return this.request<boolean>('/indexers/test');
   }
 
-  async testQbittorrentConnection() {
+  async testQbittorrentConnection(): Promise<ApiResponse<boolean>> {
     return this.request<boolean>('/downloads/test');
   }
 
-  async testSteamConnection() {
+  async testSteamConnection(): Promise<ApiResponse<boolean>> {
     return this.request<boolean>('/steam/test');
   }
 
   // Steam Integration
-  async getSteamOwnedGames() {
-    return this.request('/steam/owned-games');
+  async getSteamOwnedGames(): Promise<ApiResponse<SteamGame[]>> {
+    return this.request<SteamGame[]>('/steam/owned-games');
   }
 
-  async importSteamGames(appIds: number[]) {
-    return this.request('/steam/import', {
+  async importSteamGames(appIds: number[]): Promise<ApiResponse<{ imported: number; skipped: number }>> {
+    return this.request<{ imported: number; skipped: number }>('/steam/import', {
       method: 'POST',
       body: JSON.stringify({ appIds }),
     });
@@ -215,16 +492,30 @@ class ApiClient {
    */
   async importSteamGamesStream(
     appIds: number[],
-    onProgress: (data: { current: number; total: number; game: string; status: 'searching' | 'imported' | 'skipped' | 'error' }) => void,
-    onComplete: (data: { imported: number; skipped: number; errors?: string[] }) => void,
+    onProgress: (data: Omit<SteamImportProgressEvent, 'type'>) => void,
+    onComplete: (data: Omit<SteamImportCompleteEvent, 'type'>) => void,
     onError: (message: string) => void
   ): Promise<void> {
     try {
+      // Include auth token if available
+      const authToken = getAuthToken();
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
       const response = await fetch(`${API_BASE}/steam/import-stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ appIds }),
       });
+
+      // Handle 401 Unauthorized
+      if (response.status === 401) {
+        handleUnauthorized();
+        onError('Unauthorized - please log in again');
+        return;
+      }
 
       if (!response.ok) {
         const data = await response.json();
@@ -272,97 +563,97 @@ class ApiClient {
   }
 
   // Library
-  async scanLibrary() {
-    return this.request('/library/scan', {
+  async scanLibrary(): Promise<ApiResponse<LibraryFolder[]>> {
+    return this.request<LibraryFolder[]>('/library/scan', {
       method: 'POST',
     });
   }
 
-  async autoMatchFolder(parsedTitle: string, parsedYear?: number) {
-    return this.request('/library/auto-match', {
+  async autoMatchFolder(parsedTitle: string, parsedYear?: number): Promise<ApiResponse<SearchResult | null>> {
+    return this.request<SearchResult | null>('/library/auto-match', {
       method: 'POST',
       body: JSON.stringify({ parsedTitle, parsedYear }),
     });
   }
 
-  async matchLibraryFolder(folderPath: string, folderName: string, igdbGame: any, store?: string | null) {
-    return this.request('/library/match', {
+  async matchLibraryFolder(folderPath: string, folderName: string, igdbGame: IGDBGame, store?: string | null): Promise<ApiResponse<Game>> {
+    return this.request<Game>('/library/match', {
       method: 'POST',
       body: JSON.stringify({ folderPath, folderName, igdbGame, store }),
     });
   }
 
   // Library Health
-  async getLibraryDuplicates() {
-    return this.request('/library/health/duplicates');
+  async getLibraryDuplicates(): Promise<ApiResponse<LibraryDuplicate[]>> {
+    return this.request<LibraryDuplicate[]>('/library/health/duplicates');
   }
 
-  async getLibraryLooseFiles() {
-    return this.request('/library/health/loose-files');
+  async getLibraryLooseFiles(): Promise<ApiResponse<LooseFile[]>> {
+    return this.request<LooseFile[]>('/library/health/loose-files');
   }
 
-  async organizeLooseFile(filePath: string) {
-    return this.request('/library/health/organize-file', {
+  async organizeLooseFile(filePath: string): Promise<ApiResponse<void>> {
+    return this.request<void>('/library/health/organize-file', {
       method: 'POST',
       body: JSON.stringify({ filePath }),
     });
   }
 
   // Updates
-  async getPendingUpdates() {
-    return this.request('/updates');
+  async getPendingUpdates(): Promise<ApiResponse<GameUpdate[]>> {
+    return this.request<GameUpdate[]>('/updates');
   }
 
-  async checkAllUpdates() {
-    return this.request('/updates/check');
+  async checkAllUpdates(): Promise<ApiResponse<{ checked: number; updatesFound: number }>> {
+    return this.request<{ checked: number; updatesFound: number }>('/updates/check');
   }
 
-  async getGameUpdates(gameId: number) {
-    return this.request(`/updates/games/${gameId}`);
+  async getGameUpdates(gameId: number): Promise<ApiResponse<GameUpdate[]>> {
+    return this.request<GameUpdate[]>(`/updates/games/${gameId}`);
   }
 
-  async checkGameForUpdates(gameId: number) {
-    return this.request(`/updates/games/${gameId}/check`, {
+  async checkGameForUpdates(gameId: number): Promise<ApiResponse<GameUpdate[]>> {
+    return this.request<GameUpdate[]>(`/updates/games/${gameId}/check`, {
       method: 'POST',
     });
   }
 
-  async setUpdatePolicy(gameId: number, policy: 'notify' | 'auto' | 'ignore') {
-    return this.request(`/updates/games/${gameId}/policy`, {
-      method: 'POST',
+  async setUpdatePolicy(gameId: number, policy: 'notify' | 'auto' | 'ignore'): Promise<ApiResponse<void>> {
+    return this.request<void>(`/updates/games/${gameId}/policy`, {
+      method: 'PUT',
       body: JSON.stringify({ policy }),
     });
   }
 
-  async grabUpdate(updateId: number) {
-    return this.request(`/updates/${updateId}/grab`, {
+  async grabUpdate(updateId: number): Promise<ApiResponse<{ hash: string }>> {
+    return this.request<{ hash: string }>(`/updates/${updateId}/grab`, {
       method: 'POST',
     });
   }
 
-  async dismissUpdate(updateId: number) {
-    return this.request(`/updates/${updateId}/dismiss`, {
+  async dismissUpdate(updateId: number): Promise<ApiResponse<void>> {
+    return this.request<void>(`/updates/${updateId}/dismiss`, {
       method: 'POST',
     });
   }
 
   // Discover
-  async getPopularityTypes() {
-    return this.request('/discover/popularity-types');
+  async getPopularityTypes(): Promise<ApiResponse<PopularityType[]>> {
+    return this.request<PopularityType[]>('/discover/popularity-types');
   }
 
-  async getPopularGames(type: number, limit: number = 20) {
-    return this.request(`/discover/popular?type=${type}&limit=${limit}`);
+  async getPopularGames(type: number, limit: number = 20): Promise<ApiResponse<SearchResult[]>> {
+    return this.request<SearchResult[]>(`/discover/popular?type=${type}&limit=${limit}`);
   }
 
   // Indexer Torrents
-  async getTopTorrents(query?: string, limit?: number, maxAgeDays?: number) {
+  async getTopTorrents(query?: string, limit?: number, maxAgeDays?: number): Promise<ApiResponse<Release[]>> {
     const params = new URLSearchParams();
     if (query) params.set('query', query);
     if (limit) params.set('limit', limit.toString());
     if (maxAgeDays) params.set('maxAge', maxAgeDays.toString());
     const queryString = params.toString();
-    return this.request(`/indexers/torrents${queryString ? '?' + queryString : ''}`);
+    return this.request<Release[]>(`/indexers/torrents${queryString ? '?' + queryString : ''}`);
   }
 }
 

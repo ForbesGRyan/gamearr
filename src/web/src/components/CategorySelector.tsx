@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../api/client';
+import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
 
 interface Category {
   id: number;
@@ -19,9 +20,17 @@ function CategorySelector() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const saveMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadCategories();
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (saveMessageTimeoutRef.current) {
+        clearTimeout(saveMessageTimeoutRef.current);
+      }
+    };
   }, []);
 
   const loadCategories = async () => {
@@ -72,7 +81,11 @@ function CategorySelector() {
       const response = await api.updateCategories(selectedCategories);
       if (response.success) {
         setSaveMessage('Categories saved successfully!');
-        setTimeout(() => setSaveMessage(null), 3000);
+        // Clear any existing timeout before setting a new one
+        if (saveMessageTimeoutRef.current) {
+          clearTimeout(saveMessageTimeoutRef.current);
+        }
+        saveMessageTimeoutRef.current = setTimeout(() => setSaveMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
       } else {
         setError(response.error || 'Failed to save categories');
       }

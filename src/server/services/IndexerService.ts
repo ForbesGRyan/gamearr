@@ -3,6 +3,7 @@ import { settingsService } from './SettingsService';
 import type { ReleaseSearchResult } from '../integrations/prowlarr/types';
 import type { Game } from '../db/schema';
 import { logger } from '../utils/logger';
+import { NotConfiguredError } from '../utils/errors';
 
 export interface ScoredRelease extends ReleaseSearchResult {
   score: number;
@@ -16,7 +17,7 @@ export class IndexerService {
    */
   async searchForGame(game: Game): Promise<ScoredRelease[]> {
     if (!prowlarrClient.isConfigured()) {
-      throw new Error('Prowlarr is not configured. Please add your Prowlarr URL and API key in settings.');
+      throw new NotConfiguredError('Prowlarr');
     }
 
     logger.info(`Searching for releases: ${game.title} (${game.year})`);
@@ -50,7 +51,7 @@ export class IndexerService {
    */
   async manualSearch(query: string): Promise<ReleaseSearchResult[]> {
     if (!prowlarrClient.isConfigured()) {
-      throw new Error('Prowlarr is not configured. Please add your Prowlarr URL and API key in settings.');
+      throw new NotConfiguredError('Prowlarr');
     }
 
     logger.info(`Manual search: ${query}`);
@@ -75,7 +76,7 @@ export class IndexerService {
    */
   async getIndexers() {
     if (!prowlarrClient.isConfigured()) {
-      throw new Error('Prowlarr is not configured');
+      throw new NotConfiguredError('Prowlarr');
     }
 
     return prowlarrClient.getIndexers();

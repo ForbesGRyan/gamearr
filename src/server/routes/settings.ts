@@ -1,8 +1,28 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
 import { settingsService } from '../services/SettingsService';
 import { downloadService } from '../services/DownloadService';
 import { ALL_CATEGORIES, DEFAULT_CATEGORIES, CATEGORY_GROUPS } from '../../shared/categories';
 import { logger } from '../utils/logger';
+import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
+
+// Validation schemas
+const dryRunSchema = z.object({
+  enabled: z.boolean(),
+});
+
+const categoriesSchema = z.object({
+  categories: z.array(z.number()),
+});
+
+const qbCategorySchema = z.object({
+  category: z.string().min(1),
+});
+
+const settingValueSchema = z.object({
+  value: z.union([z.string(), z.number(), z.boolean(), z.array(z.unknown()), z.record(z.unknown())]),
+});
 
 const settings = new Hono();
 
@@ -15,10 +35,7 @@ settings.get('/', async (c) => {
     return c.json({ success: true, data: allSettings });
   } catch (error) {
     logger.error('Failed to get settings:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -31,24 +48,16 @@ settings.get('/dry-run', async (c) => {
     return c.json({ success: true, data: dryRun });
   } catch (error) {
     logger.error('Failed to get dry-run status:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
 // PUT /api/v1/settings/dry-run - Toggle dry-run mode
-settings.put('/dry-run', async (c) => {
+settings.put('/dry-run', zValidator('json', dryRunSchema), async (c) => {
   logger.info('PUT /api/v1/settings/dry-run');
 
   try {
-    const body = await c.req.json();
-    const { enabled } = body;
-
-    if (typeof enabled !== 'boolean') {
-      return c.json({ success: false, error: 'enabled must be a boolean' }, 400);
-    }
+    const { enabled } = c.req.valid('json');
 
     await settingsService.setDryRun(enabled);
 
@@ -59,10 +68,7 @@ settings.put('/dry-run', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to update dry-run status:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -81,10 +87,7 @@ settings.get('/categories', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to get categories:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -97,24 +100,16 @@ settings.get('/categories/selected', async (c) => {
     return c.json({ success: true, data: categories });
   } catch (error) {
     logger.error('Failed to get selected categories:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
 // PUT /api/v1/settings/categories - Update selected categories
-settings.put('/categories', async (c) => {
+settings.put('/categories', zValidator('json', categoriesSchema), async (c) => {
   logger.info('PUT /api/v1/settings/categories');
 
   try {
-    const body = await c.req.json();
-    const { categories } = body;
-
-    if (!Array.isArray(categories)) {
-      return c.json({ success: false, error: 'Categories must be an array' }, 400);
-    }
+    const { categories } = c.req.valid('json');
 
     // Validate that all categories are valid
     const validCategoryIds = ALL_CATEGORIES.map((cat) => cat.id);
@@ -125,6 +120,7 @@ settings.put('/categories', async (c) => {
         {
           success: false,
           error: `Invalid category IDs: ${invalidCategories.join(', ')}`,
+          code: ErrorCode.VALIDATION_ERROR,
         },
         400
       );
@@ -139,10 +135,7 @@ settings.put('/categories', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to update categories:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -155,10 +148,7 @@ settings.get('/qbittorrent/categories', async (c) => {
     return c.json({ success: true, data: categories });
   } catch (error) {
     logger.error('Failed to get qBittorrent categories:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -171,24 +161,16 @@ settings.get('/qbittorrent/category', async (c) => {
     return c.json({ success: true, data: category });
   } catch (error) {
     logger.error('Failed to get qBittorrent category:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
 // PUT /api/v1/settings/qbittorrent/category - Update selected qBittorrent category
-settings.put('/qbittorrent/category', async (c) => {
+settings.put('/qbittorrent/category', zValidator('json', qbCategorySchema), async (c) => {
   logger.info('PUT /api/v1/settings/qbittorrent/category');
 
   try {
-    const body = await c.req.json();
-    const { category } = body;
-
-    if (!category || typeof category !== 'string') {
-      return c.json({ success: false, error: 'Category must be a string' }, 400);
-    }
+    const { category } = c.req.valid('json');
 
     await settingsService.setQBittorrentCategory(category);
 
@@ -199,10 +181,7 @@ settings.put('/qbittorrent/category', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to update qBittorrent category:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -223,10 +202,7 @@ settings.put('/', async (c) => {
     return c.json({ success: true, message: 'Settings updated successfully' });
   } catch (error) {
     logger.error('Failed to update settings:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -252,25 +228,17 @@ settings.get('/:key', async (c) => {
     return c.json({ success: true, data: value });
   } catch (error) {
     logger.error(`Failed to get setting ${key}:`, error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
 // PUT /api/v1/settings/:key - Update individual setting (must be last to avoid conflicts)
-settings.put('/:key', async (c) => {
+settings.put('/:key', zValidator('json', settingValueSchema), async (c) => {
   const key = c.req.param('key');
   logger.info(`PUT /api/v1/settings/${key}`);
 
   try {
-    const body = await c.req.json();
-    const { value } = body;
-
-    if (value === undefined || value === null) {
-      return c.json({ success: false, error: 'Value is required' }, 400);
-    }
+    const { value } = c.req.valid('json');
 
     // Store non-strings as JSON, strings as-is
     const valueToStore = typeof value === 'string' ? value : JSON.stringify(value);
@@ -283,10 +251,7 @@ settings.put('/:key', async (c) => {
     });
   } catch (error) {
     logger.error(`Failed to update setting ${key}:`, error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 

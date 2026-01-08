@@ -127,13 +127,18 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 bg-opacity-100 rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl border border-gray-600" style={{ backgroundColor: 'rgb(17, 24, 39)' }}>
+    <div
+      className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="search-releases-modal-title"
+    >
+      <div className="bg-gray-900 rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl border border-gray-600">
         {/* Header */}
-        <div className="p-6 border-b border-gray-600" style={{ backgroundColor: 'rgb(31, 41, 55)' }}>
+        <div className="bg-gray-700 p-6 border-b border-gray-600">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-white">Search Releases</h2>
+              <h2 id="search-releases-modal-title" className="text-2xl font-bold text-white">Search Releases</h2>
               {game && (
                 <p className="text-gray-300 mt-1">
                   {game.title} {game.year && `(${game.year})`}
@@ -143,8 +148,9 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
             <button
               onClick={onClose}
               className="text-gray-300 hover:text-white"
+              aria-label="Close modal"
             >
-              <CloseIcon className="w-6 h-6" />
+              <CloseIcon className="w-6 h-6" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -162,7 +168,7 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
               <p className="text-gray-200 text-lg">Searching for releases...</p>
             </div>
           ) : releases.length === 0 ? (
-            <div className="rounded-lg p-8 text-center" style={{ backgroundColor: 'rgb(55, 65, 81)' }}>
+            <div className="bg-gray-600 rounded-lg p-8 text-center">
               <p className="text-gray-300 text-lg">
                 No releases found. Try adjusting your search or check back later.
               </p>
@@ -172,10 +178,7 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
               {releases.map((release) => (
                 <div
                   key={release.guid}
-                  className="rounded-lg p-4 transition border border-gray-600"
-                  style={{ backgroundColor: 'rgb(55, 65, 81)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(75, 85, 99)'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(55, 65, 81)'}
+                  className="bg-gray-600 hover:bg-gray-500 rounded-lg p-4 transition border border-gray-600"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
@@ -184,38 +187,37 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
                       </h3>
 
                       <div className="flex flex-wrap gap-2 text-xs mb-2">
-                        <span className="text-gray-100 px-2 py-1 rounded" style={{ backgroundColor: 'rgb(75, 85, 99)' }}>
+                        <span className="bg-gray-500 text-gray-100 px-2 py-1 rounded">
                           {release.indexer}
                         </span>
                         {release.quality && (
-                          <span className="text-blue-100 px-2 py-1 rounded" style={{ backgroundColor: 'rgb(37, 99, 235)' }}>
+                          <span className="bg-blue-600 text-blue-100 px-2 py-1 rounded">
                             {release.quality}
                           </span>
                         )}
                         {release.matchConfidence && (
                           <span
-                            className="text-white px-2 py-1 rounded"
-                            style={{
-                              backgroundColor: release.matchConfidence === 'high' ? 'rgb(22, 163, 74)' :
-                                              release.matchConfidence === 'medium' ? 'rgb(202, 138, 4)' :
-                                              'rgb(220, 38, 38)'
-                            }}
+                            className={`text-white px-2 py-1 rounded ${
+                              release.matchConfidence === 'high' ? 'bg-green-600' :
+                              release.matchConfidence === 'medium' ? 'bg-yellow-600' :
+                              'bg-red-600'
+                            }`}
                           >
                             {release.matchConfidence} match
                           </span>
                         )}
-                        <span className="text-gray-100 px-2 py-1 rounded" style={{ backgroundColor: 'rgb(75, 85, 99)' }}>
+                        <span className="bg-gray-500 text-gray-100 px-2 py-1 rounded">
                           {formatBytes(release.size)}
                         </span>
-                        <span className="text-gray-100 px-2 py-1 rounded flex items-center gap-1" style={{ backgroundColor: 'rgb(75, 85, 99)' }}>
-                          <SeedersIcon className="w-3.5 h-3.5" /> {release.seeders} seeders
+                        <span className="bg-gray-500 text-gray-100 px-2 py-1 rounded flex items-center gap-1">
+                          <SeedersIcon className="w-3.5 h-3.5" aria-hidden="true" /> {release.seeders} seeders
                         </span>
                         {release.score !== undefined && (
-                          <span className="text-purple-100 px-2 py-1 rounded" style={{ backgroundColor: 'rgb(126, 34, 206)' }}>
+                          <span className="bg-purple-700 text-purple-100 px-2 py-1 rounded">
                             Score: {release.score}
                           </span>
                         )}
-                        <span className="text-gray-100 px-2 py-1 rounded" style={{ backgroundColor: 'rgb(75, 85, 99)' }}>
+                        <span className="bg-gray-500 text-gray-100 px-2 py-1 rounded">
                           {formatDate(release.publishedAt)}
                         </span>
                       </div>
@@ -224,6 +226,7 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
                     <button
                       onClick={() => setReleaseToGrab(release)}
                       className="ml-4 bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition text-sm"
+                      aria-label={`Grab release: ${release.title}`}
                     >
                       Grab
                     </button>
@@ -235,16 +238,13 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-600 flex justify-between items-center" style={{ backgroundColor: 'rgb(31, 41, 55)' }}>
+        <div className="bg-gray-700 p-6 border-t border-gray-600 flex justify-between items-center">
           <p className="text-sm text-gray-300">
             {releases.length} release{releases.length !== 1 ? 's' : ''} found
           </p>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded transition text-white"
-            style={{ backgroundColor: 'rgb(75, 85, 99)' }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(107, 114, 128)'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(75, 85, 99)'}
+            className="bg-gray-500 hover:bg-gray-400 px-4 py-2 rounded transition text-white"
           >
             Close
           </button>

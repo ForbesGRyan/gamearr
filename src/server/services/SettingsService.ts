@@ -2,6 +2,9 @@ import { settingsRepository } from '../repositories/SettingsRepository';
 import { DEFAULT_CATEGORIES } from '../../shared/categories';
 import { logger } from '../utils/logger';
 
+// Type for setting values after parsing
+type SettingValue = string | number | boolean | null | number[];
+
 // Settings keys
 const SETTINGS_KEYS = {
   PROWLARR_CATEGORIES: 'prowlarr_categories',
@@ -15,6 +18,9 @@ const SETTINGS_KEYS = {
   IGDB_CLIENT_SECRET: 'igdb_client_secret',
   LIBRARY_PATH: 'library_path',
   DRY_RUN: 'dry_run',
+  // Authentication settings
+  AUTH_ENABLED: 'auth_enabled',
+  API_KEY_HASH: 'api_key_hash',
 };
 
 // Map settings keys to their environment variable fallbacks
@@ -112,9 +118,9 @@ export class SettingsService {
   /**
    * Get all settings (for display purposes, hide sensitive values)
    */
-  async getAllSettings(): Promise<Record<string, any>> {
+  async getAllSettings(): Promise<Record<string, SettingValue>> {
     const allSettings = await settingsRepository.getAll();
-    const settingsMap: Record<string, any> = {};
+    const settingsMap: Record<string, SettingValue> = {};
 
     for (const setting of allSettings) {
       // Hide sensitive values
@@ -126,7 +132,7 @@ export class SettingsService {
         settingsMap[setting.key] = '***HIDDEN***';
       } else {
         try {
-          settingsMap[setting.key] = JSON.parse(setting.value);
+          settingsMap[setting.key] = JSON.parse(setting.value) as SettingValue;
         } catch {
           settingsMap[setting.key] = setting.value;
         }

@@ -3,6 +3,9 @@ import { SteamClient, SteamGame } from '../integrations/steam/SteamClient';
 import { settingsService } from '../services/SettingsService';
 import { IGDBClient } from '../integrations/igdb/IGDBClient';
 import { gameRepository } from '../repositories/GameRepository';
+import type { NewGame } from '../db/schema';
+import type { SteamImportSSEEvent } from '../../shared/types';
+import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
 
 const router = new Hono();
 
@@ -55,7 +58,8 @@ router.get('/test', async (c) => {
       return c.json({
         success: false,
         error: 'Steam API key and Steam ID are required',
-      });
+        code: ErrorCode.NOT_CONFIGURED,
+      }, 400);
     }
 
     const client = new SteamClient(apiKey as string, steamId as string);
@@ -70,13 +74,11 @@ router.get('/test', async (c) => {
       return c.json({
         success: false,
         error: result.error,
-      });
+        code: ErrorCode.STEAM_ERROR,
+      }, 502);
     }
   } catch (error) {
-    return c.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -93,7 +95,8 @@ router.get('/owned-games', async (c) => {
       return c.json({
         success: false,
         error: 'Steam API key and Steam ID are required',
-      });
+        code: ErrorCode.NOT_CONFIGURED,
+      }, 400);
     }
 
     const client = new SteamClient(apiKey as string, steamId as string);
@@ -118,10 +121,7 @@ router.get('/owned-games', async (c) => {
       data: enrichedGames,
     });
   } catch (error) {
-    return c.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -143,7 +143,8 @@ router.post('/import', async (c) => {
       return c.json({
         success: false,
         error: 'No games selected for import',
-      });
+        code: ErrorCode.VALIDATION_ERROR,
+      }, 400);
     }
 
     const apiKey = await settingsService.getSetting('steam_api_key');
@@ -153,7 +154,8 @@ router.post('/import', async (c) => {
       return c.json({
         success: false,
         error: 'Steam API key and Steam ID are required',
-      });
+        code: ErrorCode.STEAM_NOT_CONFIGURED,
+      }, 400);
     }
 
     // Get IGDB credentials for metadata lookup
@@ -164,7 +166,8 @@ router.post('/import', async (c) => {
       return c.json({
         success: false,
         error: 'IGDB credentials are required for Steam import',
-      });
+        code: ErrorCode.NOT_CONFIGURED,
+      }, 400);
     }
 
     const steamClient = new SteamClient(apiKey as string, steamId as string);
@@ -240,7 +243,7 @@ router.post('/import', async (c) => {
         existingIgdbIds.add(igdbData.igdbId);
 
         // Create game in database
-        const gameData: any = {
+        const gameData: NewGame = {
           title: igdbData.title || steamGame.name,
           year: igdbData.year,
           igdbId: igdbData.igdbId,
@@ -276,10 +279,7 @@ router.post('/import', async (c) => {
       },
     });
   } catch (error) {
-    return c.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -297,19 +297,19 @@ router.post('/import-stream', async (c) => {
 
   // Validation
   if (!appIds || !appIds.length) {
-    return c.json({ success: false, error: 'No games selected for import' });
+    return c.json({ success: false, error: 'No games selected for import', code: ErrorCode.VALIDATION_ERROR }, 400);
   }
 
   const apiKey = await settingsService.getSetting('steam_api_key');
   const steamId = await settingsService.getSetting('steam_id');
   if (!apiKey || !steamId) {
-    return c.json({ success: false, error: 'Steam API key and Steam ID are required' });
+    return c.json({ success: false, error: 'Steam API key and Steam ID are required', code: ErrorCode.STEAM_NOT_CONFIGURED }, 400);
   }
 
   const igdbClientId = await settingsService.getSetting('igdb_client_id');
   const igdbClientSecret = await settingsService.getSetting('igdb_client_secret');
   if (!igdbClientId || !igdbClientSecret) {
-    return c.json({ success: false, error: 'IGDB credentials are required for Steam import' });
+    return c.json({ success: false, error: 'IGDB credentials are required for Steam import', code: ErrorCode.NOT_CONFIGURED }, 400);
   }
 
   // Set up SSE response
@@ -317,7 +317,7 @@ router.post('/import-stream', async (c) => {
     new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
-        const send = (data: any) => {
+        const send = (data: SteamImportSSEEvent) => {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
         };
 
@@ -388,7 +388,7 @@ router.post('/import-stream', async (c) => {
 
               existingIgdbIds.add(igdbData.igdbId);
 
-              const gameData: any = {
+              const gameData: NewGame = {
                 title: igdbData.title || steamGame.name,
                 year: igdbData.year,
                 igdbId: igdbData.igdbId,

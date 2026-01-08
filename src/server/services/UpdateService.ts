@@ -1,9 +1,11 @@
-import { gameRepository } from '../repositories/GameRepository';
+import { gameRepository, type PaginationParams, type PaginatedResult } from '../repositories/GameRepository';
 import { gameUpdateRepository } from '../repositories/GameUpdateRepository';
 import { indexerService, type ScoredRelease } from './IndexerService';
 import { downloadService } from './DownloadService';
 import type { Game, GameUpdate, NewGameUpdate } from '../db/schema';
 import { logger } from '../utils/logger';
+import { parseVersion, compareVersions } from '../utils/version';
+import { NotFoundError, ValidationError } from '../utils/errors';
 
 export class UpdateService {
   /**
@@ -12,48 +14,10 @@ export class UpdateService {
   private static readonly QUALITY_RANKING = ['Scene', 'Repack', 'DRM-Free', 'GOG'];
 
   /**
-   * Parse version from release title
-   * Returns null if no version pattern is found
+   * Track in-progress game checks to prevent duplicate concurrent checks
+   * Map of gameId -> Promise of check result
    */
-  parseVersion(releaseTitle: string): string | null {
-    const patterns = [
-      /v(\d+(?:\.\d+)*)/i,           // v1.2.3 or v1.2
-      /version[.\s]?(\d+(?:\.\d+)*)/i, // version 1.2.3 or version.1.2
-      /(\d+\.\d+\.\d+)/,              // 1.2.3 (semantic versioning)
-      /build[.\s]?(\d+)/i,           // build 123 or build.123
-      /update[.\s]?(\d+)/i,          // update 5 or update.5
-    ];
-
-    for (const pattern of patterns) {
-      const match = releaseTitle.match(pattern);
-      if (match) {
-        return match[1];
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Compare two version strings
-   * Returns: -1 if a < b, 0 if a == b, 1 if a > b
-   */
-  compareVersions(a: string, b: string): number {
-    const partsA = a.split('.').map((p) => parseInt(p, 10) || 0);
-    const partsB = b.split('.').map((p) => parseInt(p, 10) || 0);
-
-    // Pad shorter array with zeros
-    const maxLength = Math.max(partsA.length, partsB.length);
-    while (partsA.length < maxLength) partsA.push(0);
-    while (partsB.length < maxLength) partsB.push(0);
-
-    for (let i = 0; i < maxLength; i++) {
-      if (partsA[i] < partsB[i]) return -1;
-      if (partsA[i] > partsB[i]) return 1;
-    }
-
-    return 0;
-  }
+  private readonly activeGameChecks = new Map<number, Promise<GameUpdate[]>>();
 
   /**
    * Check if a release title indicates DLC or additional content
@@ -133,13 +97,36 @@ export class UpdateService {
   /**
    * Check a single game for available updates
    * Only checks games with status='downloaded'
+   * Uses deduplication to prevent concurrent checks for the same game
    */
   async checkGameForUpdates(gameId: number): Promise<GameUpdate[]> {
+    // Check if there's already an in-progress check for this game
+    const existingCheck = this.activeGameChecks.get(gameId);
+    if (existingCheck) {
+      logger.debug(`Game ${gameId} check already in progress, waiting for result`);
+      return existingCheck;
+    }
+
+    // Create the check promise and store it
+    const checkPromise = this.performGameUpdateCheck(gameId);
+    this.activeGameChecks.set(gameId, checkPromise);
+
+    try {
+      return await checkPromise;
+    } finally {
+      // Clean up after the check completes (success or failure)
+      this.activeGameChecks.delete(gameId);
+    }
+  }
+
+  /**
+   * Internal method that performs the actual update check for a game
+   */
+  private async performGameUpdateCheck(gameId: number): Promise<GameUpdate[]> {
     const game = await gameRepository.findById(gameId);
 
     if (!game) {
-      logger.warn(`Game not found for update check: ${gameId}`);
-      return [];
+      throw new NotFoundError('Game', gameId);
     }
 
     if (game.status !== 'downloaded') {
@@ -149,90 +136,98 @@ export class UpdateService {
 
     logger.info(`Checking for updates: ${game.title}`);
 
-    try {
-      // Search for releases matching the game
-      const releases = await indexerService.searchForGame(game);
+    // Search for releases matching the game
+    const releases = await indexerService.searchForGame(game);
 
-      const createdUpdates: GameUpdate[] = [];
+    // Pre-fetch all existing updates for this game to avoid N+1 queries
+    const existingUpdates = await gameUpdateRepository.findByGameId(gameId);
 
-      for (const release of releases) {
-        // Check if this release is already tracked
-        const existingByUrl = release.downloadUrl
-          ? await gameUpdateRepository.findByDownloadUrl(release.downloadUrl)
-          : null;
+    // Build lookup sets for fast O(1) existence checks
+    const existingDownloadUrls = new Set<string>(
+      existingUpdates
+        .filter((u) => u.downloadUrl)
+        .map((u) => u.downloadUrl as string)
+    );
+    const existingTitles = new Set<string>(
+      existingUpdates.map((u) => u.title)
+    );
 
-        if (existingByUrl) {
-          continue;
-        }
+    // Collect all new updates to batch insert
+    const updatesToCreate: NewGameUpdate[] = [];
 
-        const existingByTitle = await gameUpdateRepository.findByTitleAndGameId(
-          release.title,
-          gameId
-        );
-
-        if (existingByTitle) {
-          continue;
-        }
-
-        // Determine update type
-        const updateType = this.determineUpdateType(release, game);
-
-        if (!updateType) {
-          continue; // Not a relevant update
-        }
-
-        // Create the update record
-        const version = this.parseVersion(release.title);
-
-        const newUpdate: NewGameUpdate = {
-          gameId,
-          updateType,
-          title: release.title,
-          version,
-          size: release.size,
-          quality: release.quality || null,
-          seeders: release.seeders,
-          downloadUrl: release.downloadUrl,
-          indexer: release.indexer,
-          status: 'pending',
-        };
-
-        const created = await gameUpdateRepository.create(newUpdate);
-        createdUpdates.push(created);
-
-        logger.info(
-          `Found ${updateType} update for ${game.title}: ${release.title}`
-        );
+    for (const release of releases) {
+      // Check if this release is already tracked using pre-fetched data
+      if (release.downloadUrl && existingDownloadUrls.has(release.downloadUrl)) {
+        continue;
       }
 
-      // Update game's update tracking fields
-      if (createdUpdates.length > 0) {
-        const latestVersionUpdate = createdUpdates.find(
-          (u) => u.updateType === 'version' && u.version
-        );
-
-        await gameRepository.update(gameId, {
-          updateAvailable: true,
-          lastUpdateCheck: new Date(),
-          ...(latestVersionUpdate?.version && {
-            latestVersion: latestVersionUpdate.version,
-          }),
-        });
-
-        logger.info(
-          `Found ${createdUpdates.length} updates for ${game.title}`
-        );
-      } else {
-        await gameRepository.update(gameId, {
-          lastUpdateCheck: new Date(),
-        });
+      if (existingTitles.has(release.title)) {
+        continue;
       }
 
-      return createdUpdates;
-    } catch (error) {
-      logger.error(`Failed to check updates for ${game.title}:`, error);
-      return [];
+      // Determine update type
+      const updateType = this.determineUpdateType(release, game);
+
+      if (!updateType) {
+        continue; // Not a relevant update
+      }
+
+      // Create the update record
+      const version = parseVersion(release.title);
+
+      const newUpdate: NewGameUpdate = {
+        gameId,
+        updateType,
+        title: release.title,
+        version,
+        size: release.size,
+        quality: release.quality || null,
+        seeders: release.seeders,
+        downloadUrl: release.downloadUrl,
+        indexer: release.indexer,
+        status: 'pending',
+      };
+
+      updatesToCreate.push(newUpdate);
+
+      // Add to lookup sets to prevent duplicates within the same batch
+      if (release.downloadUrl) {
+        existingDownloadUrls.add(release.downloadUrl);
+      }
+      existingTitles.add(release.title);
+
+      logger.info(
+        `Found ${updateType} update for ${game.title}: ${release.title}`
+      );
     }
+
+    // Batch insert all new updates in a single query
+    const createdUpdates = await gameUpdateRepository.createMany(updatesToCreate);
+
+    // Update game's update tracking fields
+    if (createdUpdates.length > 0) {
+      const latestVersionUpdate = createdUpdates.find(
+        (u) => u.updateType === 'version' && u.version
+      );
+
+      await gameRepository.update(gameId, {
+        updateAvailable: true,
+        lastUpdateCheck: new Date(),
+        ...(latestVersionUpdate?.version && {
+          latestVersion: latestVersionUpdate.version,
+        }),
+      });
+
+      logger.info(
+        `Found ${createdUpdates.length} updates for ${game.title}`
+      );
+    } else {
+      await gameRepository.update(gameId, {
+        lastUpdateCheck: new Date(),
+      });
+    }
+
+    return createdUpdates;
   }
 
   /**
@@ -249,9 +244,9 @@ export class UpdateService {
     }
 
     // Check for version update
-    const releaseVersion = this.parseVersion(release.title);
+    const releaseVersion = parseVersion(release.title);
     if (releaseVersion && game.installedVersion) {
-      const comparison = this.compareVersions(
+      const comparison = compareVersions(
         releaseVersion,
         game.installedVersion
       );
@@ -316,13 +311,20 @@ export class UpdateService {
   }
 
   /**
+   * Get pending updates with pagination
+   */
+  async getPendingUpdatesPaginated(params: PaginationParams = {}): Promise<PaginatedResult<GameUpdate>> {
+    return gameUpdateRepository.findPendingPaginated(params);
+  }
+
+  /**
    * Dismiss an update (mark as dismissed)
    */
   async dismissUpdate(updateId: number): Promise<void> {
     const update = await gameUpdateRepository.findById(updateId);
 
     if (!update) {
-      throw new Error('Update not found');
+      throw new NotFoundError('Update', updateId);
     }
 
     await gameUpdateRepository.updateStatus(updateId, 'dismissed');
@@ -346,11 +348,11 @@ export class UpdateService {
     const update = await gameUpdateRepository.findById(updateId);
 
     if (!update) {
-      throw new Error('Update not found');
+      throw new NotFoundError('Update', updateId);
     }
 
     if (!update.downloadUrl) {
-      throw new Error('Update has no download URL');
+      throw new ValidationError('Update has no download URL');
     }
 
     logger.info(`Grabbing update: ${update.title}`);
@@ -369,37 +371,34 @@ export class UpdateService {
       matchConfidence: 'high',
     };
 
-    const result = await downloadService.grabRelease(update.gameId, release);
+    // This will throw on failure
+    await downloadService.grabRelease(update.gameId, release);
 
-    if (result.success) {
-      await gameUpdateRepository.updateStatus(updateId, 'grabbed');
+    await gameUpdateRepository.updateStatus(updateId, 'grabbed');
 
-      // Update installed version/quality if this is a version or better_release update
-      if (update.updateType === 'version' && update.version) {
-        await gameRepository.update(update.gameId, {
-          installedVersion: update.version,
-        });
-      }
-
-      if (update.updateType === 'better_release' && update.quality) {
-        await gameRepository.update(update.gameId, {
-          installedQuality: update.quality,
-        });
-      }
-
-      // Check if there are any remaining pending updates
-      const remainingUpdates = await gameUpdateRepository.findPendingByGameId(
-        update.gameId
-      );
-
-      if (remainingUpdates.length === 0) {
-        await gameRepository.update(update.gameId, { updateAvailable: false });
-      }
-
-      logger.info(`Successfully grabbed update: ${update.title}`);
-    } else {
-      throw new Error(result.message || 'Failed to grab update');
+    // Update installed version/quality if this is a version or better_release update
+    if (update.updateType === 'version' && update.version) {
+      await gameRepository.update(update.gameId, {
+        installedVersion: update.version,
+      });
     }
+
+    if (update.updateType === 'better_release' && update.quality) {
+      await gameRepository.update(update.gameId, {
+        installedQuality: update.quality,
+      });
+    }
+
+    // Check if there are any remaining pending updates
+    const remainingUpdates = await gameUpdateRepository.findPendingByGameId(
+      update.gameId
+    );
+
+    if (remainingUpdates.length === 0) {
+      await gameRepository.update(update.gameId, { updateAvailable: false });
+    }
+
+    logger.info(`Successfully grabbed update: ${update.title}`);
   }
 }
 

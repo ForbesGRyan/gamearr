@@ -60,32 +60,29 @@ function ConfirmModal({
   const styles = getVariantStyles();
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div
-        className="rounded-lg max-w-md w-full shadow-2xl border border-gray-600"
-        style={{ backgroundColor: 'rgb(17, 24, 39)' }}
-      >
+    <div
+      className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-modal-title"
+      aria-describedby="confirm-modal-description"
+    >
+      <div className="bg-gray-900 rounded-lg max-w-md w-full shadow-2xl border border-gray-600">
         {/* Header */}
-        <div
-          className="flex items-center gap-4 p-6 border-b border-gray-600"
-          style={{ backgroundColor: 'rgb(31, 41, 55)' }}
-        >
-          <div className={`p-2 rounded-full ${styles.iconBg}`}>
+        <div className="bg-gray-700 flex items-center gap-4 p-6 border-b border-gray-600">
+          <div className={`p-2 rounded-full ${styles.iconBg}`} aria-hidden="true">
             {styles.icon}
           </div>
-          <h2 className="text-xl font-bold text-white">{title}</h2>
+          <h2 id="confirm-modal-title" className="text-xl font-bold text-white">{title}</h2>
         </div>
 
         {/* Content */}
         <div className="p-6">
-          <p className="text-gray-300 whitespace-pre-line">{message}</p>
+          <p id="confirm-modal-description" className="text-gray-300 whitespace-pre-line">{message}</p>
         </div>
 
         {/* Footer */}
-        <div
-          className="flex justify-end gap-3 p-6 border-t border-gray-600"
-          style={{ backgroundColor: 'rgb(31, 41, 55)' }}
-        >
+        <div className="bg-gray-700 flex justify-end gap-3 p-6 border-t border-gray-600">
           <button
             onClick={onCancel}
             className="px-4 py-2 rounded transition text-white bg-gray-600 hover:bg-gray-500"

@@ -279,18 +279,17 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
-      <div
-        className="rounded-lg max-w-2xl w-full shadow-2xl border border-gray-600"
-        style={{ backgroundColor: 'rgb(17, 24, 39)' }}
-      >
+    <div
+      className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-game-modal-title"
+    >
+      <div className="bg-gray-900 rounded-lg max-w-2xl w-full shadow-2xl border border-gray-600">
         {/* Header */}
-        <div
-          className="flex items-center justify-between p-6 border-b border-gray-600"
-          style={{ backgroundColor: 'rgb(31, 41, 55)' }}
-        >
+        <div className="bg-gray-700 flex items-center justify-between p-6 border-b border-gray-600">
           <div>
-            <h2 className="text-2xl font-bold text-white">Edit Game</h2>
+            <h2 id="edit-game-modal-title" className="text-2xl font-bold text-white">Edit Game</h2>
             <p className="text-sm text-gray-300 mt-1">
               {game.title} {game.year && `(${game.year})`}
             </p>
@@ -300,8 +299,8 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
               </p>
             )}
           </div>
-          <button onClick={onClose} className="text-gray-300 hover:text-white">
-            <CloseIcon className="w-6 h-6" />
+          <button onClick={onClose} className="text-gray-300 hover:text-white" aria-label="Close modal">
+            <CloseIcon className="w-6 h-6" aria-hidden="true" />
           </button>
         </div>
 
@@ -312,6 +311,8 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
             <button
               onClick={() => setShowRematch(!showRematch)}
               className="w-full flex items-center justify-between p-3 bg-gray-700 hover:bg-gray-600 transition"
+              aria-expanded={showRematch}
+              aria-controls="rematch-section"
             >
               <span className="text-sm font-medium text-gray-300">Change IGDB Match</span>
               <svg
@@ -319,12 +320,13 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
             {showRematch && (
-              <div className="p-3 bg-gray-800 space-y-3">
+              <div id="rematch-section" className="p-3 bg-gray-800 space-y-3">
                 <p className="text-xs text-gray-400">
                   Search IGDB to find the correct game if this was matched incorrectly.
                 </p>
@@ -595,20 +597,14 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
           )}
 
           {error && (
-            <div
-              className="p-3 border border-red-700 rounded text-red-200 text-sm"
-              style={{ backgroundColor: 'rgb(127, 29, 29)' }}
-            >
+            <div className="bg-red-900 p-3 border border-red-700 rounded text-red-200 text-sm">
               {error}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div
-          className="flex items-center justify-end gap-3 p-6 border-t border-gray-600"
-          style={{ backgroundColor: 'rgb(31, 41, 55)' }}
-        >
+        <div className="bg-gray-700 flex items-center justify-end gap-3 p-6 border-t border-gray-600">
           <button
             onClick={onClose}
             className="px-4 py-2 rounded transition text-white bg-gray-600 hover:bg-gray-500"

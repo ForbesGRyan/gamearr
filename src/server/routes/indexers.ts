@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { indexerService } from '../services/IndexerService';
 import { logger } from '../utils/logger';
+import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
 
 const indexers = new Hono();
 
@@ -13,10 +14,7 @@ indexers.get('/', async (c) => {
     return c.json({ success: true, data: indexerList });
   } catch (error) {
     logger.error('Failed to fetch indexers:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -52,18 +50,27 @@ indexers.get('/test', async (c) => {
     return c.json({ success: true, data: connected });
   } catch (error) {
     logger.error('Prowlarr connection test failed:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Connection failed' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
 // GET /api/v1/indexers/torrents - Get top torrents from indexers
 indexers.get('/torrents', async (c) => {
   const query = c.req.query('query') || 'game';
-  const limit = parseInt(c.req.query('limit') || '50');
-  const maxAgeDays = parseInt(c.req.query('maxAge') || '30'); // Default to 30 days
+  const limitParam = c.req.query('limit');
+  const maxAgeParam = c.req.query('maxAge');
+
+  // Parse and validate numeric params with defaults
+  const limit = limitParam ? parseInt(limitParam) : 50;
+  const maxAgeDays = maxAgeParam ? parseInt(maxAgeParam) : 30;
+
+  // Validate params
+  if (limitParam && (isNaN(limit) || limit < 1)) {
+    return c.json({ success: false, error: 'Invalid limit parameter', code: ErrorCode.VALIDATION_ERROR }, 400);
+  }
+  if (maxAgeParam && (isNaN(maxAgeDays) || maxAgeDays < 1)) {
+    return c.json({ success: false, error: 'Invalid maxAge parameter', code: ErrorCode.VALIDATION_ERROR }, 400);
+  }
 
   logger.info(`GET /api/v1/indexers/torrents - query: ${query}, limit: ${limit}, maxAge: ${maxAgeDays} days`);
 
@@ -89,10 +96,7 @@ indexers.get('/torrents', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to fetch torrents:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Failed to fetch torrents' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 

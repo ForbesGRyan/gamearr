@@ -1,39 +1,8 @@
-import { useState, useEffect } from 'react';
-import { api } from '../api/client';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { api, Download } from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
-
-// SVG Icon Components
-const PlayIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const PauseIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const TrashIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-  </svg>
-);
-
-interface Download {
-  hash: string;
-  name: string;
-  size: number;
-  progress: number;
-  downloadSpeed: number;
-  uploadSpeed: number;
-  eta: number;
-  state: string;
-  savePath: string;
-  addedOn: string;
-}
+import { PlayIcon, PauseIcon, TrashIcon } from '../components/Icons';
+import { formatBytes, formatSpeed, formatETA } from '../utils/formatters';
 
 function Activity() {
   const [downloads, setDownloads] = useState<Download[]>([]);
@@ -42,62 +11,52 @@ function Activity() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [downloadToDelete, setDownloadToDelete] = useState<Download | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const loadDownloads = async () => {
+  const loadDownloads = useCallback(async () => {
+    if (!isMountedRef.current) return;
+
     setIsLoading(true);
     setError(null);
 
     try {
       const response = await api.getDownloads();
 
-      if (response.success && response.data) {
-        setDownloads(response.data as any);
-      } else {
-        setError(response.error || 'Failed to load downloads');
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        if (response.success && response.data) {
+          setDownloads(response.data);
+        } else {
+          setError(response.error || 'Failed to load downloads');
+        }
       }
     } catch (err) {
-      setError('Failed to load downloads');
+      if (isMountedRef.current) {
+        setError('Failed to load downloads');
+      }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
+    isMountedRef.current = true;
     loadDownloads();
 
     // Refresh every 5 seconds
-    const interval = setInterval(loadDownloads, 5000);
+    intervalRef.current = setInterval(loadDownloads, 5000);
 
-    return () => clearInterval(interval);
-  }, []);
-
-  const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
-  };
-
-  const formatSpeed = (bytesPerSec: number): string => {
-    return `${formatBytes(bytesPerSec)}/s`;
-  };
-
-  const formatETA = (seconds: number): string => {
-    if (seconds <= 0 || seconds === 8640000) return '∞';
-
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${secs}s`;
-    } else {
-      return `${secs}s`;
-    }
-  };
+    return () => {
+      isMountedRef.current = false;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [loadDownloads]);
 
   const getStateColor = (state: string) => {
     if (state.includes('downloading') || state.includes('metaDL')) {

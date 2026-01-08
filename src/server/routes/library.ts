@@ -1,106 +1,69 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
 import { fileService } from '../services/FileService';
 import { gameRepository } from '../repositories/GameRepository';
 import { gameService } from '../services/GameService';
 import { logger } from '../utils/logger';
+import { validatePathWithinBase } from '../utils/pathSecurity';
+import { settingsService } from '../services/SettingsService';
+import { PathTraversalError, formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
+import { cleanSearchQuery } from '../utils/searchQuery';
+
+// Validation schemas
+const autoMatchSchema = z.object({
+  parsedTitle: z.string().min(1),
+  parsedYear: z.number().nullable().optional(),
+});
+
+const matchSchema = z.object({
+  folderPath: z.string().optional(),
+  folderName: z.string().optional(),
+  igdbGame: z.object({
+    id: z.number().int().positive().optional(),
+    igdbId: z.number().int().positive().optional(),
+    name: z.string().optional(),
+    title: z.string().optional(),
+    year: z.number().nullable().optional(),
+    first_release_date: z.number().optional(),
+    coverUrl: z.string().nullable().optional(),
+    cover: z.object({ url: z.string() }).optional(),
+    platforms: z.array(z.any()).optional(),
+    summary: z.string().nullable().optional(),
+    genres: z.array(z.string()).optional(),
+    totalRating: z.number().nullable().optional(),
+    developer: z.string().nullable().optional(),
+    publisher: z.string().nullable().optional(),
+    gameModes: z.array(z.string()).optional(),
+    themes: z.array(z.string()).optional(),
+    similarGames: z.array(z.union([
+      z.number(),
+      z.object({ igdbId: z.number(), name: z.string().optional(), coverUrl: z.string().optional() })
+    ])).optional(),
+  }).refine(
+    (data) => (data.id !== undefined && data.id > 0) || (data.igdbId !== undefined && data.igdbId > 0),
+    { message: 'Either id or igdbId must be a valid positive number' }
+  ),
+  store: z.string().nullable().optional(),
+}).refine(
+  (data) => data.folderPath || data.folderName,
+  { message: 'Either folderPath or folderName must be provided' }
+);
+
+const matchExistingSchema = z.object({
+  folderPath: z.string().min(1),
+  gameId: z.number(),
+});
+
+const folderPathSchema = z.object({
+  folderPath: z.string().min(1),
+});
+
+const organizeFileSchema = z.object({
+  filePath: z.string().min(1),
+});
 
 const library = new Hono();
-
-/**
- * Clean up scene release names and version info for better IGDB matching
- * Removes: scene groups, version numbers, "update" keywords, edition names, common tags
- */
-function cleanSearchQuery(title: string): string {
-  let cleaned = title;
-
-  // Remove version numbers BEFORE normalizing dots to spaces
-  // Patterns like .v1.0, .v2.3.1, .1.2.3.4567 (preceded by separator or space)
-  cleaned = cleaned.replace(/[\s.\-_][vV]\d+(\.\d+)*/g, ' '); // v1, v1.0, v1.2.3
-  cleaned = cleaned.replace(/[.\-_]\d+(\.\d+){1,}/g, ' '); // .1.2.3 style versions (must have at least 2 parts)
-
-  // Now normalize separators to spaces
-  cleaned = cleaned.replace(/[._-]/g, ' ');
-
-  // Remove common scene group tags (case insensitive)
-  const sceneGroups = [
-    'CODEX', 'SKIDROW', 'PLAZA', 'RELOADED', 'PROPHET', 'CPY', 'HOODLUM',
-    'STEAMPUNKS', 'GOLDBERG', 'FLT', 'RAZOR1911', 'TENOKE', 'DARKSiDERS',
-    'RUNE', 'GOG', 'DODI', 'FitGirl', 'ElAmigos', 'CHRONOS', 'TiNYiSO',
-    'I_KnoW', 'SiMPLEX', 'DINOByTES', 'ANOMALY', 'EMPRESS',
-    'P2P', 'PROPER', 'INTERNAL', 'KaOs', 'Portable', 'x64', 'x86'
-  ];
-
-  // Remove scene groups
-  sceneGroups.forEach((group) => {
-    cleaned = cleaned.replace(new RegExp(`\\b${group}\\b`, 'gi'), ' ');
-  });
-
-  // Remove content in brackets (usually metadata)
-  cleaned = cleaned.replace(/\[[^\]]*\]/g, ' ');
-  cleaned = cleaned.replace(/\([^)]*\)/g, ' ');
-
-  // Remove any remaining version patterns after space normalization
-  cleaned = cleaned.replace(/\b[vV]\d+\b/g, ' '); // Standalone v1, v2, etc.
-  cleaned = cleaned.replace(/\b(build|patch|update|updated|hotfix)\s*\d*\b/gi, ' ');
-
-  // Remove multi-word edition phrases FIRST (before single words)
-  const editionPhrases = [
-    'Game of the Year',
-    "Director'?s Cut",
-    'Directors? Cut',
-    "Collector'?s Edition",
-    'Collectors? Edition',
-    'Limited Edition',
-    'Special Edition',
-    'Gold Edition',
-    'Premium Edition',
-    'Digital Edition',
-    'Digital Deluxe',
-    'Super Deluxe',
-    'Complete Edition',
-    'Definitive Edition',
-    'Enhanced Edition',
-    'Ultimate Edition',
-    'Deluxe Edition',
-    'Standard Edition',
-    'Legendary Edition',
-    'Base Game',
-    'All DLCs?',
-    'incl\\.?\\s*DLCs?',
-    '\\+\\s*DLCs?',
-    'with\\s+DLCs?',
-    'and\\s+DLCs?'
-  ];
-  editionPhrases.forEach((phrase) => {
-    cleaned = cleaned.replace(new RegExp(phrase, 'gi'), ' ');
-  });
-
-  // Remove common single-word tags (be careful not to remove words that are part of game titles)
-  const tags = [
-    'Repack', 'MULTi\\d*', 'RIP', 'Cracked', 'Crack',
-    'DLC', 'DLCs', 'GOTY', 'Complete', 'Edition', 'Deluxe', 'Ultimate',
-    'Definitive', 'Enhanced', 'Remastered', 'Anniversary', 'Remake',
-    'Digital', 'Steam', 'Epic', 'Uplay', 'Origin',
-    'Collectors?', 'Limited', 'Special', 'Gold', 'Premium', 'Standard',
-    'Directors?', 'Extended', 'Expanded', 'Uncut', 'Uncensored',
-    'Bundle', 'Trilogy', 'Anthology',
-    'FHD', '4K', 'UHD', 'SDR', 'HDR',
-    'Windows', 'Win', 'Mac', 'Linux',
-    'Incl', 'Including'
-  ];
-  tags.forEach((tag) => {
-    cleaned = cleaned.replace(new RegExp(`\\b${tag}\\b`, 'gi'), ' ');
-  });
-
-  // Note: We intentionally do NOT remove trailing numbers like "4" in "Far Cry 4"
-  // The version number removal earlier handles actual versions like ".v1.2.3"
-  // Any remaining numbers are likely part of the game title
-
-  // Normalize spaces
-  cleaned = cleaned.replace(/\s+/g, ' ').trim();
-
-  return cleaned;
-}
 
 // GET /api/v1/library/scan - Get cached library scan
 library.get('/scan', async (c) => {
@@ -122,10 +85,7 @@ library.get('/scan', async (c) => {
     });
   } catch (error) {
     logger.error('Library scan failed:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -146,31 +106,19 @@ library.post('/scan', async (c) => {
         matchedCount,
         unmatchedCount,
       },
-      message: `Scanned ${folders.length} folder${folders.length !== 1 ? 's' : ''} (${matchedCount} matched, ${unmatchedCount} unmatched)`,
     });
   } catch (error) {
     logger.error('Library scan failed:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
 // POST /api/v1/library/auto-match - Auto-match a library folder by searching IGDB
-library.post('/auto-match', async (c) => {
+library.post('/auto-match', zValidator('json', autoMatchSchema), async (c) => {
   logger.info('POST /api/v1/library/auto-match');
 
   try {
-    const body = await c.req.json();
-    const { parsedTitle, parsedYear } = body;
-
-    if (!parsedTitle) {
-      return c.json(
-        { success: false, error: 'Missing required field: parsedTitle' },
-        400
-      );
-    }
+    const { parsedTitle, parsedYear } = c.req.valid('json');
 
     // Clean up the title by removing scene tags, version numbers, etc.
     const cleanedTitle = cleanSearchQuery(parsedTitle);
@@ -187,7 +135,8 @@ library.post('/auto-match', async (c) => {
       return c.json({
         success: false,
         error: 'No matches found on IGDB',
-      });
+        code: ErrorCode.NOT_FOUND,
+      }, 404);
     }
 
     // Return the best match (first result)
@@ -198,31 +147,19 @@ library.post('/auto-match', async (c) => {
     return c.json({
       success: true,
       data: bestMatch,
-      message: `Found match: ${bestMatch.title}`,
     });
   } catch (error) {
     logger.error('Auto-match failed:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
 // POST /api/v1/library/match - Match a library folder to a game (creates new or links to existing)
-library.post('/match', async (c) => {
+library.post('/match', zValidator('json', matchSchema), async (c) => {
   logger.info('POST /api/v1/library/match');
 
   try {
-    const body = await c.req.json();
-    const { folderPath, folderName, igdbGame, store } = body;
-
-    if ((!folderPath && !folderName) || !igdbGame) {
-      return c.json(
-        { success: false, error: 'Missing required fields: folderPath or folderName, igdbGame' },
-        400
-      );
-    }
+    const { folderPath, folderName, igdbGame, store } = c.req.valid('json');
 
     // Support both formats: GameSearchResult format (igdbId) or raw IGDB format (id)
     const gameIgdbId = igdbGame.igdbId || igdbGame.id;
@@ -288,44 +225,35 @@ library.post('/match', async (c) => {
     return c.json({
       success: true,
       data: game,
-      message: `Successfully ${action.toLowerCase()} "${folderName || folderPath}" to ${game.title}`,
     });
   } catch (error) {
+    if (error instanceof PathTraversalError) {
+      return c.json({ success: false, error: error.message, code: ErrorCode.PATH_TRAVERSAL }, 403);
+    }
     logger.error('Library match failed:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
 // POST /api/v1/library/match-existing - Match a library folder to an existing game
-library.post('/match-existing', async (c) => {
+library.post('/match-existing', zValidator('json', matchExistingSchema), async (c) => {
   logger.info('POST /api/v1/library/match-existing');
 
   try {
-    const body = await c.req.json();
-    const { folderPath, gameId } = body;
-
-    if (!folderPath || !gameId) {
-      return c.json(
-        { success: false, error: 'Missing required fields: folderPath, gameId' },
-        400
-      );
-    }
+    const { folderPath, gameId } = c.req.valid('json');
 
     // Check if game exists
     const game = await gameRepository.findById(gameId);
 
     if (!game) {
-      return c.json({ success: false, error: 'Game not found' }, 404);
+      return c.json({ success: false, error: 'Game not found', code: ErrorCode.NOT_FOUND }, 404);
     }
 
     // Match folder to game
     const success = await fileService.matchFolderToGame(folderPath, gameId);
 
     if (!success) {
-      return c.json({ success: false, error: 'Failed to match folder to game' }, 500);
+      return c.json({ success: false, error: 'Failed to match folder to game', code: ErrorCode.UNKNOWN }, 500);
     }
 
     logger.info(`Matched library folder "${folderPath}" to existing game: ${game.title}`);
@@ -333,27 +261,27 @@ library.post('/match-existing', async (c) => {
     return c.json({
       success: true,
       data: game,
-      message: `Successfully matched folder to ${game.title}`,
     });
   } catch (error) {
+    if (error instanceof PathTraversalError) {
+      return c.json({ success: false, error: error.message, code: ErrorCode.PATH_TRAVERSAL }, 403);
+    }
     logger.error('Library match failed:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
 // POST /api/v1/library/ignore - Ignore a library folder
-library.post('/ignore', async (c) => {
+library.post('/ignore', zValidator('json', folderPathSchema), async (c) => {
   logger.info('POST /api/v1/library/ignore');
 
   try {
-    const body = await c.req.json();
-    const { folderPath } = body;
+    const { folderPath } = c.req.valid('json');
 
-    if (!folderPath) {
-      return c.json({ success: false, error: 'Missing required field: folderPath' }, 400);
+    // Security: Validate that the folder path is within the library
+    const libraryPath = await settingsService.getSetting('library_path');
+    if (libraryPath) {
+      validatePathWithinBase(folderPath, libraryPath, 'ignore folder');
     }
 
     // Import libraryFileRepository
@@ -361,55 +289,56 @@ library.post('/ignore', async (c) => {
     const result = await libraryFileRepository.ignore(folderPath);
 
     if (!result) {
-      return c.json({ success: false, error: 'Folder not found in library scan' }, 404);
+      return c.json({ success: false, error: 'Folder not found in library scan', code: ErrorCode.NOT_FOUND }, 404);
     }
 
     logger.info(`Ignored library folder: ${folderPath}`);
 
     return c.json({
       success: true,
-      message: 'Folder ignored successfully',
+      data: { ignored: true },
     });
   } catch (error) {
+    if (error instanceof PathTraversalError) {
+      return c.json({ success: false, error: error.message, code: ErrorCode.PATH_TRAVERSAL }, 403);
+    }
     logger.error('Failed to ignore folder:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
 // POST /api/v1/library/unignore - Unignore a library folder
-library.post('/unignore', async (c) => {
+library.post('/unignore', zValidator('json', folderPathSchema), async (c) => {
   logger.info('POST /api/v1/library/unignore');
 
   try {
-    const body = await c.req.json();
-    const { folderPath } = body;
+    const { folderPath } = c.req.valid('json');
 
-    if (!folderPath) {
-      return c.json({ success: false, error: 'Missing required field: folderPath' }, 400);
+    // Security: Validate that the folder path is within the library
+    const libraryPath = await settingsService.getSetting('library_path');
+    if (libraryPath) {
+      validatePathWithinBase(folderPath, libraryPath, 'unignore folder');
     }
 
     const { libraryFileRepository } = await import('../repositories/LibraryFileRepository');
     const result = await libraryFileRepository.unignore(folderPath);
 
     if (!result) {
-      return c.json({ success: false, error: 'Folder not found in library scan' }, 404);
+      return c.json({ success: false, error: 'Folder not found in library scan', code: ErrorCode.NOT_FOUND }, 404);
     }
 
     logger.info(`Unignored library folder: ${folderPath}`);
 
     return c.json({
       success: true,
-      message: 'Folder unignored successfully',
+      data: { unignored: true },
     });
   } catch (error) {
+    if (error instanceof PathTraversalError) {
+      return c.json({ success: false, error: error.message, code: ErrorCode.PATH_TRAVERSAL }, 403);
+    }
     logger.error('Failed to unignore folder:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -432,10 +361,7 @@ library.get('/ignored', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to get ignored folders:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -457,10 +383,7 @@ library.get('/health/duplicates', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to find duplicate games:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -478,42 +401,33 @@ library.get('/health/loose-files', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to find loose files:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
 // POST /api/v1/library/health/organize-file - Organize a loose file into a folder
-library.post('/health/organize-file', async (c) => {
+library.post('/health/organize-file', zValidator('json', organizeFileSchema), async (c) => {
   logger.info('POST /api/v1/library/health/organize-file');
 
   try {
-    const body = await c.req.json();
-    const { filePath } = body;
-
-    if (!filePath) {
-      return c.json({ success: false, error: 'Missing required field: filePath' }, 400);
-    }
+    const { filePath } = c.req.valid('json');
 
     const result = await fileService.organizeLooseFile(filePath);
 
     if (!result.success) {
-      return c.json({ success: false, error: result.error }, 400);
+      return c.json({ success: false, error: result.error, code: ErrorCode.FILE_ERROR }, 400);
     }
 
     return c.json({
       success: true,
       data: { newPath: result.newPath },
-      message: 'File organized successfully',
     });
   } catch (error) {
+    if (error instanceof PathTraversalError) {
+      return c.json({ success: false, error: error.message, code: ErrorCode.PATH_TRAVERSAL }, 403);
+    }
     logger.error('Failed to organize file:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 

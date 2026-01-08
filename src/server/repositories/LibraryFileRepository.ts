@@ -1,14 +1,25 @@
-import { eq, desc, isNull } from 'drizzle-orm';
+import { eq, desc, isNull, isNotNull, and } from 'drizzle-orm';
 import { db } from '../db';
 import { libraryFiles, type LibraryFile, type NewLibraryFile } from '../db/schema';
 import { logger } from '../utils/logger';
+
+// Explicit field selection to avoid SELECT *
+const libraryFileFields = {
+  id: libraryFiles.id,
+  folderPath: libraryFiles.folderPath,
+  parsedTitle: libraryFiles.parsedTitle,
+  parsedYear: libraryFiles.parsedYear,
+  matchedGameId: libraryFiles.matchedGameId,
+  ignored: libraryFiles.ignored,
+  scannedAt: libraryFiles.scannedAt,
+};
 
 export class LibraryFileRepository {
   /**
    * Get all library files
    */
   async findAll(): Promise<LibraryFile[]> {
-    return db.select().from(libraryFiles).orderBy(desc(libraryFiles.scannedAt));
+    return db.select(libraryFileFields).from(libraryFiles).orderBy(desc(libraryFiles.scannedAt));
   }
 
   /**
@@ -16,7 +27,7 @@ export class LibraryFileRepository {
    */
   async findByPath(folderPath: string): Promise<LibraryFile | undefined> {
     const results = await db
-      .select()
+      .select(libraryFileFields)
       .from(libraryFiles)
       .where(eq(libraryFiles.folderPath, folderPath));
     return results[0];
@@ -27,10 +38,9 @@ export class LibraryFileRepository {
    */
   async findUnmatched(): Promise<LibraryFile[]> {
     return db
-      .select()
+      .select(libraryFileFields)
       .from(libraryFiles)
-      .where(eq(libraryFiles.ignored, false))
-      .where(isNull(libraryFiles.matchedGameId))
+      .where(and(eq(libraryFiles.ignored, false), isNull(libraryFiles.matchedGameId)))
       .orderBy(desc(libraryFiles.scannedAt));
   }
 
@@ -39,7 +49,7 @@ export class LibraryFileRepository {
    */
   async findIgnored(): Promise<LibraryFile[]> {
     return db
-      .select()
+      .select(libraryFileFields)
       .from(libraryFiles)
       .where(eq(libraryFiles.ignored, true))
       .orderBy(desc(libraryFiles.scannedAt));
@@ -50,9 +60,9 @@ export class LibraryFileRepository {
    */
   async findMatched(): Promise<LibraryFile[]> {
     return db
-      .select()
+      .select(libraryFileFields)
       .from(libraryFiles)
-      .where(eq(libraryFiles.matchedGameId, libraryFiles.matchedGameId))
+      .where(isNotNull(libraryFiles.matchedGameId))
       .orderBy(desc(libraryFiles.scannedAt));
   }
 

@@ -1,8 +1,29 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
 import { gameService } from '../services/GameService';
 import { indexerService } from '../services/IndexerService';
 import { downloadService } from '../services/DownloadService';
 import { logger } from '../utils/logger';
+import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
+
+// Validation schemas
+const grabReleaseSchema = z.object({
+  gameId: z.number(),
+  release: z.object({
+    title: z.string(),
+    downloadUrl: z.string().optional(),
+    magnetUrl: z.string().optional(),
+    size: z.number().optional(),
+    seeders: z.number().optional(),
+    leechers: z.number().optional(),
+    indexer: z.string().optional(),
+    publishDate: z.string().optional(),
+    infoUrl: z.string().optional(),
+    categories: z.array(z.number()).optional(),
+    score: z.number().optional(),
+  }),
+});
 
 const search = new Hono();
 
@@ -11,7 +32,7 @@ search.get('/games', async (c) => {
   const query = c.req.query('q');
 
   if (!query) {
-    return c.json({ success: false, error: 'Query parameter "q" is required' }, 400);
+    return c.json({ success: false, error: 'Query parameter "q" is required', code: ErrorCode.VALIDATION_ERROR }, 400);
   }
 
   logger.info(`GET /api/v1/search/games?q=${query}`);
@@ -21,28 +42,25 @@ search.get('/games', async (c) => {
     return c.json({ success: true, data: results });
   } catch (error) {
     logger.error('IGDB search failed:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
-// POST /api/v1/search/releases/:id - Manual release search for a game
-search.post('/releases/:id', async (c) => {
+// GET /api/v1/search/releases/:id - Manual release search for a game
+search.get('/releases/:id', async (c) => {
   const id = parseInt(c.req.param('id'));
 
   if (isNaN(id)) {
-    return c.json({ success: false, error: 'Invalid game ID' }, 400);
+    return c.json({ success: false, error: 'Invalid game ID', code: ErrorCode.VALIDATION_ERROR }, 400);
   }
 
-  logger.info(`POST /api/v1/search/releases/${id}`);
+  logger.info(`GET /api/v1/search/releases/${id}`);
 
   try {
     // Get the game
     const game = await gameService.getGameById(id);
     if (!game) {
-      return c.json({ success: false, error: 'Game not found' }, 404);
+      return c.json({ success: false, error: 'Game not found', code: ErrorCode.NOT_FOUND }, 404);
     }
 
     // Search for releases
@@ -59,10 +77,7 @@ search.post('/releases/:id', async (c) => {
     });
   } catch (error) {
     logger.error('Release search failed:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
@@ -71,7 +86,7 @@ search.get('/releases', async (c) => {
   const query = c.req.query('q');
 
   if (!query) {
-    return c.json({ success: false, error: 'Query parameter "q" is required' }, 400);
+    return c.json({ success: false, error: 'Query parameter "q" is required', code: ErrorCode.VALIDATION_ERROR }, 400);
   }
 
   logger.info(`GET /api/v1/search/releases?q=${query}`);
@@ -87,34 +102,35 @@ search.get('/releases', async (c) => {
     });
   } catch (error) {
     logger.error('Manual search failed:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 
 // POST /api/v1/search/grab - Grab a release
-search.post('/grab', async (c) => {
+search.post('/grab', zValidator('json', grabReleaseSchema), async (c) => {
   logger.info('POST /api/v1/search/grab');
 
   try {
-    const body = await c.req.json();
-    const { gameId, release } = body;
+    const { gameId, release } = c.req.valid('json');
 
-    if (!gameId || !release) {
-      return c.json({ success: false, error: 'Missing gameId or release data' }, 400);
-    }
+    // Build a ScoredRelease-like object from the request
+    const scoredRelease = {
+      guid: `manual-${Date.now()}`,
+      title: release.title,
+      size: release.size || 0,
+      seeders: release.seeders || 0,
+      downloadUrl: release.downloadUrl || release.magnetUrl || '',
+      indexer: release.indexer || 'Unknown',
+      quality: undefined,
+      publishedAt: release.publishDate ? new Date(release.publishDate) : new Date(),
+      score: release.score || 0,
+      matchConfidence: 'high' as const,
+    };
 
-    const result = await downloadService.grabRelease(gameId, release);
-
-    if (!result.success) {
-      return c.json({ success: false, error: result.message }, 400);
-    }
+    const result = await downloadService.grabRelease(gameId, scoredRelease);
 
     return c.json({
       success: true,
-      message: result.message,
       data: {
         releaseId: result.releaseId,
         torrentHash: result.torrentHash,
@@ -122,10 +138,7 @@ search.post('/grab', async (c) => {
     });
   } catch (error) {
     logger.error('Grab release failed:', error);
-    return c.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 

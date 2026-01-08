@@ -2,20 +2,307 @@ import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient
 import { releaseRepository } from '../repositories/ReleaseRepository';
 import { gameRepository } from '../repositories/GameRepository';
 import { settingsService } from './SettingsService';
-import type { NewRelease, NewDownloadHistory } from '../db/schema';
+import type { NewRelease, NewDownloadHistory, Release } from '../db/schema';
 import type { ScoredRelease } from './IndexerService';
+import type { TorrentInfo } from '../integrations/qbittorrent/types';
 import { logger } from '../utils/logger';
 import { db } from '../db';
 import { downloadHistory } from '../db/schema';
+import { NotConfiguredError, NotFoundError } from '../utils/errors';
 
 export interface GrabReleaseResult {
-  success: boolean;
-  message: string;
-  releaseId?: number;
+  releaseId: number;
   torrentHash?: string;
 }
 
+/**
+ * Result of torrent matching with confidence level
+ */
+interface TorrentMatchResult {
+  torrent: TorrentInfo;
+  confidence: 'exact' | 'high' | 'medium' | 'low';
+  matchMethod: string;
+}
+
+/**
+ * Size tolerance percentage for matching (10% difference allowed)
+ */
+const SIZE_TOLERANCE_PERCENT = 0.10;
+
 export class DownloadService {
+  /**
+   * Normalize a string for comparison by removing special characters,
+   * converting to lowercase, and collapsing whitespace.
+   */
+  private normalizeName(name: string): string {
+    return name
+      .toLowerCase()
+      // Remove common scene/release group markers
+      .replace(/[\[\](){}]/g, ' ')
+      // Remove file extensions
+      .replace(/\.(torrent|nfo|txt|rar|zip|7z)$/i, '')
+      // Replace common separators with spaces
+      .replace(/[._-]+/g, ' ')
+      // Remove special characters except alphanumeric and spaces
+      .replace(/[^a-z0-9\s]/g, '')
+      // Collapse multiple spaces
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Extract key identifying tokens from a release name.
+   * This helps match torrents even when names differ slightly.
+   */
+  private extractKeyTokens(name: string): Set<string> {
+    const normalized = this.normalizeName(name);
+    const tokens = normalized.split(' ').filter(t => t.length >= 2);
+    return new Set(tokens);
+  }
+
+  /**
+   * Calculate token overlap ratio between two sets of tokens.
+   * Returns a value between 0 and 1.
+   */
+  private calculateTokenOverlap(tokens1: Set<string>, tokens2: Set<string>): number {
+    if (tokens1.size === 0 || tokens2.size === 0) return 0;
+
+    let matchCount = 0;
+    for (const token of tokens1) {
+      if (tokens2.has(token)) {
+        matchCount++;
+      }
+    }
+
+    // Use the smaller set as the denominator to favor partial matches
+    const minSize = Math.min(tokens1.size, tokens2.size);
+    return matchCount / minSize;
+  }
+
+  /**
+   * Check if two sizes are within tolerance of each other.
+   */
+  private sizesMatch(size1: number | null, size2: number): boolean {
+    if (size1 === null || size1 === 0) return true; // No size to compare
+
+    const diff = Math.abs(size1 - size2);
+    const maxSize = Math.max(size1, size2);
+    const percentDiff = diff / maxSize;
+
+    return percentDiff <= SIZE_TOLERANCE_PERCENT;
+  }
+
+  /**
+   * Parse game ID from torrent tags (e.g., "gamearr,game-123" -> 123)
+   */
+  private parseGameIdFromTags(tags: string): number | null {
+    if (!tags) return null;
+
+    const tagList = tags.split(',').map(t => t.trim());
+    for (const tag of tagList) {
+      const match = tag.match(/^game-(\d+)$/);
+      if (match) {
+        return parseInt(match[1], 10);
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Find the best matching torrent for a release using multiple criteria.
+   * Returns null if no confident match is found.
+   *
+   * Matching priority:
+   * 1. Exact hash match (if release has stored hash)
+   * 2. Tag-based match (using game-{id} tag we set when adding)
+   * 3. Multi-criteria match (normalized name + size)
+   */
+  private findMatchingTorrent(
+    release: Release,
+    torrents: TorrentInfo[]
+  ): TorrentMatchResult | null {
+    // Priority 1: Exact hash match (most reliable)
+    if (release.torrentHash) {
+      const hashMatch = torrents.find(
+        t => t.hash.toLowerCase() === release.torrentHash!.toLowerCase()
+      );
+      if (hashMatch) {
+        return {
+          torrent: hashMatch,
+          confidence: 'exact',
+          matchMethod: 'hash'
+        };
+      }
+      // Hash was stored but torrent not found - it may have been removed
+      logger.debug(`Release ${release.id} has hash ${release.torrentHash} but torrent not found in qBittorrent`);
+    }
+
+    // Priority 2: Tag-based match (high confidence)
+    // We tag torrents with "game-{gameId}" when adding them
+    const tagMatches = torrents.filter(t => {
+      const gameId = this.parseGameIdFromTags(t.tags);
+      return gameId === release.gameId;
+    });
+
+    if (tagMatches.length === 1) {
+      // Single match by game ID tag - high confidence
+      return {
+        torrent: tagMatches[0],
+        confidence: 'high',
+        matchMethod: 'tag'
+      };
+    } else if (tagMatches.length > 1) {
+      // Multiple torrents for same game - need to narrow down by name/size
+      const releaseTokens = this.extractKeyTokens(release.title);
+
+      let bestMatch: TorrentInfo | null = null;
+      let bestScore = 0;
+
+      for (const torrent of tagMatches) {
+        const torrentTokens = this.extractKeyTokens(torrent.name);
+        const tokenOverlap = this.calculateTokenOverlap(releaseTokens, torrentTokens);
+        const sizeMatches = this.sizesMatch(release.size, torrent.size);
+
+        // Combined score: token overlap + size match bonus
+        const score = tokenOverlap + (sizeMatches ? 0.2 : 0);
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = torrent;
+        }
+      }
+
+      if (bestMatch && bestScore >= 0.5) {
+        return {
+          torrent: bestMatch,
+          confidence: 'high',
+          matchMethod: 'tag+name'
+        };
+      }
+    }
+
+    // Priority 3: Multi-criteria matching (name similarity + size)
+    // Filter to gamearr category first
+    const gamearrTorrents = torrents.filter(t => t.category === 'gamearr');
+
+    const releaseTokens = this.extractKeyTokens(release.title);
+    let bestMatch: TorrentInfo | null = null;
+    let bestScore = 0;
+    let bestOverlap = 0;
+
+    for (const torrent of gamearrTorrents) {
+      const torrentTokens = this.extractKeyTokens(torrent.name);
+      const tokenOverlap = this.calculateTokenOverlap(releaseTokens, torrentTokens);
+      const sizeMatches = this.sizesMatch(release.size, torrent.size);
+
+      // Require at least 60% token overlap for name matching
+      if (tokenOverlap < 0.6) continue;
+
+      // Calculate combined score
+      let score = tokenOverlap;
+
+      // Size match is a significant bonus
+      if (sizeMatches) {
+        score += 0.3;
+      } else if (release.size && release.size > 0) {
+        // Size mismatch is a penalty when we have size info
+        score -= 0.2;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestOverlap = tokenOverlap;
+        bestMatch = torrent;
+      }
+    }
+
+    // Require minimum confidence threshold
+    if (bestMatch) {
+      // Determine confidence level based on score
+      let confidence: 'high' | 'medium' | 'low';
+      if (bestScore >= 0.9 && bestOverlap >= 0.8) {
+        confidence = 'high';
+      } else if (bestScore >= 0.7) {
+        confidence = 'medium';
+      } else {
+        confidence = 'low';
+      }
+
+      // Only return low confidence matches if we're desperate
+      // For now, require at least medium confidence
+      if (confidence !== 'low') {
+        return {
+          torrent: bestMatch,
+          confidence,
+          matchMethod: `name(${(bestOverlap * 100).toFixed(0)}%)+size`
+        };
+      }
+
+      logger.debug(
+        `Low confidence match for release "${release.title}" -> "${bestMatch.name}" ` +
+        `(overlap: ${(bestOverlap * 100).toFixed(0)}%, score: ${bestScore.toFixed(2)})`
+      );
+    }
+
+    return null;
+  }
+
+  /**
+   * Try to find and store the torrent hash after adding a torrent.
+   * This searches recent torrents to find the one we just added.
+   */
+  private async tryFindAndStoreHash(
+    releaseId: number,
+    releaseName: string,
+    releaseSize: number,
+    gameId: number
+  ): Promise<string | null> {
+    try {
+      // Wait a moment for qBittorrent to process the torrent
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const torrents = await qbittorrentClient.getTorrents();
+
+      // Look for torrents with our game tag that were added recently
+      const recentTorrents = torrents
+        .filter(t => {
+          const tagGameId = this.parseGameIdFromTags(t.tags);
+          return tagGameId === gameId;
+        })
+        .sort((a, b) => b.addedOn.getTime() - a.addedOn.getTime());
+
+      if (recentTorrents.length > 0) {
+        // Most recently added torrent with matching game ID
+        const match = recentTorrents[0];
+
+        // Store the hash
+        await releaseRepository.update(releaseId, { torrentHash: match.hash });
+        logger.info(`Stored torrent hash ${match.hash} for release ${releaseId}`);
+
+        return match.hash;
+      }
+
+      // Fallback: try name matching
+      const releaseTokens = this.extractKeyTokens(releaseName);
+      for (const torrent of torrents) {
+        const torrentTokens = this.extractKeyTokens(torrent.name);
+        const overlap = this.calculateTokenOverlap(releaseTokens, torrentTokens);
+
+        if (overlap >= 0.7 && this.sizesMatch(releaseSize, torrent.size)) {
+          await releaseRepository.update(releaseId, { torrentHash: torrent.hash });
+          logger.info(`Stored torrent hash ${torrent.hash} for release ${releaseId} (via name match)`);
+          return torrent.hash;
+        }
+      }
+
+      logger.warn(`Could not find torrent hash for release ${releaseId}`);
+      return null;
+    } catch (error) {
+      logger.error(`Failed to find/store hash for release ${releaseId}:`, error);
+      return null;
+    }
+  }
+
   /**
    * Grab a release and send it to qBittorrent
    */
@@ -24,7 +311,7 @@ export class DownloadService {
     release: ScoredRelease
   ): Promise<GrabReleaseResult> {
     if (!qbittorrentClient.isConfigured()) {
-      throw new Error('qBittorrent is not configured. Please add your qBittorrent settings.');
+      throw new NotConfiguredError('qBittorrent');
     }
 
     // Check if dry-run mode is enabled
@@ -32,89 +319,86 @@ export class DownloadService {
 
     logger.info(`${isDryRun ? '[DRY-RUN] ' : ''}Grabbing release: ${release.title} for game ID ${gameId}`);
 
-    try {
-      // Get game info
-      const game = await gameRepository.findById(gameId);
-      if (!game) {
-        throw new Error('Game not found');
-      }
+    // Get game info
+    const game = await gameRepository.findById(gameId);
+    if (!game) {
+      throw new NotFoundError('Game', gameId);
+    }
 
-      if (isDryRun) {
-        // Log detailed information about what would be downloaded
-        logger.info('═══════════════════════════════════════════════════════');
-        logger.info('[DRY-RUN] Download Details:');
-        logger.info('═══════════════════════════════════════════════════════');
-        logger.info(`Game: ${game.title} (${game.year})`);
-        logger.info(`Release: ${release.title}`);
-        logger.info(`Indexer: ${release.indexer}`);
-        logger.info(`Quality: ${release.quality || 'N/A'}`);
-        logger.info(`Size: ${(release.size / (1024 * 1024 * 1024)).toFixed(2)} GB`);
-        logger.info(`Seeders: ${release.seeders}`);
-        logger.info(`Match Confidence: ${release.matchConfidence}`);
-        logger.info(`Quality Score: ${release.score}`);
-        logger.info(`Download URL: ${release.downloadUrl}`);
-        logger.info(`Category: gamearr`);
-        logger.info(`Tags: gamearr,game-${gameId}`);
-        logger.info('═══════════════════════════════════════════════════════');
+    if (isDryRun) {
+      // Log detailed information about what would be downloaded
+      logger.info('═══════════════════════════════════════════════════════');
+      logger.info('[DRY-RUN] Download Details:');
+      logger.info('═══════════════════════════════════════════════════════');
+      logger.info(`Game: ${game.title} (${game.year})`);
+      logger.info(`Release: ${release.title}`);
+      logger.info(`Indexer: ${release.indexer}`);
+      logger.info(`Quality: ${release.quality || 'N/A'}`);
+      logger.info(`Size: ${(release.size / (1024 * 1024 * 1024)).toFixed(2)} GB`);
+      logger.info(`Seeders: ${release.seeders}`);
+      logger.info(`Match Confidence: ${release.matchConfidence}`);
+      logger.info(`Quality Score: ${release.score}`);
+      logger.info(`Download URL: ${release.downloadUrl}`);
+      logger.info(`Category: gamearr`);
+      logger.info(`Tags: gamearr,game-${gameId}`);
+      logger.info('═══════════════════════════════════════════════════════');
 
-        return {
-          success: true,
-          message: '[DRY-RUN] Download logged (not actually downloaded)',
-          releaseId: -1,
-        };
-      }
-
-      // Create release record
-      const newRelease: NewRelease = {
-        gameId,
-        title: release.title,
-        size: release.size,
-        seeders: release.seeders,
-        downloadUrl: release.downloadUrl,
-        indexer: release.indexer,
-        quality: release.quality || null,
-        grabbedAt: new Date(),
-        status: 'pending',
-      };
-
-      const createdRelease = await releaseRepository.create(newRelease);
-
-      // Add to qBittorrent
-      const category = 'gamearr';
-      const tags = `gamearr,game-${gameId}`;
-
-      try {
-        await qbittorrentClient.addTorrent(release.downloadUrl, {
-          category,
-          tags,
-          paused: 'false',
-        });
-
-        // Update release status to downloading
-        await releaseRepository.updateStatus(createdRelease.id, 'downloading');
-
-        // Update game status to downloading
-        await gameRepository.update(gameId, { status: 'downloading' });
-
-        logger.info(`Release grabbed successfully: ${release.title}`);
-
-        return {
-          success: true,
-          message: 'Release added to download queue',
-          releaseId: createdRelease.id,
-        };
-      } catch (error) {
-        // If adding to qBittorrent fails, mark release as failed
-        await releaseRepository.updateStatus(createdRelease.id, 'failed');
-
-        throw error;
-      }
-    } catch (error) {
-      logger.error('Failed to grab release:', error);
       return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Unknown error',
+        releaseId: -1,
       };
+    }
+
+    // Create release record
+    const newRelease: NewRelease = {
+      gameId,
+      title: release.title,
+      size: release.size,
+      seeders: release.seeders,
+      downloadUrl: release.downloadUrl,
+      indexer: release.indexer,
+      quality: release.quality || null,
+      grabbedAt: new Date(),
+      status: 'pending',
+    };
+
+    const createdRelease = await releaseRepository.create(newRelease);
+
+    // Add to qBittorrent
+    const category = 'gamearr';
+    const tags = `gamearr,game-${gameId}`;
+
+    try {
+      await qbittorrentClient.addTorrent(release.downloadUrl, {
+        category,
+        tags,
+        paused: 'false',
+      });
+
+      // Update release status to downloading
+      await releaseRepository.updateStatus(createdRelease.id, 'downloading');
+
+      // Update game status to downloading
+      await gameRepository.update(gameId, { status: 'downloading' });
+
+      logger.info(`Release grabbed successfully: ${release.title}`);
+
+      // Try to find and store the torrent hash for reliable future matching
+      // This is done asynchronously to not block the response
+      this.tryFindAndStoreHash(
+        createdRelease.id,
+        release.title,
+        release.size,
+        gameId
+      ).catch(err => logger.error('Background hash storage failed:', err));
+
+      return {
+        releaseId: createdRelease.id,
+      };
+    } catch (error) {
+      // If adding to qBittorrent fails, mark release as failed
+      await releaseRepository.updateStatus(createdRelease.id, 'failed');
+
+      throw error;
     }
   }
 
@@ -225,36 +509,91 @@ export class DownloadService {
       const torrents = await qbittorrentClient.getTorrents();
       const activeReleases = await releaseRepository.findActiveDownloads();
 
-      for (const release of activeReleases) {
-        // Find matching torrent by name (we'll improve this later with hash storage)
-        const torrent = torrents.find((t) =>
-          t.name.toLowerCase().includes(release.title.toLowerCase().substring(0, 20))
-        );
+      // Collect updates to perform in batch
+      const releaseStatusUpdates: Array<{
+        id: number;
+        status: 'pending' | 'downloading' | 'completed' | 'failed';
+        torrentHash?: string;
+      }> = [];
+      const gameIdsToMarkDownloaded: number[] = [];
+      const completedReleases: string[] = [];
 
-        if (!torrent) {
+      for (const release of activeReleases) {
+        // Use robust multi-criteria matching algorithm
+        const matchResult = this.findMatchingTorrent(release, torrents);
+
+        if (!matchResult) {
+          // No confident match found - log for debugging
+          logger.debug(`No torrent match found for release ${release.id}: "${release.title}"`);
           continue;
         }
 
-        // Update release status based on torrent state
+        const { torrent, confidence, matchMethod } = matchResult;
+
+        // Log match details for transparency
+        if (confidence !== 'exact') {
+          logger.debug(
+            `Matched release ${release.id} to torrent "${torrent.name}" ` +
+            `(confidence: ${confidence}, method: ${matchMethod})`
+          );
+        }
+
+        // If we matched but don't have the hash stored, store it now
+        if (!release.torrentHash && torrent.hash) {
+          releaseStatusUpdates.push({
+            id: release.id,
+            status: release.status as 'pending' | 'downloading' | 'completed' | 'failed',
+            torrentHash: torrent.hash
+          });
+        }
+
+        // Determine new status based on torrent state
         let newStatus: 'pending' | 'downloading' | 'completed' | 'failed' = 'downloading';
 
         if (torrent.progress >= 1) {
           newStatus = 'completed';
 
-          // Update game status to downloaded when download completes
+          // Queue game status update when download completes
           if (release.status !== 'completed') {
-            logger.info(`Download completed: ${release.title}`);
-            await gameRepository.update(release.gameId, { status: 'downloaded' });
+            completedReleases.push(release.title);
+            gameIdsToMarkDownloaded.push(release.gameId);
           }
         } else if (torrent.state === 'error') {
           newStatus = 'failed';
         }
 
         if (release.status !== newStatus) {
-          await releaseRepository.updateStatus(release.id, newStatus);
-          logger.info(`Updated release ${release.id} status to ${newStatus}`);
+          // Find existing update or create new one
+          const existingUpdate = releaseStatusUpdates.find(u => u.id === release.id);
+          if (existingUpdate) {
+            existingUpdate.status = newStatus;
+          } else {
+            releaseStatusUpdates.push({ id: release.id, status: newStatus });
+          }
         }
       }
+
+      // Log completed releases
+      for (const completed of completedReleases) {
+        logger.info(`Download completed: ${completed}`);
+      }
+
+      // Update releases (status and/or hash)
+      for (const update of releaseStatusUpdates) {
+        if (update.torrentHash) {
+          await releaseRepository.update(update.id, {
+            status: update.status,
+            torrentHash: update.torrentHash
+          });
+        } else {
+          await releaseRepository.updateStatus(update.id, update.status);
+        }
+      }
+
+      // Batch update all game statuses in a single query
+      // Use Set to deduplicate game IDs
+      const uniqueGameIds = [...new Set(gameIdsToMarkDownloaded)];
+      await gameRepository.batchUpdateStatus(uniqueGameIds, 'downloaded');
     } catch (error) {
       logger.error('Failed to sync download status:', error);
     }

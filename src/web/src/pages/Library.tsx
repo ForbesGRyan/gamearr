@@ -1,149 +1,40 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import GameCard from '../components/GameCard';
 import AddGameModal from '../components/AddGameModal';
 import SearchReleasesModal from '../components/SearchReleasesModal';
 import MatchFolderModal from '../components/MatchFolderModal';
 import EditGameModal from '../components/EditGameModal';
 import ConfirmModal from '../components/ConfirmModal';
-import StoreSelector from '../components/StoreSelector';
 import StoreIcon from '../components/StoreIcon';
-import { api } from '../api/client';
+import StoreSelector from '../components/StoreSelector';
+import { api, SteamGame } from '../api/client';
+import { EyeIcon, EyeSlashIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, GamepadIcon } from '../components/Icons';
+import { formatBytes, formatTimestamp } from '../utils/formatters';
+import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
 
-// SVG Icon Components
-const EyeIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-  </svg>
-);
-
-const EyeSlashIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-  </svg>
-);
-
-const PencilIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-  </svg>
-);
-
-const TrashIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-  </svg>
-);
-
-const MagnifyingGlassIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-  </svg>
-);
-
-const GamepadIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-interface Game {
-  id: number;
-  title: string;
-  year?: number;
-  coverUrl?: string;
-  monitored: boolean;
-  status: 'wanted' | 'downloading' | 'downloaded';
-  platform: string;
-  store?: string | null;
-  // Metadata fields
-  summary?: string | null;
-  genres?: string | null; // JSON string array
-  totalRating?: number | null;
-  developer?: string | null;
-  publisher?: string | null;
-  gameModes?: string | null; // JSON string array
-  similarGames?: string | null; // JSON array of {igdbId, name, coverUrl}
-  // Update tracking fields
-  updateAvailable?: boolean;
-  installedVersion?: string | null;
-  latestVersion?: string | null;
-  updatePolicy?: 'notify' | 'auto' | 'ignore';
-}
-
-interface SimilarGame {
-  igdbId: number;
-  name: string;
-  coverUrl?: string;
-}
-
-interface LibraryFolder {
-  folderName: string;
-  parsedTitle: string;
-  cleanedTitle: string;
-  parsedYear?: number;
-  parsedVersion?: string;
-  matched: boolean;
-  gameId?: number;
-  path: string;
-}
-
-interface AutoMatchSuggestion {
-  igdbId: number;
-  title: string;
-  year?: number;
-  coverUrl?: string;
-  summary?: string;
-  platforms?: string[];
-  // Extended metadata
-  genres?: string[];
-  totalRating?: number;
-  developer?: string;
-  publisher?: string;
-  gameModes?: string[];
-  similarGames?: Array<{
-    igdbId: number;
-    name: string;
-    coverUrl?: string;
-  }>;
-}
-
-interface LooseFile {
-  path: string;
-  name: string;
-  extension: string;
-  size: number;
-  modifiedAt: number;
-}
-
-interface DuplicateGameInfo {
-  id: number;
-  title: string;
-  year?: number;
-  status: string;
-  folderPath?: string;
-  size?: number;
-}
-
-interface DuplicateGroup {
-  games: DuplicateGameInfo[];
-  similarity: number;
-}
+// Import library-specific components
+import {
+  LibraryFilterBar,
+  LibraryPagination,
+  BulkActionToolbar,
+  SteamImportModal,
+  LibraryHealthTab,
+  LibraryScanTab,
+} from '../components/library';
+import type {
+  Game,
+  SimilarGame,
+  LibraryFolder,
+  AutoMatchSuggestion,
+  LooseFile,
+  DuplicateGroup,
+  ViewMode,
+  SortColumn,
+  SortDirection,
+  Filters,
+} from '../components/library';
 
 type Tab = 'games' | 'scan' | 'health';
-type ViewMode = 'posters' | 'table' | 'overview';
-type SortColumn = 'title' | 'year' | 'rating' | 'monitored' | 'store' | 'status';
-type SortDirection = 'asc' | 'desc';
-type StatusFilter = 'all' | 'wanted' | 'downloading' | 'downloaded';
-type MonitoredFilter = 'all' | 'monitored' | 'unmonitored';
-
-interface Filters {
-  status: StatusFilter;
-  monitored: MonitoredFilter;
-  genres: string[];
-  gameModes: string[];
-}
 
 function Library() {
   const [activeTab, setActiveTab] = useState<Tab>('games');
@@ -208,7 +99,7 @@ function Library() {
 
   // Steam import state
   const [isSteamModalOpen, setIsSteamModalOpen] = useState(false);
-  const [steamGames, setSteamGames] = useState<any[]>([]);
+  const [steamGames, setSteamGames] = useState<SteamGame[]>([]);
   const [isLoadingSteam, setIsLoadingSteam] = useState(false);
   const [steamError, setSteamError] = useState<string | null>(null);
   const [selectedSteamGames, setSelectedSteamGames] = useState<Set<number>>(new Set());
@@ -263,8 +154,8 @@ function Library() {
     });
   };
 
-  // Extract unique genres and game modes from all games
-  const getAllGenres = (): string[] => {
+  // Extract unique genres and game modes from all games (memoized)
+  const allGenres = useMemo((): string[] => {
     const genreSet = new Set<string>();
     games.forEach((game) => {
       if (game.genres) {
@@ -277,9 +168,9 @@ function Library() {
       }
     });
     return Array.from(genreSet).sort();
-  };
+  }, [games]);
 
-  const getAllGameModes = (): string[] => {
+  const allGameModes = useMemo((): string[] => {
     const modeSet = new Set<string>();
     games.forEach((game) => {
       if (game.gameModes) {
@@ -292,10 +183,10 @@ function Library() {
       }
     });
     return Array.from(modeSet).sort();
-  };
+  }, [games]);
 
-  // Get filtered and sorted games
-  const getFilteredAndSortedGames = (): Game[] => {
+  // Get filtered and sorted games (memoized)
+  const filteredAndSortedGames = useMemo((): Game[] => {
     let filtered = games;
 
     // Filter by search query
@@ -358,20 +249,29 @@ function Library() {
     }
 
     return getSortedGames(filtered);
-  };
+  }, [games, searchQuery, filters, sortColumn, sortDirection]);
 
-  // Get paginated games
-  const getPaginatedGames = (): Game[] => {
-    const filtered = getFilteredAndSortedGames();
+  // Keep backward-compatible function names for existing code
+  const getAllGenres = () => allGenres;
+  const getAllGameModes = () => allGameModes;
+  const getFilteredAndSortedGames = () => filteredAndSortedGames;
+
+  // Get paginated games (memoized)
+  const paginatedGames = useMemo((): Game[] => {
     const startIndex = (currentPage - 1) * pageSize;
-    return filtered.slice(startIndex, startIndex + pageSize);
-  };
+    return filteredAndSortedGames.slice(startIndex, startIndex + pageSize);
+  }, [filteredAndSortedGames, currentPage, pageSize]);
 
-  // Get total pages
-  const getTotalPages = (): number => {
-    const filtered = getFilteredAndSortedGames();
-    return Math.ceil(filtered.length / pageSize);
-  };
+  // Keep backward-compatible function name for existing code
+  const getPaginatedGames = () => paginatedGames;
+
+  // Get total pages (memoized)
+  const totalPages = useMemo((): number => {
+    return Math.ceil(filteredAndSortedGames.length / pageSize);
+  }, [filteredAndSortedGames.length, pageSize]);
+
+  // Keep backward-compatible function name for existing code
+  const getTotalPages = () => totalPages;
 
   // Handle page size change
   const handlePageSizeChange = (newSize: number) => {
@@ -385,8 +285,8 @@ function Library() {
     setCurrentPage(1);
   };
 
-  // Count active filters
-  const getActiveFilterCount = (): number => {
+  // Count active filters (memoized)
+  const activeFilterCount = useMemo((): number => {
     let count = 0;
     if (searchQuery.trim()) count++;
     if (filters.status !== 'all') count++;
@@ -394,7 +294,10 @@ function Library() {
     count += filters.genres.length;
     count += filters.gameModes.length;
     return count;
-  };
+  }, [searchQuery, filters]);
+
+  // Keep backward-compatible function name for existing code
+  const getActiveFilterCount = () => activeFilterCount;
 
   // Clear all filters
   const clearFilters = () => {
@@ -428,7 +331,7 @@ function Library() {
   };
 
   // Bulk selection helpers
-  const toggleGameSelection = (gameId: number) => {
+  const toggleGameSelection = useCallback((gameId: number) => {
     setSelectedGameIds((prev) => {
       const next = new Set(prev);
       if (next.has(gameId)) {
@@ -438,7 +341,7 @@ function Library() {
       }
       return next;
     });
-  };
+  }, []);
 
   const selectAllGames = () => {
     const filteredGames = getFilteredAndSortedGames();
@@ -500,7 +403,7 @@ function Library() {
     try {
       const response = await api.getSteamOwnedGames();
       if (response.success && response.data) {
-        setSteamGames(response.data as any[]);
+        setSteamGames(response.data);
       } else {
         setSteamError(response.error || 'Failed to load Steam games');
       }
@@ -523,8 +426,8 @@ function Library() {
     });
   };
 
-  // Filter Steam games based on search, playtime, and owned status
-  const getFilteredSteamGames = () => {
+  // Filter Steam games based on search, playtime, and owned status (memoized)
+  const filteredSteamGames = useMemo(() => {
     return steamGames.filter((game) => {
       // Search filter
       if (steamSearchQuery.trim()) {
@@ -544,9 +447,7 @@ function Library() {
       }
       return true;
     });
-  };
-
-  const filteredSteamGames = getFilteredSteamGames();
+  }, [steamGames, steamSearchQuery, steamMinPlaytime, steamShowOwned]);
 
   const handleSelectAllSteamGames = () => {
     const importableGames = filteredSteamGames.filter((g) => !g.alreadyInLibrary);
@@ -720,24 +621,16 @@ function Library() {
     localStorage.setItem('dismissed-duplicates', JSON.stringify([...newDismissed]));
   };
 
-  const getVisibleDuplicates = () => {
+  // Visible duplicates (memoized)
+  const visibleDuplicates = useMemo(() => {
     return duplicates.filter((group) => {
       const key = group.games.map((g) => g.id).sort().join('-');
       return !dismissedDuplicates.has(key);
     });
-  };
+  }, [duplicates, dismissedDuplicates]);
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-  };
-
-  const formatDate = (timestamp: number): string => {
-    return new Date(timestamp * 1000).toLocaleDateString();
-  };
+  // Keep backward-compatible function name for existing code
+  const getVisibleDuplicates = () => visibleDuplicates;
 
   const loadScanData = async () => {
     setIsLoading(true);
@@ -760,7 +653,7 @@ function Library() {
     }
   };
 
-  const handleToggleMonitor = async (id: number) => {
+  const handleToggleMonitor = useCallback(async (id: number) => {
     try {
       const response = await fetch(`/api/v1/games/${id}/toggle-monitor`, {
         method: 'POST',
@@ -772,9 +665,9 @@ function Library() {
     } catch (err) {
       console.error('Failed to toggle monitor:', err);
     }
-  };
+  }, []);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = useCallback(async (id: number) => {
     try {
       const response = await api.deleteGame(id);
 
@@ -784,12 +677,12 @@ function Library() {
     } catch (err) {
       console.error('Failed to delete game:', err);
     }
-  };
+  }, []);
 
-  const handleSearch = (game: Game) => {
+  const handleSearch = useCallback((game: Game) => {
     setSelectedGame(game);
     setIsSearchModalOpen(true);
-  };
+  }, []);
 
   const handleScanLibrary = async () => {
     setIsScanning(true);
@@ -813,7 +706,7 @@ function Library() {
           `Scanned ${count} folder${count !== 1 ? 's' : ''} (${matchedCount} matched, ${unmatchedCount} unmatched)`
         );
 
-        setTimeout(() => setScanMessage(null), 5000);
+        setTimeout(() => setScanMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
       } else {
         setError(response.error || 'Library scan failed');
       }
@@ -849,7 +742,7 @@ function Library() {
         // Reload scan data from server to ensure consistency
         await loadScanData();
         setScanMessage('Folder ignored successfully');
-        setTimeout(() => setScanMessage(null), 3000);
+        setTimeout(() => setScanMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
       } else {
         setError(data.error || 'Failed to ignore folder');
       }
@@ -858,10 +751,10 @@ function Library() {
     }
   };
 
-  const handleEdit = (game: Game) => {
+  const handleEdit = useCallback((game: Game) => {
     setSelectedGameForEdit(game);
     setIsEditModalOpen(true);
-  };
+  }, []);
 
   const handleAutoMatch = async (folder: LibraryFolder) => {
     setIsAutoMatching((prev) => ({ ...prev, [folder.path]: true }));
@@ -907,7 +800,7 @@ function Library() {
         });
 
         setScanMessage(`Successfully matched "${folder.folderName}" to ${suggestion.title}`);
-        setTimeout(() => setScanMessage(null), 5000);
+        setTimeout(() => setScanMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
 
         // Reload games and scan data from server to ensure consistency
         loadGames();
@@ -2046,7 +1939,7 @@ function Library() {
                                   game.status === 'downloading' ? 'text-blue-400' : 'text-yellow-400'
                                 }`}>{game.status}</span></p>
                                 {game.size !== undefined && (
-                                  <p>Size: {formatFileSize(game.size)}</p>
+                                  <p>Size: {formatBytes(game.size)}</p>
                                 )}
                               </div>
                             </div>
@@ -2109,7 +2002,7 @@ function Library() {
                               </span>
                             </td>
                             <td className="py-3 pr-4 text-gray-400">
-                              {formatFileSize(file.size)}
+                              {formatBytes(file.size)}
                             </td>
                             <td className="py-3 pr-4">
                               <span className="uppercase text-xs bg-gray-600 px-2 py-1 rounded">
@@ -2117,7 +2010,7 @@ function Library() {
                               </span>
                             </td>
                             <td className="py-3 pr-4 text-gray-400">
-                              {formatDate(file.modifiedAt)}
+                              {formatTimestamp(file.modifiedAt)}
                             </td>
                             <td className="py-3">
                               <button
@@ -2205,14 +2098,8 @@ function Library() {
       {/* Steam Import Modal */}
       {isSteamModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
-          <div
-            className="rounded-lg w-full max-w-4xl max-h-[80vh] flex flex-col shadow-2xl border border-gray-600"
-            style={{ backgroundColor: 'rgb(17, 24, 39)' }}
-          >
-            <div
-              className="p-4 border-b border-gray-600 flex items-center justify-between rounded-t-lg"
-              style={{ backgroundColor: 'rgb(31, 41, 55)' }}
-            >
+          <div className="bg-gray-900 rounded-lg w-full max-w-4xl max-h-[80vh] flex flex-col shadow-2xl border border-gray-600">
+            <div className="bg-gray-700 p-4 border-b border-gray-600 flex items-center justify-between rounded-t-lg">
               <h2 className="text-xl font-semibold flex items-center gap-2">
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10c-4.6 0-8.45-3.08-9.64-7.27l3.83 1.58a2.84 2.84 0 0 0 2.78 2.27c1.56 0 2.83-1.27 2.83-2.83v-.13l3.4-2.43h.08c2.08 0 3.77-1.69 3.77-3.77s-1.69-3.77-3.77-3.77-3.77 1.69-3.77 3.77v.05l-2.37 3.46-.16-.01c-.55 0-1.07.16-1.5.44l-5.23-2.16C2.31 6.67 6.63 2 12 2m6.19 8.25c0-1.31-1.07-2.38-2.38-2.38s-2.38 1.07-2.38 2.38 1.07 2.38 2.38 2.38 2.38-1.07 2.38-2.38m-12.7 5.85c0 1.1.9 1.99 1.99 1.99.89 0 1.64-.58 1.9-1.38l-1.73-.71c-.41.13-.86.06-1.21-.21a1.35 1.35 0 0 1-.25-1.9l-1.33-.55c-.49.47-.77 1.11-.77 1.8l.4-.04z"/>
@@ -2404,10 +2291,7 @@ function Library() {
               )}
             </div>
 
-            <div
-              className="p-4 border-t border-gray-600 flex items-center justify-between rounded-b-lg"
-              style={{ backgroundColor: 'rgb(31, 41, 55)' }}
-            >
+            <div className="bg-gray-700 p-4 border-t border-gray-600 flex items-center justify-between rounded-b-lg">
               {isImportingSteam ? (
                 <div className="flex-1 mr-4">
                   <div className="flex items-center justify-between mb-1">

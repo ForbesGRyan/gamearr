@@ -7,10 +7,14 @@ import type {
 } from './types';
 import { logger } from '../../utils/logger';
 import { ProwlarrError, ErrorCode } from '../../utils/errors';
+import { fetchWithRetry, RateLimiter } from '../../utils/http';
 
 export class ProwlarrClient {
   private baseUrl: string;
   private apiKey: string;
+
+  // Conservative rate limit for Prowlarr (10 requests per second)
+  private readonly rateLimiter = new RateLimiter({ maxRequests: 10, windowMs: 1000 });
 
   constructor(baseUrl?: string, apiKey?: string) {
     this.baseUrl = baseUrl || process.env.PROWLARR_URL || 'http://localhost:9696';
@@ -28,7 +32,7 @@ export class ProwlarrClient {
   }
 
   /**
-   * Make a request to Prowlarr API
+   * Make a request to Prowlarr API with rate limiting and retry logic
    */
   private async request<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
     if (!this.isConfigured()) {
@@ -48,7 +52,10 @@ export class ProwlarrClient {
     }
 
     try {
-      const response = await fetch(url.toString(), {
+      // Respect rate limit before making request
+      await this.rateLimiter.acquire();
+
+      const response = await fetchWithRetry(url.toString(), {
         method: 'GET',
         headers: {
           'X-Api-Key': this.apiKey,

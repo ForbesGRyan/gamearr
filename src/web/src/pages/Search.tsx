@@ -1,17 +1,8 @@
 import { useState } from 'react';
-import { api } from '../api/client';
+import { api, Release } from '../api/client';
 import GameSelectionModal from '../components/GameSelectionModal';
-
-interface Release {
-  guid: string;
-  title: string;
-  indexer: string;
-  size: number;
-  seeders: number;
-  downloadUrl: string;
-  publishedAt: string;
-  quality?: string;
-}
+import { formatBytes, formatDate } from '../utils/formatters';
+import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
 
 type SortField = 'title' | 'indexer' | 'size' | 'seeders' | 'publishedAt' | 'quality';
 type SortDirection = 'asc' | 'desc';
@@ -44,7 +35,7 @@ function Search() {
       const response = await api.manualSearchReleases(query);
 
       if (response.success && response.data) {
-        setReleases(response.data as any);
+        setReleases(response.data);
       } else {
         setError(response.error || 'Failed to search for releases');
       }
@@ -53,23 +44,6 @@ function Search() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
-  };
-
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
   };
 
   const handleSort = (field: SortField) => {
@@ -129,7 +103,7 @@ function Search() {
 
       if (response.success) {
         setSuccessMessage(`Successfully grabbed "${selectedRelease.title}"`);
-        setTimeout(() => setSuccessMessage(null), 5000);
+        setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
       } else {
         setError(response.error || 'Failed to grab release');
       }

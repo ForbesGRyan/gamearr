@@ -1,5 +1,29 @@
 // qBittorrent Web API types
 
+/**
+ * qBittorrent torrent states
+ * @see https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)#torrent-management
+ */
+export type TorrentState =
+  | 'error'
+  | 'missingFiles'
+  | 'uploading'
+  | 'pausedUP'
+  | 'queuedUP'
+  | 'stalledUP'
+  | 'checkingUP'
+  | 'forcedUP'
+  | 'allocating'
+  | 'downloading'
+  | 'metaDL'
+  | 'pausedDL'
+  | 'queuedDL'
+  | 'stalledDL'
+  | 'checkingDL'
+  | 'forcedDL'
+  | 'checkingResumeData'
+  | 'moving';
+
 export interface QBittorrentAuthConfig {
   host: string;
   username: string;
@@ -18,7 +42,7 @@ export interface QBittorrentTorrent {
   num_leechs: number;
   ratio: number;
   eta: number;
-  state: string;
+  state: TorrentState;
   seq_dl: boolean;
   f_l_piece_prio: boolean;
   category: string;
@@ -73,27 +97,8 @@ export interface TorrentInfo {
   eta: number;
   state: TorrentState;
   category: string;
+  tags: string; // Comma-separated tags (e.g., "gamearr,game-123")
   savePath: string;
   addedOn: Date;
   completionOn?: Date;
 }
-
-export type TorrentState =
-  | 'error'
-  | 'missingFiles'
-  | 'uploading'
-  | 'pausedUP'
-  | 'queuedUP'
-  | 'stalledUP'
-  | 'checkingUP'
-  | 'forcedUP'
-  | 'allocating'
-  | 'downloading'
-  | 'metaDL'
-  | 'pausedDL'
-  | 'queuedDL'
-  | 'stalledDL'
-  | 'checkingDL'
-  | 'forcedDL'
-  | 'checkingResumeData'
-  | 'moving';

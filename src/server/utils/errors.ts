@@ -28,6 +28,10 @@ export enum ErrorCode {
   QBITTORRENT_NOT_CONFIGURED = 3202,
   QBITTORRENT_AUTH_FAILED = 3203,
 
+  STEAM_ERROR = 3300,
+  STEAM_AUTH_FAILED = 3301,
+  STEAM_NOT_CONFIGURED = 3302,
+
   // Database errors (4xxx)
   DATABASE_ERROR = 4000,
   DUPLICATE_ENTRY = 4001,
@@ -36,6 +40,7 @@ export enum ErrorCode {
   FILE_ERROR = 5000,
   PATH_NOT_FOUND = 5001,
   PERMISSION_DENIED = 5002,
+  PATH_TRAVERSAL = 5003,
 }
 
 /**
@@ -150,6 +155,15 @@ export class QBittorrentError extends IntegrationError {
 }
 
 /**
+ * Steam integration errors
+ */
+export class SteamError extends IntegrationError {
+  constructor(message: string, code: ErrorCode = ErrorCode.STEAM_ERROR) {
+    super('Steam', message, code);
+  }
+}
+
+/**
  * Database error
  */
 export class DatabaseError extends AppError {
@@ -164,6 +178,15 @@ export class DatabaseError extends AppError {
 export class FileSystemError extends AppError {
   constructor(message: string, code: ErrorCode = ErrorCode.FILE_ERROR) {
     super(message, code, 500);
+  }
+}
+
+/**
+ * Path traversal attempt error (security)
+ */
+export class PathTraversalError extends AppError {
+  constructor(message: string = 'Path traversal attempt detected') {
+    super(message, ErrorCode.PATH_TRAVERSAL, 403);
   }
 }
 
@@ -196,5 +219,71 @@ export function formatErrorResponse(error: unknown): {
     success: false,
     error: appError.message,
     code: appError.code,
+  };
+}
+
+/**
+ * Get appropriate HTTP status code for an error
+ */
+export function getHttpStatusCode(error: unknown): number {
+  if (error instanceof AppError) {
+    return error.statusCode;
+  }
+  return 500;
+}
+
+/**
+ * Type for Hono Context (simplified for route handler wrapper)
+ */
+interface HonoContext {
+  json: (data: unknown, status?: number) => Response;
+  req: {
+    json: () => Promise<unknown>;
+    query: (key: string) => string | undefined;
+    param: (key: string) => string | undefined;
+  };
+}
+
+/**
+ * Route handler wrapper for consistent error handling
+ * Wraps async route handlers with try-catch and standardized error responses
+ *
+ * @example
+ * // Before:
+ * games.get('/:id', async (c) => {
+ *   try {
+ *     const id = parseInt(c.req.param('id')!);
+ *     const game = await gameRepository.findById(id);
+ *     return c.json({ success: true, data: game });
+ *   } catch (error) {
+ *     logger.error('Get game failed:', error);
+ *     return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+ *   }
+ * });
+ *
+ * // After:
+ * games.get('/:id', routeHandler(async (c) => {
+ *   const id = parseInt(c.req.param('id')!);
+ *   const game = await gameRepository.findById(id);
+ *   return { success: true, data: game };
+ * }, 'Get game'));
+ */
+export function routeHandler<T>(
+  handler: (c: HonoContext) => Promise<{ success: boolean; data?: T; error?: string } | Response>,
+  operationName: string,
+  logFn: (message: string, ...args: unknown[]) => void = console.error
+): (c: HonoContext) => Promise<Response> {
+  return async (c: HonoContext): Promise<Response> => {
+    try {
+      const result = await handler(c);
+      // If handler returns a Response directly (for special cases), pass it through
+      if (result instanceof Response) {
+        return result;
+      }
+      return c.json(result);
+    } catch (error) {
+      logFn(`${operationName} failed:`, error);
+      return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    }
   };
 }

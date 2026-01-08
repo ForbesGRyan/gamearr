@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../api/client';
+import { formatRelativeDate, formatBytes } from '../utils/formatters';
+import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
 
 type TabType = 'trending' | 'torrents';
 
@@ -147,36 +149,15 @@ function Discover() {
     }
   };
 
-  const handleTorrentSearch = (e: React.FormEvent) => {
+  const handleTorrentSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (torrentSearchInput.trim()) {
       loadTorrents(torrentSearchInput.trim());
     }
-  };
+  }, [torrentSearchInput]);
 
-  const formatSize = (bytes: number): string => {
-    const gb = bytes / (1024 * 1024 * 1024);
-    if (gb >= 1) {
-      return `${gb.toFixed(2)} GB`;
-    }
-    const mb = bytes / (1024 * 1024);
-    return `${mb.toFixed(0)} MB`;
-  };
 
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-    return date.toLocaleDateString();
-  };
-
-  const handleAddToLibrary = async (game: GameSearchResult) => {
+  const handleAddToLibrary = useCallback(async (game: GameSearchResult) => {
     setAddingGame(game.igdbId);
     try {
       const response = await api.addGame({
@@ -193,25 +174,25 @@ function Discover() {
           )
         );
         setSuccessMessage(`Added "${game.title}" to library`);
-        setTimeout(() => setSuccessMessage(null), 3000);
+        setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
       } else {
         setError(response.error || 'Failed to add game');
-        setTimeout(() => setError(null), 5000);
+        setTimeout(() => setError(null), SUCCESS_MESSAGE_TIMEOUT_MS);
       }
     } catch (err) {
       setError('Failed to add game to library');
-      setTimeout(() => setError(null), 5000);
+      setTimeout(() => setError(null), SUCCESS_MESSAGE_TIMEOUT_MS);
     } finally {
       setAddingGame(null);
     }
-  };
+  }, []);
 
-  const getPopularityTypeName = (id: number): string => {
+  const getPopularityTypeName = useCallback((id: number): string => {
     const type = popularityTypes.find(t => t.id === id);
     return type?.name || 'Unknown';
-  };
+  }, [popularityTypes]);
 
-  const getMultiplayerBadges = (mp: MultiplayerInfo | undefined): string[] => {
+  const getMultiplayerBadges = useCallback((mp: MultiplayerInfo | undefined): string[] => {
     if (!mp) return [];
     const badges: string[] = [];
     if (mp.hasOnlineCoop) badges.push('Online Co-op');
@@ -222,14 +203,21 @@ function Discover() {
       badges.push(`${mp.maxOnlinePlayers} Players`);
     }
     return badges;
-  };
+  }, []);
 
-  // Get unique genres and themes from loaded games
-  const availableGenres = [...new Set(popularGames.flatMap(pg => pg.game.genres || []))].sort();
-  const availableThemes = [...new Set(popularGames.flatMap(pg => pg.game.themes || []))].sort();
+  // Get unique genres and themes from loaded games (memoized)
+  const availableGenres = useMemo(() =>
+    [...new Set(popularGames.flatMap(pg => pg.game.genres || []))].sort(),
+    [popularGames]
+  );
 
-  // Filter games
-  const filteredGames = popularGames.filter(pg => {
+  const availableThemes = useMemo(() =>
+    [...new Set(popularGames.flatMap(pg => pg.game.themes || []))].sort(),
+    [popularGames]
+  );
+
+  // Filter games (memoized)
+  const filteredGames = useMemo(() => popularGames.filter(pg => {
     // Genre filter
     if (selectedGenres.length > 0) {
       const gameGenres = pg.game.genres || [];
@@ -249,27 +237,52 @@ function Discover() {
       return false;
     }
     return true;
-  });
+  }), [popularGames, selectedGenres, selectedThemes, multiplayerOnly]);
 
-  const activeFilterCount = selectedGenres.length + selectedThemes.length + (multiplayerOnly ? 1 : 0);
+  // Memoize active filter count
+  const activeFilterCount = useMemo(
+    () => selectedGenres.length + selectedThemes.length + (multiplayerOnly ? 1 : 0),
+    [selectedGenres.length, selectedThemes.length, multiplayerOnly]
+  );
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setSelectedGenres([]);
     setSelectedThemes([]);
     setMultiplayerOnly(false);
-  };
+  }, []);
 
-  const toggleGenre = (genre: string) => {
+  const toggleGenre = useCallback((genre: string) => {
     setSelectedGenres(prev =>
       prev.includes(genre) ? prev.filter(g => g !== genre) : [...prev, genre]
     );
-  };
+  }, []);
 
-  const toggleTheme = (theme: string) => {
+  const toggleTheme = useCallback((theme: string) => {
     setSelectedThemes(prev =>
       prev.includes(theme) ? prev.filter(t => t !== theme) : [...prev, theme]
     );
-  };
+  }, []);
+
+  // Tab switching handlers
+  const handleTabTrending = useCallback(() => setActiveTab('trending'), []);
+  const handleTabTorrents = useCallback(() => setActiveTab('torrents'), []);
+
+  // Toggle handlers
+  const handleToggleFilters = useCallback(() => setShowFilters(prev => !prev), []);
+  const handleToggleMultiplayer = useCallback(() => setMultiplayerOnly(prev => !prev), []);
+
+  // Select handlers
+  const handleSelectedTypeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedType(parseInt(e.target.value));
+  }, []);
+
+  const handleTorrentMaxAgeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setTorrentMaxAge(parseInt(e.target.value));
+  }, []);
+
+  const handleTorrentSearchInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setTorrentSearchInput(e.target.value);
+  }, []);
 
   if (isLoading) {
     return (
@@ -292,7 +305,7 @@ function Discover() {
       {/* Tabs */}
       <div className="flex border-b border-gray-700 mb-4">
         <button
-          onClick={() => setActiveTab('trending')}
+          onClick={handleTabTrending}
           className={`px-4 py-2 font-medium transition border-b-2 -mb-px ${
             activeTab === 'trending'
               ? 'text-blue-400 border-blue-400'
@@ -307,7 +320,7 @@ function Discover() {
           </span>
         </button>
         <button
-          onClick={() => setActiveTab('torrents')}
+          onClick={handleTabTorrents}
           className={`px-4 py-2 font-medium transition border-b-2 -mb-px ${
             activeTab === 'torrents'
               ? 'text-blue-400 border-blue-400'
@@ -327,7 +340,7 @@ function Discover() {
       {activeTab === 'trending' && (
         <div className="flex justify-end items-center gap-4 mb-4">
           <button
-            onClick={() => setShowFilters(!showFilters)}
+            onClick={handleToggleFilters}
             className={`flex items-center gap-2 px-3 py-2 rounded border transition ${
               activeFilterCount > 0
                 ? 'bg-blue-600 border-blue-600 text-white'
@@ -347,7 +360,7 @@ function Discover() {
           <label className="text-sm text-gray-400">Ranked by:</label>
           <select
             value={selectedType}
-            onChange={(e) => setSelectedType(parseInt(e.target.value))}
+            onChange={handleSelectedTypeChange}
             className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
           >
             {popularityTypes.map((type) => (
@@ -425,7 +438,7 @@ function Discover() {
             <div>
               <label className="block text-sm text-gray-400 mb-2">Features</label>
               <button
-                onClick={() => setMultiplayerOnly(!multiplayerOnly)}
+                onClick={handleToggleMultiplayer}
                 className={`text-xs px-2 py-1 rounded transition ${
                   multiplayerOnly
                     ? 'bg-green-600 text-white'
@@ -611,13 +624,13 @@ function Discover() {
               <input
                 type="text"
                 value={torrentSearchInput}
-                onChange={(e) => setTorrentSearchInput(e.target.value)}
+                onChange={handleTorrentSearchInputChange}
                 placeholder="Search torrents (e.g., 'elden ring', 'cyberpunk')"
                 className="flex-1 bg-gray-800 border border-gray-700 rounded px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
               />
               <select
                 value={torrentMaxAge}
-                onChange={(e) => setTorrentMaxAge(parseInt(e.target.value))}
+                onChange={handleTorrentMaxAgeChange}
                 className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
               >
                 <option value={7}>Last Week</option>
@@ -699,7 +712,7 @@ function Discover() {
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-300">{formatSize(torrent.size)}</td>
+                          <td className="px-4 py-3 text-sm text-gray-300">{formatBytes(torrent.size)}</td>
                           <td className="px-4 py-3 text-center">
                             <span className={`text-sm font-medium ${torrent.seeders >= 10 ? 'text-green-400' : torrent.seeders >= 1 ? 'text-yellow-400' : 'text-red-400'}`}>
                               {torrent.seeders}
@@ -707,7 +720,7 @@ function Discover() {
                           </td>
                           <td className="px-4 py-3 text-center text-sm text-gray-400">{torrent.leechers}</td>
                           <td className="px-4 py-3 text-sm text-gray-300">{torrent.indexer}</td>
-                          <td className="px-4 py-3 text-sm text-gray-400">{formatDate(torrent.publishedAt)}</td>
+                          <td className="px-4 py-3 text-sm text-gray-400">{formatRelativeDate(torrent.publishedAt)}</td>
                         </tr>
                       ))}
                     </tbody>

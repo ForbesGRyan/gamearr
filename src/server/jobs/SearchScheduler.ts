@@ -48,6 +48,7 @@ export class SearchScheduler {
   /**
    * Handle failed downloads by resetting games back to 'wanted' status
    * This allows the scheduler to search for alternative releases
+   * Uses batch queries to avoid N+1 database queries
    */
   private async handleFailedDownloads() {
     try {
@@ -59,26 +60,41 @@ export class SearchScheduler {
 
       logger.info(`Found ${failedReleases.length} failed downloads, resetting to 'wanted' status...`);
 
+      // Batch fetch all games for the failed releases (fixes N+1 query)
+      const gameIds = [...new Set(failedReleases.map((r) => r.gameId))];
+      const gamesMap = await gameRepository.findByIds(gameIds);
+
+      // Collect games that need status update and releases to delete
+      const gamesToReset: number[] = [];
+      const releasesToDelete: number[] = [];
+
       for (const release of failedReleases) {
-        try {
-          const game = await gameRepository.findById(release.gameId);
+        const game = gamesMap.get(release.gameId);
 
-          if (!game) {
-            logger.warn(`Game not found for failed release ${release.id}, skipping`);
-            continue;
-          }
-
-          // Only reset if the game is still being monitored
-          if (game.monitored && game.status === 'downloading') {
-            await gameRepository.update(game.id, { status: 'wanted' });
-            logger.info(`Reset game ${game.title} to 'wanted' status after failed download`);
-          }
-
-          // Delete the failed release so it doesn't keep triggering retries
-          await releaseRepository.delete(release.id);
-        } catch (error) {
-          logger.error(`Failed to handle failed release ${release.id}:`, error);
+        if (!game) {
+          logger.warn(`Game not found for failed release ${release.id}, skipping`);
+          releasesToDelete.push(release.id);
+          continue;
         }
+
+        // Only reset if the game is still being monitored
+        if (game.monitored && game.status === 'downloading') {
+          gamesToReset.push(game.id);
+          logger.info(`Reset game ${game.title} to 'wanted' status after failed download`);
+        }
+
+        // Mark release for deletion
+        releasesToDelete.push(release.id);
+      }
+
+      // Batch update game statuses
+      if (gamesToReset.length > 0) {
+        await gameRepository.batchUpdateStatus(gamesToReset, 'wanted');
+      }
+
+      // Batch delete failed releases
+      if (releasesToDelete.length > 0) {
+        await releaseRepository.batchDelete(releasesToDelete);
       }
     } catch (error) {
       logger.error('Failed to handle failed downloads:', error);
@@ -180,16 +196,10 @@ export class SearchScheduler {
         `Auto-grabbing release for ${game.title}: ${bestRelease.title} (score: ${bestRelease.score})`
       );
 
-      // Grab the release
-      const result = await downloadService.grabRelease(game.id, bestRelease);
-
-      if (result.success) {
-        logger.info(`Successfully grabbed ${bestRelease.title} for ${game.title}`);
-        return true;
-      } else {
-        logger.error(`Failed to grab release: ${result.message}`);
-        return false;
-      }
+      // Grab the release (throws on failure)
+      await downloadService.grabRelease(game.id, bestRelease);
+      logger.info(`Successfully grabbed ${bestRelease.title} for ${game.title}`);
+      return true;
     } catch (error) {
       logger.error(`Error searching/grabbing ${game.title}:`, error);
       return false;

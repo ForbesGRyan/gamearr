@@ -1,6 +1,8 @@
-import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import { logger } from '../utils/logger';
+import { parseVersion } from '../utils/version';
+import { validatePathWithinBase, isPathWithinBase } from '../utils/pathSecurity';
 import { settingsService } from './SettingsService';
 import { gameRepository } from '../repositories/GameRepository';
 import { libraryFileRepository } from '../repositories/LibraryFileRepository';
@@ -34,6 +36,13 @@ export interface DuplicateGroup {
   similarity: number;
 }
 
+// Type for game update fields that can be set during folder matching
+interface GameUpdateFields {
+  status: 'wanted' | 'downloading' | 'downloaded';
+  folderPath: string;
+  installedVersion?: string;
+}
+
 // Loose file extensions to detect
 const LOOSE_FILE_EXTENSIONS = [
   '.iso', '.rar', '.zip', '.7z', '.tar', '.gz', '.bin', '.cue', '.nrg'
@@ -62,9 +71,10 @@ export class FileService {
     }
 
     // Ensure library path exists
-    if (!fs.existsSync(libraryPath)) {
+    const exists = await this.pathExists(libraryPath);
+    if (!exists) {
       logger.info(`Creating library directory: ${libraryPath}`);
-      fs.mkdirSync(libraryPath, { recursive: true });
+      await fsPromises.mkdir(libraryPath, { recursive: true });
     }
 
     return libraryPath;
@@ -99,31 +109,39 @@ export class FileService {
    * Check if a path exists
    */
   async pathExists(filePath: string): Promise<boolean> {
-    return fs.existsSync(filePath);
+    try {
+      await fsPromises.access(filePath);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
    * Get folder size in bytes
+   * Note: This method is used internally with trusted paths from database.
+   * For user-provided paths, use getFolderSizeWithValidation instead.
    */
   async getFolderSize(folderPath: string): Promise<number> {
-    if (!fs.existsSync(folderPath)) {
+    const exists = await this.pathExists(folderPath);
+    if (!exists) {
       return 0;
     }
 
     let totalSize = 0;
 
-    const stats = fs.statSync(folderPath);
+    const stats = await fsPromises.stat(folderPath);
 
     if (stats.isFile()) {
       return stats.size;
     }
 
     if (stats.isDirectory()) {
-      const files = fs.readdirSync(folderPath);
+      const files = await fsPromises.readdir(folderPath);
 
       for (const file of files) {
         const filePath = path.join(folderPath, file);
-        const fileStats = fs.statSync(filePath);
+        const fileStats = await fsPromises.stat(filePath);
 
         if (fileStats.isDirectory()) {
           totalSize += await this.getFolderSize(filePath);
@@ -137,6 +155,16 @@ export class FileService {
   }
 
   /**
+   * Get folder size with path validation
+   * Validates that the path is within the library before accessing
+   */
+  async getFolderSizeWithValidation(folderPath: string): Promise<number> {
+    const libraryPath = await this.getLibraryPath();
+    validatePathWithinBase(folderPath, libraryPath, 'getFolderSize');
+    return this.getFolderSize(folderPath);
+  }
+
+  /**
    * Move and organize a completed download
    */
   async organizeDownload(game: Game, sourcePath: string): Promise<MoveResult> {
@@ -145,7 +173,8 @@ export class FileService {
       logger.info(`Source path: ${sourcePath}`);
 
       // Check if source exists
-      if (!fs.existsSync(sourcePath)) {
+      const sourceExists = await this.pathExists(sourcePath);
+      if (!sourceExists) {
         logger.error(`Source path does not exist: ${sourcePath}`);
         return {
           success: false,
@@ -163,7 +192,8 @@ export class FileService {
       logger.info(`Target path: ${targetPath}`);
 
       // Check for duplicates
-      if (fs.existsSync(targetPath)) {
+      const targetExists = await this.pathExists(targetPath);
+      if (targetExists) {
         logger.warn(`Target path already exists: ${targetPath}`);
 
         // Check if it's the same file (already moved)
@@ -182,7 +212,7 @@ export class FileService {
         let counter = 1;
         let uniqueTargetPath = targetPath;
 
-        while (fs.existsSync(uniqueTargetPath)) {
+        while (await this.pathExists(uniqueTargetPath)) {
           uniqueTargetPath = path.join(libraryPath, `${folderName} (${counter})`);
           counter++;
         }
@@ -210,35 +240,36 @@ export class FileService {
       logger.info(`Moving files from ${sourcePath} to ${targetPath}`);
 
       // Create target directory
-      if (!fs.existsSync(targetPath)) {
-        fs.mkdirSync(targetPath, { recursive: true });
+      const targetExists = await this.pathExists(targetPath);
+      if (!targetExists) {
+        await fsPromises.mkdir(targetPath, { recursive: true });
       }
 
-      const stats = fs.statSync(sourcePath);
+      const stats = await fsPromises.stat(sourcePath);
 
       if (stats.isFile()) {
         // Single file - move it into the target folder
         const fileName = path.basename(sourcePath);
         const targetFile = path.join(targetPath, fileName);
 
-        fs.renameSync(sourcePath, targetFile);
+        await fsPromises.rename(sourcePath, targetFile);
         logger.info(`Moved file: ${sourcePath} -> ${targetFile}`);
       } else if (stats.isDirectory()) {
         // Directory - move all contents
-        const files = fs.readdirSync(sourcePath);
+        const files = await fsPromises.readdir(sourcePath);
 
         for (const file of files) {
           const sourceFile = path.join(sourcePath, file);
           const targetFile = path.join(targetPath, file);
 
-          fs.renameSync(sourceFile, targetFile);
+          await fsPromises.rename(sourceFile, targetFile);
         }
 
         logger.info(`Moved directory contents: ${sourcePath} -> ${targetPath}`);
 
         // Remove empty source directory
         try {
-          fs.rmdirSync(sourcePath);
+          await fsPromises.rmdir(sourcePath);
         } catch (err) {
           logger.warn(`Could not remove source directory: ${sourcePath}`, err);
         }
@@ -258,33 +289,6 @@ export class FileService {
   }
 
   /**
-   * Parse version number from a string (folder name or release title)
-   * Returns null if no version pattern is found
-   */
-  parseVersion(text: string): string | null {
-    const patterns = [
-      /[._\s]v(\d+(?:\.\d+)+)/i,           // v1.2.3 or v1.2 (with separator before)
-      /[._\s]v(\d+)(?:[._\s-]|$)/i,        // v1 alone (single number version)
-      /version[.\s_]?(\d+(?:\.\d+)*)/i,    // version 1.2.3 or version.1.2
-      /[._\s](\d+\.\d+\.\d+)(?:[._\s-]|$)/, // 1.2.3 (semantic versioning)
-      /build[.\s_]?(\d+)/i,                // build 123 or build.123
-      /update[.\s_]?(\d+)/i,               // update 5 or update.5
-      /[._\s]u(\d+)(?:[._\s-]|$)/i,        // u5 (short for update)
-      /[._\s]r(\d+)(?:[._\s-]|$)/i,        // r5 (revision)
-      /patch[.\s_]?(\d+(?:\.\d+)*)/i,      // patch 1.2 or patch.1
-    ];
-
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match) {
-        return match[1];
-      }
-    }
-
-    return null;
-  }
-
-  /**
    * Parse folder name to extract title, year, and version
    * Supports patterns like "Game Title (2023)" or "Game.Title.v1.2.3-CODEX"
    */
@@ -294,7 +298,7 @@ export class FileService {
     let version: string | undefined;
 
     // Extract version first (before cleaning)
-    version = this.parseVersion(workingName) || undefined;
+    version = parseVersion(workingName) || undefined;
 
     // Match pattern: "Title (Year)" at the end
     const yearMatch = workingName.match(/^(.+?)\s*\((\d{4})\)\s*$/);
@@ -400,7 +404,7 @@ export class FileService {
         .map((file) => {
           const folderName = path.basename(file.folderPath);
           const parsedTitle = file.parsedTitle || '';
-          const version = this.parseVersion(folderName) || undefined;
+          const version = parseVersion(folderName) || undefined;
           return {
             folderName,
             parsedTitle,
@@ -428,12 +432,14 @@ export class FileService {
 
       const libraryPath = await this.getLibraryPath();
 
-      if (!fs.existsSync(libraryPath)) {
+      const libraryExists = await this.pathExists(libraryPath);
+      if (!libraryExists) {
         logger.warn('Library path does not exist');
         return [];
       }
 
-      const folderNames = fs.readdirSync(libraryPath, { withFileTypes: true })
+      const dirents = await fsPromises.readdir(libraryPath, { withFileTypes: true });
+      const folderNames = dirents
         .filter((dirent) => dirent.isDirectory())
         .map((dirent) => dirent.name);
 
@@ -545,6 +551,10 @@ export class FileService {
     try {
       logger.info(`Matching folder ${folderPath} to game ID ${gameId}`);
 
+      // Security: Validate that the folder path is within the library
+      const libraryPath = await this.getLibraryPath();
+      validatePathWithinBase(folderPath, libraryPath, 'matchFolderToGame');
+
       // Parse folder name to extract title, year, and version
       const folderName = path.basename(folderPath);
       const parsed = this.parseFolderName(folderName);
@@ -572,7 +582,7 @@ export class FileService {
       }
 
       // Update game status to downloaded, set folder path, and set installed version if found
-      const gameUpdate: Record<string, any> = {
+      const gameUpdate: GameUpdateFields = {
         status: 'downloaded',
         folderPath: folderPath,
       };
@@ -640,11 +650,12 @@ export class FileService {
     try {
       const libraryPath = await this.getLibraryPath();
 
-      if (!fs.existsSync(libraryPath)) {
+      const libraryExists = await this.pathExists(libraryPath);
+      if (!libraryExists) {
         return [];
       }
 
-      const entries = fs.readdirSync(libraryPath, { withFileTypes: true });
+      const entries = await fsPromises.readdir(libraryPath, { withFileTypes: true });
       const looseFiles: LooseFile[] = [];
 
       for (const entry of entries) {
@@ -653,7 +664,7 @@ export class FileService {
 
           if (LOOSE_FILE_EXTENSIONS.includes(ext)) {
             const filePath = path.join(libraryPath, entry.name);
-            const stats = fs.statSync(filePath);
+            const stats = await fsPromises.stat(filePath);
 
             looseFiles.push({
               path: filePath,
@@ -685,6 +696,40 @@ export class FileService {
         return [];
       }
 
+      // Collect unique folder paths that need size calculation
+      const uniqueFolderPaths = new Set<string>();
+      for (const game of games) {
+        if (game.folderPath) {
+          uniqueFolderPaths.add(game.folderPath);
+        }
+      }
+
+      // Batch check path existence in parallel (fixes N+1 I/O pattern)
+      const pathExistsResults = await Promise.all(
+        [...uniqueFolderPaths].map(async (folderPath) => ({
+          path: folderPath,
+          exists: await this.pathExists(folderPath),
+        }))
+      );
+
+      // Build set of existing paths
+      const existingPaths = new Set<string>(
+        pathExistsResults.filter((r) => r.exists).map((r) => r.path)
+      );
+
+      // Batch calculate folder sizes in parallel (only for existing paths)
+      const sizeResults = await Promise.all(
+        [...existingPaths].map(async (folderPath) => ({
+          path: folderPath,
+          size: await this.getFolderSize(folderPath),
+        }))
+      );
+
+      // Build folder size cache from parallel results
+      const folderSizeCache = new Map<string, number>(
+        sizeResults.map((r) => [r.path, r.size])
+      );
+
       const duplicateGroups: DuplicateGroup[] = [];
       const processedPairs = new Set<string>();
 
@@ -702,17 +747,9 @@ export class FileService {
 
           // Only flag as duplicate if >80% similar
           if (similarity >= 80) {
-            // Get folder sizes if paths exist
-            let size1: number | undefined;
-            let size2: number | undefined;
-
-            if (game1.folderPath && fs.existsSync(game1.folderPath)) {
-              size1 = await this.getFolderSize(game1.folderPath);
-            }
-
-            if (game2.folderPath && fs.existsSync(game2.folderPath)) {
-              size2 = await this.getFolderSize(game2.folderPath);
-            }
+            // Get folder sizes from pre-calculated cache
+            const size1 = game1.folderPath ? folderSizeCache.get(game1.folderPath) : undefined;
+            const size2 = game2.folderPath ? folderSizeCache.get(game2.folderPath) : undefined;
 
             duplicateGroups.push({
               games: [
@@ -752,11 +789,16 @@ export class FileService {
    */
   async organizeLooseFile(filePath: string): Promise<MoveResult> {
     try {
-      if (!fs.existsSync(filePath)) {
+      // Security: Validate that the file path is within the library
+      const libraryPath = await this.getLibraryPath();
+      validatePathWithinBase(filePath, libraryPath, 'organizeLooseFile');
+
+      const fileExists = await this.pathExists(filePath);
+      if (!fileExists) {
         return { success: false, error: 'File not found' };
       }
 
-      const stats = fs.statSync(filePath);
+      const stats = await fsPromises.stat(filePath);
       if (!stats.isFile()) {
         return { success: false, error: 'Path is not a file' };
       }
@@ -768,19 +810,21 @@ export class FileService {
       // Create folder with the file name (without extension)
       const newFolderPath = path.join(parentDir, fileNameWithoutExt);
 
-      if (fs.existsSync(newFolderPath)) {
+      const folderExists = await this.pathExists(newFolderPath);
+      if (folderExists) {
         // Folder already exists, just move the file
         const targetPath = path.join(newFolderPath, fileName);
-        if (fs.existsSync(targetPath)) {
+        const targetExists = await this.pathExists(targetPath);
+        if (targetExists) {
           return { success: false, error: 'File already exists in target folder' };
         }
-        fs.renameSync(filePath, targetPath);
+        await fsPromises.rename(filePath, targetPath);
         logger.info(`Moved ${fileName} into existing folder ${fileNameWithoutExt}`);
       } else {
         // Create the folder and move the file
-        fs.mkdirSync(newFolderPath, { recursive: true });
+        await fsPromises.mkdir(newFolderPath, { recursive: true });
         const targetPath = path.join(newFolderPath, fileName);
-        fs.renameSync(filePath, targetPath);
+        await fsPromises.rename(filePath, targetPath);
         logger.info(`Created folder ${fileNameWithoutExt} and moved ${fileName} into it`);
       }
 

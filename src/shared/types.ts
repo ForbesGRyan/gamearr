@@ -60,3 +60,43 @@ export interface ApiResponse<T> {
   data?: T;
   error?: string;
 }
+
+// Steam Import SSE Event Types
+// Used by both server (src/server/routes/steam.ts) and client (src/web/src/api/client.ts)
+
+/**
+ * Progress event sent during Steam import
+ */
+export interface SteamImportProgressEvent {
+  type: 'progress';
+  current: number;
+  total: number;
+  game: string;
+  status: 'searching' | 'imported' | 'skipped' | 'error';
+}
+
+/**
+ * Completion event sent when Steam import finishes
+ */
+export interface SteamImportCompleteEvent {
+  type: 'complete';
+  imported: number;
+  skipped: number;
+  errors?: string[];
+}
+
+/**
+ * Error event sent when Steam import encounters a fatal error
+ */
+export interface SteamImportErrorEvent {
+  type: 'error';
+  message: string;
+}
+
+/**
+ * Union of all Steam import SSE event types
+ */
+export type SteamImportSSEEvent =
+  | SteamImportProgressEvent
+  | SteamImportCompleteEvent
+  | SteamImportErrorEvent;

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
+import { formatBytes, formatDate } from '../utils/formatters';
+import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
 
 interface GameUpdate {
   id: number;
@@ -41,7 +43,7 @@ function Updates() {
     setError(null);
 
     try {
-      const response = await api.getUpdates();
+      const response = await api.getPendingUpdates();
       if (response.success && response.data) {
         setUpdates(response.data as GameUpdate[]);
       } else {
@@ -62,7 +64,7 @@ function Updates() {
       const response = await api.grabUpdate(updateToGrab.id);
       if (response.success) {
         setSuccessMessage(`Started download: ${updateToGrab.title}`);
-        setTimeout(() => setSuccessMessage(null), 5000);
+        setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
         // Remove from list
         setUpdates(updates.filter(u => u.id !== updateToGrab.id));
       } else {
@@ -94,23 +96,6 @@ function Updates() {
       setIsProcessing(false);
       setUpdateToDismiss(null);
     }
-  };
-
-  const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
-  };
-
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
   };
 
   const getUpdateTypeBadge = (type: string) => {

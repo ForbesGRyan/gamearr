@@ -1,13 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api } from '../api/client';
-
-interface Indexer {
-  id: number;
-  name: string;
-  enable: boolean;
-  protocol: 'torrent' | 'usenet';
-  privacy: 'public' | 'private' | 'semiPrivate';
-}
+import { api, Indexer } from '../api/client';
 
 function IndexerStatus() {
   const [indexers, setIndexers] = useState<Indexer[]>([]);
@@ -26,7 +18,7 @@ function IndexerStatus() {
       const response = await api.getIndexers();
 
       if (response.success && response.data) {
-        setIndexers(response.data as any);
+        setIndexers(response.data);
       } else {
         setError(response.error || 'Failed to load indexers');
       }

@@ -3,13 +3,20 @@ import { db } from '../db';
 import { settings, type Settings, type NewSettings } from '../db/schema';
 import { logger } from '../utils/logger';
 
+// Explicit field selection to avoid SELECT *
+const settingsFields = {
+  id: settings.id,
+  key: settings.key,
+  value: settings.value,
+};
+
 export class SettingsRepository {
   /**
    * Get setting by key
    */
   async get(key: string): Promise<string | null> {
     const results = await db
-      .select()
+      .select({ value: settings.value })
       .from(settings)
       .where(eq(settings.key, key));
 
@@ -71,7 +78,7 @@ export class SettingsRepository {
    * Get all settings
    */
   async getAll(): Promise<Settings[]> {
-    return db.select().from(settings);
+    return db.select(settingsFields).from(settings);
   }
 }
 

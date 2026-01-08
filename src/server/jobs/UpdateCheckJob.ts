@@ -8,10 +8,14 @@ import { logger } from '../utils/logger';
  * - Version updates
  * - DLC releases
  * - Better quality releases
+ *
+ * Uses a proper async lock to prevent race conditions between scheduled and manual checks.
  */
 export class UpdateCheckJob {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private isRunning = false;
+  private runningPromise: Promise<{ checked: number; updatesFound: number }> | null = null;
+  private readonly lockTimeout = 30 * 60 * 1000; // 30 minute timeout for stuck locks
 
   /**
    * Start the update check job
@@ -72,11 +76,36 @@ export class UpdateCheckJob {
   }
 
   /**
-   * Run update check for all eligible games
+   * Acquire the lock for update checking.
+   * Returns the existing promise if a check is already running.
+   * This ensures that concurrent calls don't start duplicate checks.
    */
-  async checkForUpdates() {
-    if (this.isRunning) {
-      logger.debug('UpdateCheckJob already running, skipping');
+  private async acquireLock(): Promise<{ acquired: boolean; existingPromise?: Promise<{ checked: number; updatesFound: number }> }> {
+    if (this.isRunning && this.runningPromise) {
+      logger.debug('UpdateCheckJob already running, returning existing promise');
+      return { acquired: false, existingPromise: this.runningPromise };
+    }
+    this.isRunning = true;
+    return { acquired: true };
+  }
+
+  /**
+   * Release the lock after update checking completes
+   */
+  private releaseLock(): void {
+    this.isRunning = false;
+    this.runningPromise = null;
+  }
+
+  /**
+   * Run update check for all eligible games
+   * Uses locking to prevent concurrent checks
+   */
+  async checkForUpdates(): Promise<void> {
+    const lock = await this.acquireLock();
+
+    if (!lock.acquired) {
+      logger.debug('UpdateCheckJob already running, skipping scheduled check');
       return;
     }
 
@@ -84,44 +113,66 @@ export class UpdateCheckJob {
     const enabled = await settingsService.getSetting('update_check_enabled');
     if (enabled === false) {
       logger.debug('Update checking is disabled, skipping');
+      this.releaseLock();
       return;
     }
 
-    this.isRunning = true;
     logger.info('Starting update check for all games...');
 
-    try {
-      const result = await updateService.checkAllGamesForUpdates();
+    // Create the promise and store it so concurrent callers can await it
+    this.runningPromise = (async () => {
+      try {
+        const result = await updateService.checkAllGamesForUpdates();
 
-      logger.info(
-        `Update check complete: checked ${result.checked} games, found ${result.updatesFound} updates`
-      );
-    } catch (error) {
-      logger.error('UpdateCheckJob error:', error);
+        logger.info(
+          `Update check complete: checked ${result.checked} games, found ${result.updatesFound} updates`
+        );
+        return result;
+      } catch (error) {
+        logger.error('UpdateCheckJob error:', error);
+        return { checked: 0, updatesFound: 0 };
+      }
+    })();
+
+    try {
+      await this.runningPromise;
     } finally {
-      this.isRunning = false;
+      this.releaseLock();
     }
   }
 
   /**
    * Manually trigger an update check (from API)
+   * If a check is already running, returns the result of that check.
    */
   async triggerCheck(): Promise<{ checked: number; updatesFound: number }> {
-    if (this.isRunning) {
-      throw new Error('Update check already in progress');
+    const lock = await this.acquireLock();
+
+    if (!lock.acquired && lock.existingPromise) {
+      logger.info('Manual trigger: joining existing update check');
+      return lock.existingPromise;
     }
 
-    this.isRunning = true;
     logger.info('Manual update check triggered');
 
+    // Create the promise and store it so concurrent callers can await it
+    this.runningPromise = (async () => {
+      try {
+        const result = await updateService.checkAllGamesForUpdates();
+        logger.info(
+          `Manual update check complete: checked ${result.checked} games, found ${result.updatesFound} updates`
+        );
+        return result;
+      } catch (error) {
+        logger.error('Manual update check error:', error);
+        throw error;
+      }
+    })();
+
     try {
-      const result = await updateService.checkAllGamesForUpdates();
-      logger.info(
-        `Manual update check complete: checked ${result.checked} games, found ${result.updatesFound} updates`
-      );
-      return result;
+      return await this.runningPromise;
     } finally {
-      this.isRunning = false;
+      this.releaseLock();
     }
   }
 }

@@ -19,8 +19,12 @@ import type { ReleaseSearchResult } from '../integrations/prowlarr/types';
 export class RssSync {
   private job: CronJob | null = null;
   private isRunning = false;
-  private processedGuids: Set<string> = new Set();
+  // Use Map with timestamps for efficient LRU-style eviction
+  // Map<guid, timestamp> - timestamp helps with age-based cleanup
+  private processedGuids: Map<string, number> = new Map();
   private readonly MAX_PROCESSED_GUIDS = 1000;
+  // Maximum age for processed GUIDs (24 hours) - prevents stale entries from lingering
+  private readonly MAX_GUID_AGE_MS = 24 * 60 * 60 * 1000;
 
   /**
    * Start the RSS sync job
@@ -101,7 +105,7 @@ export class RssSync {
       }
 
       // Filter out already processed releases
-      const newReleases = releases.filter((r) => !this.processedGuids.has(r.guid));
+      const newReleases = releases.filter((r) => !this.isProcessed(r.guid));
 
       logger.info(`${isDryRun ? '[DRY-RUN] ' : ''}Processing ${newReleases.length} new releases (${releases.length - newReleases.length} already seen)`);
 
@@ -128,9 +132,8 @@ export class RssSync {
             );
 
             // Grab the release
-            const result = await downloadService.grabRelease(game.id, scoredRelease);
-
-            if (result.success) {
+            try {
+              await downloadService.grabRelease(game.id, scoredRelease);
               grabCount++;
               logger.info(`${isDryRun ? '[DRY-RUN] ' : ''}Auto-grabbed: ${release.title}`);
 
@@ -139,6 +142,8 @@ export class RssSync {
               if (gameIndex !== -1) {
                 wantedGames.splice(gameIndex, 1);
               }
+            } catch (grabError) {
+              logger.error(`Failed to grab release ${release.title}:`, grabError);
             }
           } else {
             logger.debug(
@@ -293,16 +298,67 @@ export class RssSync {
   }
 
   /**
+   * Check if a GUID has been processed (and is not stale)
+   */
+  private isProcessed(guid: string): boolean {
+    const timestamp = this.processedGuids.get(guid);
+    if (timestamp === undefined) {
+      return false;
+    }
+    // Check if entry is still within valid age
+    if (Date.now() - timestamp > this.MAX_GUID_AGE_MS) {
+      // Entry is stale, remove it and consider as not processed
+      this.processedGuids.delete(guid);
+      return false;
+    }
+    return true;
+  }
+
+  /**
    * Mark a release GUID as processed
+   * Uses efficient cleanup strategy:
+   * 1. Delete oldest entries when over limit (FIFO since Map maintains insertion order)
+   * 2. Periodically clean up stale entries
    */
   private markAsProcessed(guid: string) {
-    this.processedGuids.add(guid);
+    const now = Date.now();
+    this.processedGuids.set(guid, now);
 
-    // Clean up old entries to prevent memory growth
+    // Efficient cleanup when over limit - Map maintains insertion order
+    // so we can delete from the front (oldest entries first)
     if (this.processedGuids.size > this.MAX_PROCESSED_GUIDS) {
-      const entries = Array.from(this.processedGuids);
-      const toRemove = entries.slice(0, entries.length - this.MAX_PROCESSED_GUIDS);
-      toRemove.forEach((g) => this.processedGuids.delete(g));
+      const excessCount = this.processedGuids.size - this.MAX_PROCESSED_GUIDS;
+      let deleted = 0;
+      for (const [key] of this.processedGuids) {
+        if (deleted >= excessCount) break;
+        this.processedGuids.delete(key);
+        deleted++;
+      }
+    }
+
+    // Periodically clean up stale entries (every 100th add to avoid frequent iteration)
+    if (this.processedGuids.size % 100 === 0) {
+      this.cleanupStaleEntries();
+    }
+  }
+
+  /**
+   * Remove entries older than MAX_GUID_AGE_MS
+   */
+  private cleanupStaleEntries() {
+    const now = Date.now();
+    const staleThreshold = now - this.MAX_GUID_AGE_MS;
+    let staleCount = 0;
+
+    for (const [guid, timestamp] of this.processedGuids) {
+      if (timestamp < staleThreshold) {
+        this.processedGuids.delete(guid);
+        staleCount++;
+      }
+    }
+
+    if (staleCount > 0) {
+      logger.debug(`Cleaned up ${staleCount} stale RSS GUID entries`);
     }
   }
 

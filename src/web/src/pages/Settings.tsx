@@ -1,15 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, Suspense, lazy, useCallback } from 'react';
 import { api } from '../api/client';
-import IndexerStatus from '../components/IndexerStatus';
-import CategorySelector from '../components/CategorySelector';
-import QBittorrentCategorySelector from '../components/QBittorrentCategorySelector';
+import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
 
-interface ConnectionTestResult {
-  status: 'idle' | 'testing' | 'success' | 'error';
-  message?: string;
-}
+// Lazy load tab components
+const GeneralTab = lazy(() => import('../components/settings/GeneralTab'));
+const IndexersTab = lazy(() => import('../components/settings/IndexersTab'));
+const DownloadsTab = lazy(() => import('../components/settings/DownloadsTab'));
+const MetadataTab = lazy(() => import('../components/settings/MetadataTab'));
+const UpdatesTab = lazy(() => import('../components/settings/UpdatesTab'));
 
 type SettingsTab = 'general' | 'indexers' | 'downloads' | 'metadata' | 'updates';
+
+// Loading fallback component
+function TabLoading() {
+  return (
+    <div className="flex items-center justify-center h-32">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+    </div>
+  );
+}
 
 function Settings() {
   // Tab state
@@ -22,48 +31,47 @@ function Settings() {
   // Prowlarr settings
   const [prowlarrUrl, setProwlarrUrl] = useState('');
   const [prowlarrApiKey, setProwlarrApiKey] = useState('');
-  const [prowlarrTest, setProwlarrTest] = useState<ConnectionTestResult>({ status: 'idle' });
-  const [isSavingProwlarr, setIsSavingProwlarr] = useState(false);
 
   // IGDB settings
   const [igdbClientId, setIgdbClientId] = useState('');
   const [igdbClientSecret, setIgdbClientSecret] = useState('');
-  const [isSavingIgdb, setIsSavingIgdb] = useState(false);
 
   // qBittorrent settings
   const [qbHost, setQbHost] = useState('');
   const [qbUsername, setQbUsername] = useState('');
   const [qbPassword, setQbPassword] = useState('');
-  const [qbTest, setQbTest] = useState<ConnectionTestResult>({ status: 'idle' });
-  const [isSavingQb, setIsSavingQb] = useState(false);
 
   // Library path
   const [libraryPath, setLibraryPath] = useState('');
-  const [isSavingPath, setIsSavingPath] = useState(false);
 
   // Dry-run mode
   const [dryRun, setDryRun] = useState(false);
-  const [isSavingDryRun, setIsSavingDryRun] = useState(false);
 
   // Update check settings
   const [updateCheckEnabled, setUpdateCheckEnabled] = useState(true);
   const [updateCheckSchedule, setUpdateCheckSchedule] = useState<'hourly' | 'daily' | 'weekly'>('daily');
   const [defaultUpdatePolicy, setDefaultUpdatePolicy] = useState<'notify' | 'auto' | 'ignore'>('notify');
-  const [isSavingUpdateSettings, setIsSavingUpdateSettings] = useState(false);
-  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
 
   // Steam settings
   const [steamApiKey, setSteamApiKey] = useState('');
   const [steamId, setSteamId] = useState('');
-  const [isSavingSteam, setIsSavingSteam] = useState(false);
-  const [steamTest, setSteamTest] = useState<ConnectionTestResult>({ status: 'idle' });
 
   // Global save message
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Timeout ref for cleanup
+  const saveMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Load all settings on mount
   useEffect(() => {
     loadAllSettings();
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (saveMessageTimeoutRef.current) {
+        clearTimeout(saveMessageTimeoutRef.current);
+      }
+    };
   }, []);
 
   const loadAllSettings = async () => {
@@ -125,207 +133,14 @@ function Settings() {
     }
   };
 
-  const showSaveMessage = (type: 'success' | 'error', text: string) => {
+  const showSaveMessage = useCallback((type: 'success' | 'error', text: string) => {
+    // Clear any existing timeout
+    if (saveMessageTimeoutRef.current) {
+      clearTimeout(saveMessageTimeoutRef.current);
+    }
     setSaveMessage({ type, text });
-    setTimeout(() => setSaveMessage(null), 3000);
-  };
-
-  // Prowlarr handlers
-  const handleSaveProwlarr = async () => {
-    if (!prowlarrUrl.trim()) {
-      showSaveMessage('error', 'Prowlarr URL is required');
-      return;
-    }
-
-    setIsSavingProwlarr(true);
-    try {
-      await Promise.all([
-        api.updateSetting('prowlarr_url', prowlarrUrl.trim()),
-        api.updateSetting('prowlarr_api_key', prowlarrApiKey),
-      ]);
-      showSaveMessage('success', 'Prowlarr settings saved!');
-    } catch (err) {
-      showSaveMessage('error', 'Failed to save Prowlarr settings');
-    } finally {
-      setIsSavingProwlarr(false);
-    }
-  };
-
-  const testProwlarrConnection = async () => {
-    setProwlarrTest({ status: 'testing' });
-    try {
-      const response = await api.testProwlarrConnection();
-      if (response.success && response.data) {
-        setProwlarrTest({ status: 'success', message: 'Connected successfully!' });
-      } else {
-        setProwlarrTest({ status: 'error', message: response.error || 'Connection failed' });
-      }
-    } catch (err) {
-      setProwlarrTest({ status: 'error', message: 'Connection test failed' });
-    }
-  };
-
-  // IGDB handlers
-  const handleSaveIgdb = async () => {
-    if (!igdbClientId.trim() || !igdbClientSecret.trim()) {
-      showSaveMessage('error', 'Both IGDB Client ID and Secret are required');
-      return;
-    }
-
-    setIsSavingIgdb(true);
-    try {
-      await Promise.all([
-        api.updateSetting('igdb_client_id', igdbClientId.trim()),
-        api.updateSetting('igdb_client_secret', igdbClientSecret.trim()),
-      ]);
-      showSaveMessage('success', 'IGDB settings saved!');
-    } catch (err) {
-      showSaveMessage('error', 'Failed to save IGDB settings');
-    } finally {
-      setIsSavingIgdb(false);
-    }
-  };
-
-  // qBittorrent handlers
-  const handleSaveQb = async () => {
-    if (!qbHost.trim()) {
-      showSaveMessage('error', 'qBittorrent host is required');
-      return;
-    }
-
-    setIsSavingQb(true);
-    try {
-      await Promise.all([
-        api.updateSetting('qbittorrent_host', qbHost.trim()),
-        api.updateSetting('qbittorrent_username', qbUsername),
-        api.updateSetting('qbittorrent_password', qbPassword),
-      ]);
-      showSaveMessage('success', 'qBittorrent settings saved!');
-    } catch (err) {
-      showSaveMessage('error', 'Failed to save qBittorrent settings');
-    } finally {
-      setIsSavingQb(false);
-    }
-  };
-
-  const testQbConnection = async () => {
-    setQbTest({ status: 'testing' });
-    try {
-      const response = await api.testQbittorrentConnection();
-      if (response.success && response.data) {
-        setQbTest({ status: 'success', message: 'Connected successfully!' });
-      } else {
-        setQbTest({ status: 'error', message: response.error || 'Connection failed' });
-      }
-    } catch (err) {
-      setQbTest({ status: 'error', message: 'Connection test failed' });
-    }
-  };
-
-  // Library path handler
-  const handleSaveLibraryPath = async () => {
-    if (!libraryPath.trim()) {
-      showSaveMessage('error', 'Library path is required');
-      return;
-    }
-
-    setIsSavingPath(true);
-    try {
-      const response = await api.updateSetting('library_path', libraryPath.trim());
-      if (response.success) {
-        showSaveMessage('success', 'Library path saved!');
-      } else {
-        showSaveMessage('error', response.error || 'Failed to save library path');
-      }
-    } catch (err) {
-      showSaveMessage('error', 'Failed to save library path');
-    } finally {
-      setIsSavingPath(false);
-    }
-  };
-
-  // Dry-run handler
-  const handleToggleDryRun = async () => {
-    setIsSavingDryRun(true);
-    try {
-      const newValue = !dryRun;
-      const response = await api.updateSetting('dry_run', newValue);
-      if (response.success) {
-        setDryRun(newValue);
-        showSaveMessage('success', `Dry-run mode ${newValue ? 'enabled' : 'disabled'}`);
-      } else {
-        showSaveMessage('error', 'Failed to update dry-run mode');
-      }
-    } catch (err) {
-      showSaveMessage('error', 'Failed to update dry-run mode');
-    } finally {
-      setIsSavingDryRun(false);
-    }
-  };
-
-  // Update check handlers
-  const handleSaveUpdateSettings = async () => {
-    setIsSavingUpdateSettings(true);
-    try {
-      await Promise.all([
-        api.updateSetting('update_check_enabled', updateCheckEnabled),
-        api.updateSetting('update_check_schedule', updateCheckSchedule),
-        api.updateSetting('default_update_policy', defaultUpdatePolicy),
-      ]);
-      showSaveMessage('success', 'Update check settings saved!');
-    } catch (err) {
-      showSaveMessage('error', 'Failed to save update check settings');
-    } finally {
-      setIsSavingUpdateSettings(false);
-    }
-  };
-
-  const handleCheckUpdatesNow = async () => {
-    setIsCheckingUpdates(true);
-    try {
-      const response = await api.checkAllUpdates();
-      if (response.success && response.data) {
-        const { checked, updatesFound } = response.data as { checked: number; updatesFound: number };
-        showSaveMessage('success', `Checked ${checked} games, found ${updatesFound} updates`);
-      } else {
-        showSaveMessage('error', response.error || 'Failed to check for updates');
-      }
-    } catch (err) {
-      showSaveMessage('error', 'Failed to check for updates');
-    } finally {
-      setIsCheckingUpdates(false);
-    }
-  };
-
-  // Steam handlers
-  const handleSaveSteam = async () => {
-    setIsSavingSteam(true);
-    try {
-      await Promise.all([
-        api.updateSetting('steam_api_key', steamApiKey),
-        api.updateSetting('steam_id', steamId),
-      ]);
-      showSaveMessage('success', 'Steam settings saved!');
-    } catch (err) {
-      showSaveMessage('error', 'Failed to save Steam settings');
-    } finally {
-      setIsSavingSteam(false);
-    }
-  };
-
-  const testSteamConnection = async () => {
-    setSteamTest({ status: 'testing' });
-    try {
-      const response = await api.testSteamConnection();
-      if (response.success && response.data) {
-        setSteamTest({ status: 'success', message: 'Connected successfully!' });
-      } else {
-        setSteamTest({ status: 'error', message: response.error || 'Connection failed' });
-      }
-    } catch (err) {
-      setSteamTest({ status: 'error', message: 'Connection test failed' });
-    }
-  };
+    saveMessageTimeoutRef.current = setTimeout(() => setSaveMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
+  }, []);
 
   // Loading state
   if (isLoading) {
@@ -441,471 +256,67 @@ function Settings() {
         </nav>
       </div>
 
-      {/* Tab Content */}
+      {/* Tab Content with Suspense */}
       <div className="space-y-6">
-        {/* General Tab */}
-        {activeTab === 'general' && (
-          <>
-            {/* Dry-Run Mode */}
-            <div className="bg-yellow-900 bg-opacity-30 border border-yellow-700 rounded-lg p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-semibold mb-2 text-yellow-200 flex items-center gap-2">
-                    <svg className="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                    </svg>
-                    Dry-Run Mode
-                  </h3>
-                  <p className="text-yellow-300 text-sm">
-                    When enabled, Gamearr will log what it would download but won't actually send torrents to qBittorrent.
-                    Useful for testing your configuration.
-                  </p>
-                </div>
-                <button
-                  onClick={handleToggleDryRun}
-                  disabled={isSavingDryRun}
-                  className={`px-6 py-3 rounded-lg font-semibold transition ${
-                    dryRun
-                      ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
-                      : 'bg-gray-600 hover:bg-gray-700 text-gray-200'
-                  } disabled:opacity-50`}
-                >
-                  {isSavingDryRun ? 'Saving...' : dryRun ? 'Enabled' : 'Disabled'}
-                </button>
-              </div>
-            </div>
+        <Suspense fallback={<TabLoading />}>
+          {activeTab === 'general' && (
+            <GeneralTab
+              libraryPath={libraryPath}
+              setLibraryPath={setLibraryPath}
+              dryRun={dryRun}
+              setDryRun={setDryRun}
+              showSaveMessage={showSaveMessage}
+            />
+          )}
 
-            {/* Library Path */}
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                </svg>
-                Library Path
-              </h3>
-              <p className="text-gray-400 mb-4">
-                Configure your game library folder. Gamearr will scan this location to detect existing games.
-              </p>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">
-                    Library Folder Path <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={libraryPath}
-                    onChange={(e) => setLibraryPath(e.target.value)}
-                    placeholder="e.g., D:\Games or /mnt/games"
-                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Absolute path where organized game folders will be created
-                  </p>
-                </div>
-                <button
-                  onClick={handleSaveLibraryPath}
-                  disabled={isSavingPath || !libraryPath.trim()}
-                  className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSavingPath ? 'Saving...' : 'Save'}
-                </button>
-              </div>
-            </div>
-          </>
-        )}
+          {activeTab === 'indexers' && (
+            <IndexersTab
+              prowlarrUrl={prowlarrUrl}
+              setProwlarrUrl={setProwlarrUrl}
+              prowlarrApiKey={prowlarrApiKey}
+              setProwlarrApiKey={setProwlarrApiKey}
+              showSaveMessage={showSaveMessage}
+            />
+          )}
 
-        {/* Indexers Tab */}
-        {activeTab === 'indexers' && (
-          <>
-            {/* Prowlarr Settings */}
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-                </svg>
-                Prowlarr
-              </h3>
-              <p className="text-gray-400 mb-4">
-                Configure Prowlarr for indexer management and release searching.
-              </p>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">
-                    Prowlarr URL <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="http://localhost:9696"
-                    value={prowlarrUrl}
-                    onChange={(e) => setProwlarrUrl(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">API Key</label>
-                  <input
-                    type="password"
-                    placeholder="Your Prowlarr API Key"
-                    value={prowlarrApiKey}
-                    onChange={(e) => setProwlarrApiKey(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleSaveProwlarr}
-                    disabled={isSavingProwlarr}
-                    className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50"
-                  >
-                    {isSavingProwlarr ? 'Saving...' : 'Save'}
-                  </button>
-                  <button
-                    onClick={testProwlarrConnection}
-                    disabled={prowlarrTest.status === 'testing'}
-                    className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50"
-                  >
-                    {prowlarrTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
-                  </button>
-                </div>
-                {prowlarrTest.status !== 'idle' && prowlarrTest.status !== 'testing' && (
-                  <p className={`text-sm mt-2 ${
-                    prowlarrTest.status === 'success' ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {prowlarrTest.message}
-                  </p>
-                )}
-              </div>
-            </div>
+          {activeTab === 'downloads' && (
+            <DownloadsTab
+              qbHost={qbHost}
+              setQbHost={setQbHost}
+              qbUsername={qbUsername}
+              setQbUsername={setQbUsername}
+              qbPassword={qbPassword}
+              setQbPassword={setQbPassword}
+              showSaveMessage={showSaveMessage}
+            />
+          )}
 
-            {/* Category Selection */}
-            <CategorySelector />
+          {activeTab === 'metadata' && (
+            <MetadataTab
+              igdbClientId={igdbClientId}
+              setIgdbClientId={setIgdbClientId}
+              igdbClientSecret={igdbClientSecret}
+              setIgdbClientSecret={setIgdbClientSecret}
+              steamApiKey={steamApiKey}
+              setSteamApiKey={setSteamApiKey}
+              steamId={steamId}
+              setSteamId={setSteamId}
+              showSaveMessage={showSaveMessage}
+            />
+          )}
 
-            {/* Indexer Status */}
-            <IndexerStatus />
-          </>
-        )}
-
-        {/* Downloads Tab */}
-        {activeTab === 'downloads' && (
-          <>
-            {/* qBittorrent Settings */}
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                </svg>
-                qBittorrent
-              </h3>
-              <p className="text-gray-400 mb-4">
-                Configure qBittorrent Web UI connection for download management.
-              </p>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">
-                    Host <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="http://localhost:8080"
-                    value={qbHost}
-                    onChange={(e) => setQbHost(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Username</label>
-                  <input
-                    type="text"
-                    placeholder="admin"
-                    value={qbUsername}
-                    onChange={(e) => setQbUsername(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Password</label>
-                  <input
-                    type="password"
-                    placeholder="adminadmin"
-                    value={qbPassword}
-                    onChange={(e) => setQbPassword(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleSaveQb}
-                    disabled={isSavingQb}
-                    className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50"
-                  >
-                    {isSavingQb ? 'Saving...' : 'Save'}
-                  </button>
-                  <button
-                    onClick={testQbConnection}
-                    disabled={qbTest.status === 'testing'}
-                    className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50"
-                  >
-                    {qbTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
-                  </button>
-                </div>
-                {qbTest.status !== 'idle' && qbTest.status !== 'testing' && (
-                  <p className={`text-sm mt-2 ${
-                    qbTest.status === 'success' ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {qbTest.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* qBittorrent Category Filter */}
-            <QBittorrentCategorySelector />
-          </>
-        )}
-
-        {/* Metadata Tab */}
-        {activeTab === 'metadata' && (
-          <>
-            {/* IGDB Settings */}
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
-                </svg>
-                IGDB API
-              </h3>
-              <p className="text-gray-400 mb-4">
-                Configure your IGDB API credentials for game metadata.
-                Get credentials from the{' '}
-                <a
-                  href="https://dev.twitch.tv/console"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:underline"
-                >
-                  Twitch Developer Console
-                </a>.
-              </p>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">
-                    Client ID <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Your IGDB Client ID"
-                    value={igdbClientId}
-                    onChange={(e) => setIgdbClientId(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">
-                    Client Secret <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="password"
-                    placeholder="Your IGDB Client Secret"
-                    value={igdbClientSecret}
-                    onChange={(e) => setIgdbClientSecret(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <button
-                  onClick={handleSaveIgdb}
-                  disabled={isSavingIgdb}
-                  className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50"
-                >
-                  {isSavingIgdb ? 'Saving...' : 'Save'}
-                </button>
-              </div>
-            </div>
-
-            {/* Steam Settings */}
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <svg className="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1v2h3l-.5 3H13v6.95c5.05-.5 9-4.76 9-9.95 0-5.52-4.48-10-10-10z"/>
-                </svg>
-                Steam Integration
-              </h3>
-              <p className="text-gray-400 mb-4">
-                Connect your Steam account to import your owned games.
-                Get your API key from{' '}
-                <a
-                  href="https://steamcommunity.com/dev/apikey"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:underline"
-                >
-                  Steam Web API
-                </a>.
-              </p>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">
-                    Steam API Key
-                  </label>
-                  <input
-                    type="password"
-                    placeholder="Your Steam Web API Key"
-                    value={steamApiKey}
-                    onChange={(e) => setSteamApiKey(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">
-                    Steam ID
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Your 64-bit Steam ID (e.g., 76561198012345678)"
-                    value={steamId}
-                    onChange={(e) => setSteamId(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Find your Steam ID at{' '}
-                    <a href="https://steamid.io" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-                      steamid.io
-                    </a>
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleSaveSteam}
-                    disabled={isSavingSteam}
-                    className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50"
-                  >
-                    {isSavingSteam ? 'Saving...' : 'Save'}
-                  </button>
-                  <button
-                    onClick={testSteamConnection}
-                    disabled={steamTest.status === 'testing' || !steamApiKey || !steamId}
-                    className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50"
-                  >
-                    {steamTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
-                  </button>
-                </div>
-                {steamTest.status !== 'idle' && steamTest.status !== 'testing' && (
-                  <div className={`p-3 rounded ${steamTest.status === 'success' ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'}`}>
-                    {steamTest.message}
-                  </div>
-                )}
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Updates Tab */}
-        {activeTab === 'updates' && (
-          <>
-            {/* Update Checking */}
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <svg className="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Update Checking
-              </h3>
-              <p className="text-gray-400 mb-4">
-                Configure automatic checking for game updates, DLC, and better quality releases.
-              </p>
-              <div className="space-y-4">
-                {/* Enable/Disable */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300">Enable Update Checking</label>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Automatically check downloaded games for available updates
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setUpdateCheckEnabled(!updateCheckEnabled)}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      updateCheckEnabled ? 'bg-blue-600' : 'bg-gray-600'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
-                        updateCheckEnabled ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {/* Schedule */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Check Schedule</label>
-                  <select
-                    value={updateCheckSchedule}
-                    onChange={(e) => setUpdateCheckSchedule(e.target.value as 'hourly' | 'daily' | 'weekly')}
-                    disabled={!updateCheckEnabled}
-                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none disabled:opacity-50"
-                  >
-                    <option value="hourly">Hourly (for testing)</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    How often to check for updates
-                  </p>
-                </div>
-
-                {/* Default Policy */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Default Update Policy</label>
-                  <select
-                    value={defaultUpdatePolicy}
-                    onChange={(e) => setDefaultUpdatePolicy(e.target.value as 'notify' | 'auto' | 'ignore')}
-                    className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                  >
-                    <option value="notify">Notify - Show badge when updates are available</option>
-                    <option value="auto">Auto-download - Automatically grab updates</option>
-                    <option value="ignore">Ignore - Don't check for updates</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Default policy for new games (can be overridden per-game)
-                  </p>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={handleSaveUpdateSettings}
-                    disabled={isSavingUpdateSettings}
-                    className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50"
-                  >
-                    {isSavingUpdateSettings ? 'Saving...' : 'Save Settings'}
-                  </button>
-                  <button
-                    onClick={handleCheckUpdatesNow}
-                    disabled={isCheckingUpdates || !updateCheckEnabled}
-                    className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50 flex items-center gap-2"
-                  >
-                    {isCheckingUpdates ? (
-                      <>
-                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                        Checking...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Check Now
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
+          {activeTab === 'updates' && (
+            <UpdatesTab
+              updateCheckEnabled={updateCheckEnabled}
+              setUpdateCheckEnabled={setUpdateCheckEnabled}
+              updateCheckSchedule={updateCheckSchedule}
+              setUpdateCheckSchedule={setUpdateCheckSchedule}
+              defaultUpdatePolicy={defaultUpdatePolicy}
+              setDefaultUpdatePolicy={setDefaultUpdatePolicy}
+              showSaveMessage={showSaveMessage}
+            />
+          )}
+        </Suspense>
       </div>
     </div>
   );

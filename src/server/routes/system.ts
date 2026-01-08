@@ -1,11 +1,10 @@
 import { Hono } from 'hono';
 import { logger } from '../utils/logger';
+import { APP_VERSION } from '../utils/version';
 import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
 import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
 import { settingsService } from '../services/SettingsService';
-import { db } from '../db';
-import { games } from '../db/schema';
-import { count } from 'drizzle-orm';
+import { gameRepository } from '../repositories/GameRepository';
 
 const system = new Hono();
 
@@ -36,7 +35,7 @@ system.get('/status', async (c) => {
     success: true,
     data: {
       status: 'healthy',
-      version: '0.1.0',
+      version: APP_VERSION,
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
     },
@@ -81,7 +80,7 @@ system.get('/health', async (c) => {
 
   const health: SystemHealth = {
     status: overallStatus,
-    version: '0.1.0',
+    version: APP_VERSION,
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     services,
@@ -106,7 +105,7 @@ system.get('/logs', async (c) => {
 async function checkDatabase(): Promise<ServiceStatus> {
   const start = Date.now();
   try {
-    await db.select({ count: count() }).from(games);
+    await gameRepository.count();
     return {
       name: 'Database',
       status: 'healthy',
@@ -221,14 +220,7 @@ async function checkQBittorrent(): Promise<ServiceStatus> {
  */
 async function getGameStats() {
   try {
-    const allGames = await db.select().from(games);
-
-    return {
-      totalGames: allGames.length,
-      wantedGames: allGames.filter((g) => g.status === 'wanted').length,
-      downloadingGames: allGames.filter((g) => g.status === 'downloading').length,
-      downloadedGames: allGames.filter((g) => g.status === 'downloaded').length,
-    };
+    return await gameRepository.getStats();
   } catch (error) {
     logger.error('Failed to get game stats:', error);
     return undefined;

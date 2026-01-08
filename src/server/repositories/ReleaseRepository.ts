@@ -1,21 +1,36 @@
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, inArray } from 'drizzle-orm';
 import { db } from '../db';
 import { releases, type Release, type NewRelease } from '../db/schema';
 import { logger } from '../utils/logger';
+
+// Explicit field selection to avoid SELECT *
+const releaseFields = {
+  id: releases.id,
+  gameId: releases.gameId,
+  title: releases.title,
+  size: releases.size,
+  seeders: releases.seeders,
+  downloadUrl: releases.downloadUrl,
+  indexer: releases.indexer,
+  quality: releases.quality,
+  torrentHash: releases.torrentHash,
+  grabbedAt: releases.grabbedAt,
+  status: releases.status,
+};
 
 export class ReleaseRepository {
   /**
    * Get all releases
    */
   async findAll(): Promise<Release[]> {
-    return db.select().from(releases).orderBy(desc(releases.grabbedAt));
+    return db.select(releaseFields).from(releases).orderBy(desc(releases.grabbedAt));
   }
 
   /**
    * Get release by ID
    */
   async findById(id: number): Promise<Release | undefined> {
-    const results = await db.select().from(releases).where(eq(releases.id, id));
+    const results = await db.select(releaseFields).from(releases).where(eq(releases.id, id));
     return results[0];
   }
 
@@ -24,7 +39,7 @@ export class ReleaseRepository {
    */
   async findByGameId(gameId: number): Promise<Release[]> {
     return db
-      .select()
+      .select(releaseFields)
       .from(releases)
       .where(eq(releases.gameId, gameId))
       .orderBy(desc(releases.grabbedAt));
@@ -35,7 +50,7 @@ export class ReleaseRepository {
    */
   async findByStatus(status: 'pending' | 'downloading' | 'completed' | 'failed'): Promise<Release[]> {
     return db
-      .select()
+      .select(releaseFields)
       .from(releases)
       .where(eq(releases.status, status))
       .orderBy(desc(releases.grabbedAt));
@@ -46,7 +61,7 @@ export class ReleaseRepository {
    */
   async findActiveDownloads(): Promise<Release[]> {
     return db
-      .select()
+      .select(releaseFields)
       .from(releases)
       .where(
         and(
@@ -92,6 +107,33 @@ export class ReleaseRepository {
   }
 
   /**
+   * Batch update release statuses
+   * Groups updates by status and performs one query per status
+   */
+  async batchUpdateStatus(
+    updates: Array<{ id: number; status: 'pending' | 'downloading' | 'completed' | 'failed' }>
+  ): Promise<void> {
+    if (updates.length === 0) return;
+
+    // Group updates by status
+    const byStatus = new Map<string, number[]>();
+    for (const update of updates) {
+      const ids = byStatus.get(update.status) || [];
+      ids.push(update.id);
+      byStatus.set(update.status, ids);
+    }
+
+    // Perform one update query per status group
+    for (const [status, ids] of byStatus) {
+      logger.info(`Batch updating ${ids.length} releases to status: ${status}`);
+      await db
+        .update(releases)
+        .set({ status: status as 'pending' | 'downloading' | 'completed' | 'failed' })
+        .where(inArray(releases.id, ids));
+    }
+  }
+
+  /**
    * Delete a release
    */
   async delete(id: number): Promise<boolean> {
@@ -99,6 +141,17 @@ export class ReleaseRepository {
 
     const result = await db.delete(releases).where(eq(releases.id, id));
     return result.changes > 0;
+  }
+
+  /**
+   * Batch delete multiple releases by their IDs
+   */
+  async batchDelete(ids: number[]): Promise<number> {
+    if (ids.length === 0) return 0;
+
+    logger.info(`Batch deleting ${ids.length} releases`);
+    const result = await db.delete(releases).where(inArray(releases.id, ids));
+    return result.changes;
   }
 
   /**
@@ -116,7 +169,7 @@ export class ReleaseRepository {
    */
   async findLatestByGameId(gameId: number): Promise<Release | undefined> {
     const results = await db
-      .select()
+      .select(releaseFields)
       .from(releases)
       .where(eq(releases.gameId, gameId))
       .orderBy(desc(releases.grabbedAt))

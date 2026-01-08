@@ -9,6 +9,8 @@ import type {
   MultiplayerInfo,
 } from './types';
 import { logger } from '../../utils/logger';
+import { IGDBError, ErrorCode } from '../../utils/errors';
+import { fetchWithRetry, RateLimiter } from '../../utils/http';
 
 export class IGDBClient {
   private clientId: string;
@@ -18,6 +20,9 @@ export class IGDBClient {
 
   private readonly authUrl = 'https://id.twitch.tv/oauth2/token';
   private readonly apiUrl = 'https://api.igdb.com/v4';
+
+  // IGDB rate limit is 4 requests per second
+  private readonly rateLimiter = new RateLimiter({ maxRequests: 4, windowMs: 1000 });
 
   constructor(clientId?: string, clientSecret?: string) {
     this.clientId = clientId || process.env.IGDB_CLIENT_ID || '';
@@ -32,11 +37,32 @@ export class IGDBClient {
   }
 
   /**
+   * Test connection to IGDB by authenticating and making a simple API call
+   */
+  async testConnection(): Promise<boolean> {
+    try {
+      // First ensure we can authenticate
+      await this.authenticate();
+
+      // Then make a simple API call to verify the connection works
+      // Search for a well-known game (The Witcher 3) to confirm API access
+      const query = `fields id, name; where id = 1942; limit 1;`;
+      const results = await this.request<IGDBGame[]>('games', query);
+
+      logger.info('IGDB connection test successful');
+      return results.length > 0;
+    } catch (error) {
+      logger.error('IGDB connection test failed:', error);
+      return false;
+    }
+  }
+
+  /**
    * Authenticate with IGDB and get access token
    */
   private async authenticate(): Promise<void> {
     if (!this.isConfigured()) {
-      throw new Error('IGDB credentials not configured');
+      throw new IGDBError('IGDB credentials not configured', ErrorCode.IGDB_AUTH_FAILED);
     }
 
     // Check if we have a valid token
@@ -47,13 +73,14 @@ export class IGDBClient {
     logger.info('Authenticating with IGDB...');
 
     try {
-      const response = await fetch(
+      // Auth requests don't count against IGDB rate limit, but use retry for reliability
+      const response = await fetchWithRetry(
         `${this.authUrl}?client_id=${this.clientId}&client_secret=${this.clientSecret}&grant_type=client_credentials`,
         { method: 'POST' }
       );
 
       if (!response.ok) {
-        throw new Error(`IGDB auth failed: ${response.statusText}`);
+        throw new IGDBError(`Authentication failed: ${response.statusText}`, ErrorCode.IGDB_AUTH_FAILED);
       }
 
       const data: IGDBAuthResponse = await response.json();
@@ -63,18 +90,27 @@ export class IGDBClient {
 
       logger.info('IGDB authentication successful');
     } catch (error) {
+      if (error instanceof IGDBError) {
+        throw error;
+      }
       logger.error('IGDB authentication failed:', error);
-      throw error;
+      throw new IGDBError(
+        `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        ErrorCode.IGDB_AUTH_FAILED
+      );
     }
   }
 
   /**
-   * Make a request to IGDB API
+   * Make a request to IGDB API with rate limiting and retry logic
    */
   private async request<T>(endpoint: string, body: string): Promise<T> {
     await this.authenticate();
 
-    const response = await fetch(`${this.apiUrl}/${endpoint}`, {
+    // Respect rate limit before making request
+    await this.rateLimiter.acquire();
+
+    const response = await fetchWithRetry(`${this.apiUrl}/${endpoint}`, {
       method: 'POST',
       headers: {
         'Client-ID': this.clientId,
@@ -85,7 +121,15 @@ export class IGDBClient {
     });
 
     if (!response.ok) {
-      throw new Error(`IGDB API error: ${response.statusText}`);
+      // Invalidate token on auth errors
+      if (response.status === 401 || response.status === 403) {
+        this.accessToken = null;
+        throw new IGDBError(`Authentication expired: ${response.statusText}`, ErrorCode.IGDB_AUTH_FAILED);
+      }
+      if (response.status === 429) {
+        throw new IGDBError('Rate limit exceeded', ErrorCode.IGDB_RATE_LIMITED);
+      }
+      throw new IGDBError(`API error: ${response.statusText}`, ErrorCode.IGDB_ERROR);
     }
 
     return response.json();
@@ -210,12 +254,15 @@ export class IGDBClient {
   }
 
   /**
-   * Make a multiquery request to IGDB API
+   * Make a multiquery request to IGDB API with rate limiting and retry logic
    */
   private async requestMultiquery(body: string): Promise<Array<{ name: string; result: IGDBGame[] }>> {
     await this.authenticate();
 
-    const response = await fetch(`${this.apiUrl}/multiquery`, {
+    // Respect rate limit before making request
+    await this.rateLimiter.acquire();
+
+    const response = await fetchWithRetry(`${this.apiUrl}/multiquery`, {
       method: 'POST',
       headers: {
         'Client-ID': this.clientId,
@@ -227,7 +274,15 @@ export class IGDBClient {
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(`IGDB multiquery error: ${response.statusText} - ${text}`);
+      // Invalidate token on auth errors
+      if (response.status === 401 || response.status === 403) {
+        this.accessToken = null;
+        throw new IGDBError(`Authentication expired: ${response.statusText}`, ErrorCode.IGDB_AUTH_FAILED);
+      }
+      if (response.status === 429) {
+        throw new IGDBError('Rate limit exceeded', ErrorCode.IGDB_RATE_LIMITED);
+      }
+      throw new IGDBError(`Multiquery error: ${response.statusText} - ${text}`, ErrorCode.IGDB_ERROR);
     }
 
     return response.json();
@@ -241,38 +296,33 @@ export class IGDBClient {
 
     logger.info(`Searching IGDB for: ${search}`);
 
-    try {
-      // Get all matching games with expanded metadata
-      const query = `
-        search "${search}";
-        fields name, cover.image_id, first_release_date, summary, platforms,
-               genres.name, total_rating, game_modes.name,
-               involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
-               similar_games.name, similar_games.cover.image_id, game_type,
-               multiplayer_modes.*, themes.name;
-        where game_type = 0;
-        limit ${limit};
-      `;
+    // Get all matching games with expanded metadata
+    const query = `
+      search "${search}";
+      fields name, cover.image_id, first_release_date, summary, platforms,
+             genres.name, total_rating, game_modes.name,
+             involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
+             similar_games.name, similar_games.cover.image_id, game_type,
+             multiplayer_modes.*, themes.name;
+      where game_type = 0;
+      limit ${limit};
+    `;
 
-      const results = await this.request<IGDBGame[]>('games', query);
+    const results = await this.request<IGDBGame[]>('games', query);
 
-      // Filter for PC games (platform ID 6) and main games only
-      // Platform 6 = PC (Windows)
-      // Category: 0 = main game, 1 = DLC, 2 = expansion, 3 = bundle, etc.
-      const filteredGames = results.filter(game => {
-        // IGDB returns platforms as array of IDs (numbers) when not expanded
-        const hasPC = game.platforms && (game.platforms as number[]).includes(6);
+    // Filter for PC games (platform ID 6) and main games only
+    // Platform 6 = PC (Windows)
+    // Category: 0 = main game, 1 = DLC, 2 = expansion, 3 = bundle, etc.
+    const filteredGames = results.filter(game => {
+      // IGDB returns platforms as array of IDs (numbers) when not expanded
+      const hasPC = game.platforms && (game.platforms as number[]).includes(6);
 
-        return hasPC;
-      });
+      return hasPC;
+    });
 
-      const mapped = filteredGames.map((game) => this.mapToSearchResult(game));
+    const mapped = filteredGames.map((game) => this.mapToSearchResult(game));
 
-      return mapped;
-    } catch (error) {
-      logger.error('IGDB search failed:', error);
-      throw error;
-    }
+    return mapped;
   }
 
   /**
@@ -281,27 +331,22 @@ export class IGDBClient {
   async getGame(igdbId: number): Promise<GameSearchResult | null> {
     logger.info(`Fetching game from IGDB: ${igdbId}`);
 
-    try {
-      const query = `
-        fields name, cover.url, cover.image_id, first_release_date, platforms.name, summary,
-               genres.name, total_rating, game_modes.name,
-               involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
-               similar_games.name, similar_games.cover.image_id,
-               multiplayer_modes.*, themes.name;
-        where id = ${igdbId};
-      `;
+    const query = `
+      fields name, cover.url, cover.image_id, first_release_date, platforms.name, summary,
+             genres.name, total_rating, game_modes.name,
+             involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
+             similar_games.name, similar_games.cover.image_id,
+             multiplayer_modes.*, themes.name;
+      where id = ${igdbId};
+    `;
 
-      const results = await this.request<IGDBGame[]>('games', query);
+    const results = await this.request<IGDBGame[]>('games', query);
 
-      if (results.length === 0) {
-        return null;
-      }
-
-      return this.mapToSearchResult(results[0]);
-    } catch (error) {
-      logger.error('IGDB get game failed:', error);
-      throw error;
+    if (results.length === 0) {
+      return null;
     }
+
+    return this.mapToSearchResult(results[0]);
   }
 
   /**
@@ -403,14 +448,9 @@ export class IGDBClient {
   async getPopularityTypes(): Promise<PopularityType[]> {
     logger.info('Fetching IGDB popularity types');
 
-    try {
-      const query = `fields id, name, popularity_source, updated_at; sort id asc;`;
-      const results = await this.request<PopularityType[]>('popularity_types', query);
-      return results;
-    } catch (error) {
-      logger.error('IGDB get popularity types failed:', error);
-      throw error;
-    }
+    const query = `fields id, name, popularity_source, updated_at; sort id asc;`;
+    const results = await this.request<PopularityType[]>('popularity_types', query);
+    return results;
   }
 
   /**
@@ -419,58 +459,53 @@ export class IGDBClient {
   async getPopularGames(popularityType: number, limit: number = 20): Promise<PopularGame[]> {
     logger.info(`Fetching popular games (type: ${popularityType}, limit: ${limit})`);
 
-    try {
-      // First, get popularity primitives for the specified type
-      const primitivesQuery = `
-        fields game_id, value, popularity_type;
-        sort value desc;
-        limit ${limit};
-        where popularity_type = ${popularityType};
-      `;
-      const primitives = await this.request<PopularityPrimitive[]>('popularity_primitives', primitivesQuery);
+    // First, get popularity primitives for the specified type
+    const primitivesQuery = `
+      fields game_id, value, popularity_type;
+      sort value desc;
+      limit ${limit};
+      where popularity_type = ${popularityType};
+    `;
+    const primitives = await this.request<PopularityPrimitive[]>('popularity_primitives', primitivesQuery);
 
-      if (primitives.length === 0) {
-        return [];
-      }
-
-      // Extract game IDs
-      const gameIds = primitives.map(p => p.game_id);
-
-      // Fetch game details for all IDs in a single query
-      const gamesQuery = `
-        fields name, cover.image_id, first_release_date, summary, platforms,
-               genres.name, total_rating, game_modes.name,
-               involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
-               similar_games.name, similar_games.cover.image_id,
-               multiplayer_modes.*, themes.name;
-        where id = (${gameIds.join(',')});
-        limit ${limit};
-      `;
-      const games = await this.request<IGDBGame[]>('games', gamesQuery);
-
-      // Create a map of game ID to game data
-      const gameMap = new Map(games.map(g => [g.id, g]));
-
-      // Combine popularity data with game details, maintaining rank order
-      const popularGames: PopularGame[] = primitives
-        .map((primitive, index) => {
-          const game = gameMap.get(primitive.game_id);
-          if (!game) return null;
-
-          return {
-            game: this.mapToSearchResult(game),
-            popularityValue: primitive.value,
-            popularityType: primitive.popularity_type,
-            rank: index + 1,
-          };
-        })
-        .filter((pg): pg is PopularGame => pg !== null);
-
-      return popularGames;
-    } catch (error) {
-      logger.error('IGDB get popular games failed:', error);
-      throw error;
+    if (primitives.length === 0) {
+      return [];
     }
+
+    // Extract game IDs
+    const gameIds = primitives.map(p => p.game_id);
+
+    // Fetch game details for all IDs in a single query
+    const gamesQuery = `
+      fields name, cover.image_id, first_release_date, summary, platforms,
+             genres.name, total_rating, game_modes.name,
+             involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
+             similar_games.name, similar_games.cover.image_id,
+             multiplayer_modes.*, themes.name;
+      where id = (${gameIds.join(',')});
+      limit ${limit};
+    `;
+    const games = await this.request<IGDBGame[]>('games', gamesQuery);
+
+    // Create a map of game ID to game data
+    const gameMap = new Map(games.map(g => [g.id, g]));
+
+    // Combine popularity data with game details, maintaining rank order
+    const popularGames: PopularGame[] = primitives
+      .map((primitive, index) => {
+        const game = gameMap.get(primitive.game_id);
+        if (!game) return null;
+
+        return {
+          game: this.mapToSearchResult(game),
+          popularityValue: primitive.value,
+          popularityType: primitive.popularity_type,
+          rank: index + 1,
+        };
+      })
+      .filter((pg): pg is PopularGame => pg !== null);
+
+    return popularGames;
   }
 }
 

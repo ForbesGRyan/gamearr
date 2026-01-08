@@ -3,15 +3,26 @@ import type {
   QBittorrentTorrent,
   AddTorrentOptions,
   TorrentInfo,
+  TorrentState,
 } from './types';
 import { logger } from '../../utils/logger';
 import { QBittorrentError, ErrorCode } from '../../utils/errors';
+import { fetchWithRetry, RateLimiter } from '../../utils/http';
+
+// Interface for qBittorrent category from the API
+interface QBittorrentCategory {
+  name: string;
+  savePath: string;
+}
 
 export class QBittorrentClient {
   private host: string;
   private username: string;
   private password: string;
   private cookie: string | null = null;
+
+  // Conservative rate limit for qBittorrent (10 requests per second)
+  private readonly rateLimiter = new RateLimiter({ maxRequests: 10, windowMs: 1000 });
 
   constructor(config?: QBittorrentAuthConfig) {
     this.host = config?.host || process.env.QBITTORRENT_HOST || 'http://localhost:8080';
@@ -52,7 +63,8 @@ export class QBittorrentClient {
       params.append('username', this.username);
       params.append('password', this.password);
 
-      const response = await fetch(`${this.host}/api/v2/auth/login`, {
+      // Auth requests use retry logic for reliability
+      const response = await fetchWithRetry(`${this.host}/api/v2/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -95,7 +107,7 @@ export class QBittorrentClient {
   }
 
   /**
-   * Make an authenticated request to qBittorrent API
+   * Make an authenticated request to qBittorrent API with rate limiting and retry logic
    */
   private async request<T>(
     endpoint: string,
@@ -106,7 +118,10 @@ export class QBittorrentClient {
     const url = `${this.host}/api/v2/${endpoint}`;
 
     try {
-      const response = await fetch(url, {
+      // Respect rate limit before making request
+      await this.rateLimiter.acquire();
+
+      const response = await fetchWithRetry(url, {
         ...options,
         headers: {
           Cookie: this.cookie || '',
@@ -115,6 +130,14 @@ export class QBittorrentClient {
       });
 
       if (!response.ok) {
+        // Invalidate cookie on auth errors
+        if (response.status === 401 || response.status === 403) {
+          this.cookie = null;
+          throw new QBittorrentError(
+            `Authentication expired: ${response.statusText}`,
+            ErrorCode.QBITTORRENT_AUTH_FAILED
+          );
+        }
         throw new QBittorrentError(
           `API error (${response.status}): ${response.statusText}`,
           ErrorCode.QBITTORRENT_ERROR
@@ -178,7 +201,7 @@ export class QBittorrentClient {
    */
   async getCategories(): Promise<string[]> {
     try {
-      const categories = await this.request<Record<string, any>>('torrents/categories');
+      const categories = await this.request<Record<string, QBittorrentCategory>>('torrents/categories');
       // Return category names as an array
       return Object.keys(categories);
     } catch (error) {
@@ -317,8 +340,9 @@ export class QBittorrentClient {
       downloadSpeed: torrent.dlspeed,
       uploadSpeed: torrent.upspeed,
       eta: torrent.eta,
-      state: torrent.state as any,
+      state: torrent.state as TorrentState,
       category: torrent.category,
+      tags: torrent.tags,
       savePath: torrent.save_path,
       addedOn: new Date(torrent.added_on * 1000),
       completionOn: torrent.completion_on > 0 ? new Date(torrent.completion_on * 1000) : undefined,

@@ -125,10 +125,10 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
-      <div className="rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-600" style={{ backgroundColor: 'rgb(17, 24, 39)' }}>
+    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-600">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-600" style={{ backgroundColor: 'rgb(31, 41, 55)' }}>
+        <div className="bg-gray-700 flex items-center justify-between p-6 border-b border-gray-600">
           <div>
             <h2 className="text-2xl font-bold text-white">Match Library Folder</h2>
             <p className="text-sm text-gray-300 mt-1">
@@ -151,17 +151,13 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search for a game..."
-              className="flex-1 px-4 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-white"
-              style={{ backgroundColor: 'rgb(55, 65, 81)' }}
+              className="bg-gray-600 flex-1 px-4 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-white"
               autoFocus
             />
             <button
               type="submit"
               disabled={isSearching || !searchQuery.trim()}
-              className="px-6 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
-              style={{ backgroundColor: 'rgb(37, 99, 235)' }}
-              onMouseEnter={(e) => !isSearching && searchQuery.trim() && (e.currentTarget.style.backgroundColor = 'rgb(29, 78, 216)')}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(37, 99, 235)'}
+              className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
             >
               {isSearching ? 'Searching...' : 'Search'}
             </button>
@@ -175,7 +171,7 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
           </div>
 
           {error && (
-            <div className="mt-3 p-3 border border-red-700 rounded text-red-200 text-sm" style={{ backgroundColor: 'rgb(127, 29, 29)' }}>
+            <div className="bg-red-900 mt-3 p-3 border border-red-700 rounded text-red-200 text-sm">
               {error}
             </div>
           )}
@@ -192,13 +188,10 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
               {searchResults.map((game) => (
                 <div
                   key={game.igdbId}
-                  className="flex gap-4 rounded-lg p-4 transition border border-gray-600"
-                  style={{ backgroundColor: 'rgb(55, 65, 81)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(75, 85, 99)'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(55, 65, 81)'}
+                  className="bg-gray-600 hover:bg-gray-500 flex gap-4 rounded-lg p-4 transition border border-gray-600"
                 >
                   {/* Cover */}
-                  <div className="w-20 h-28 rounded flex-shrink-0" style={{ backgroundColor: 'rgb(75, 85, 99)' }}>
+                  <div className="bg-gray-500 w-20 h-28 rounded flex-shrink-0">
                     {game.coverUrl ? (
                       <img
                         src={game.coverUrl}
@@ -237,10 +230,7 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
                     <button
                       onClick={() => handleMatchGame(game)}
                       disabled={isMatching}
-                      className="px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
-                      style={{ backgroundColor: 'rgb(22, 163, 74)' }}
-                      onMouseEnter={(e) => !isMatching && (e.currentTarget.style.backgroundColor = 'rgb(21, 128, 61)')}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(22, 163, 74)'}
+                      className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
                     >
                       {isMatching ? 'Matching...' : 'Match'}
                     </button>

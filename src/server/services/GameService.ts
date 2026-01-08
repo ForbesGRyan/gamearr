@@ -1,8 +1,9 @@
-import { gameRepository } from '../repositories/GameRepository';
+import { gameRepository, type PaginationParams, type PaginatedResult } from '../repositories/GameRepository';
 import { igdbClient } from '../integrations/igdb/IGDBClient';
 import type { Game, NewGame } from '../db/schema';
 import type { GameSearchResult } from '../integrations/igdb/types';
 import { logger } from '../utils/logger';
+import { NotConfiguredError, NotFoundError, ConflictError } from '../utils/errors';
 
 export class GameService {
   /**
@@ -21,7 +22,7 @@ export class GameService {
    */
   async searchIGDB(query: string): Promise<GameSearchResult[]> {
     if (!igdbClient.isConfigured()) {
-      throw new Error('IGDB is not configured. Please add your API credentials in settings.');
+      throw new NotConfiguredError('IGDB');
     }
 
     // Normalize query for better fuzzy matching
@@ -32,10 +33,17 @@ export class GameService {
   }
 
   /**
-   * Get all games from library
+   * Get all games from library (non-paginated)
    */
   async getAllGames(): Promise<Game[]> {
     return gameRepository.findAll();
+  }
+
+  /**
+   * Get games with pagination
+   */
+  async getGamesPaginated(params: PaginationParams = {}): Promise<PaginatedResult<Game>> {
+    return gameRepository.findAllPaginated(params);
   }
 
   /**
@@ -61,13 +69,13 @@ export class GameService {
     // Check if game already exists
     const existing = await gameRepository.findByIgdbId(igdbId);
     if (existing) {
-      throw new Error('Game already exists in library');
+      throw new ConflictError('Game already exists in library');
     }
 
     // Fetch game details from IGDB
     const igdbGame = await igdbClient.getGame(igdbId);
     if (!igdbGame) {
-      throw new Error('Game not found on IGDB');
+      throw new NotFoundError('IGDB game', igdbId);
     }
 
     logger.info(`Adding game to library: ${igdbGame.title}`);
@@ -117,7 +125,7 @@ export class GameService {
   async updateGame(id: number, updates: Partial<NewGame>): Promise<Game> {
     const game = await gameRepository.update(id, updates);
     if (!game) {
-      throw new Error('Game not found');
+      throw new NotFoundError('Game', id);
     }
     return game;
   }
@@ -128,7 +136,7 @@ export class GameService {
   async toggleMonitored(id: number): Promise<Game> {
     const game = await gameRepository.findById(id);
     if (!game) {
-      throw new Error('Game not found');
+      throw new NotFoundError('Game', id);
     }
 
     return this.updateGame(id, { monitored: !game.monitored });
@@ -140,7 +148,7 @@ export class GameService {
   async deleteGame(id: number): Promise<void> {
     const deleted = await gameRepository.delete(id);
     if (!deleted) {
-      throw new Error('Game not found');
+      throw new NotFoundError('Game', id);
     }
 
     logger.info(`Game deleted: ${id}`);
@@ -163,13 +171,13 @@ export class GameService {
   async rematchGame(id: number, newIgdbId: number): Promise<Game> {
     const game = await gameRepository.findById(id);
     if (!game) {
-      throw new Error('Game not found');
+      throw new NotFoundError('Game', id);
     }
 
     // Fetch new game details from IGDB
     const igdbGame = await igdbClient.getGame(newIgdbId);
     if (!igdbGame) {
-      throw new Error('Game not found on IGDB');
+      throw new NotFoundError('IGDB game', newIgdbId);
     }
 
     logger.info(`Rematching game "${game.title}" to "${igdbGame.title}" (IGDB ID: ${newIgdbId})`);
@@ -191,7 +199,7 @@ export class GameService {
 
     const updatedGame = await gameRepository.update(id, updates);
     if (!updatedGame) {
-      throw new Error('Failed to update game');
+      throw new NotFoundError('Game', id);
     }
 
     logger.info(`Game rematched successfully: ${updatedGame.title}`);

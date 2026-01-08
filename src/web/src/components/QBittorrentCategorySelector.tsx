@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../api/client';
+import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
 
 function QBittorrentCategorySelector() {
   const [categories, setCategories] = useState<string[]>([]);
@@ -8,9 +9,17 @@ function QBittorrentCategorySelector() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const saveMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadCategories();
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (saveMessageTimeoutRef.current) {
+        clearTimeout(saveMessageTimeoutRef.current);
+      }
+    };
   }, []);
 
   const loadCategories = async () => {
@@ -52,7 +61,11 @@ function QBittorrentCategorySelector() {
       const response = await api.updateQBittorrentCategory(selectedCategory);
       if (response.success) {
         setSaveMessage('Category filter saved successfully!');
-        setTimeout(() => setSaveMessage(null), 3000);
+        // Clear any existing timeout before setting a new one
+        if (saveMessageTimeoutRef.current) {
+          clearTimeout(saveMessageTimeoutRef.current);
+        }
+        saveMessageTimeoutRef.current = setTimeout(() => setSaveMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
       } else {
         setError(response.error || 'Failed to save category');
       }
@@ -71,7 +84,7 @@ function QBittorrentCategorySelector() {
 
   if (isLoading) {
     return (
-      <div className="rounded-lg p-6" style={{ backgroundColor: 'rgb(31, 41, 55)' }}>
+      <div className="bg-gray-700 rounded-lg p-6">
         <h3 className="text-xl font-semibold mb-4 text-white">Activity Page Filter</h3>
         <p className="text-gray-300">Loading categories...</p>
       </div>
@@ -79,26 +92,26 @@ function QBittorrentCategorySelector() {
   }
 
   return (
-    <div className="rounded-lg p-6" style={{ backgroundColor: 'rgb(31, 41, 55)' }}>
+    <div className="bg-gray-700 rounded-lg p-6">
       <h3 className="text-xl font-semibold mb-2 text-white">Activity Page Filter</h3>
       <p className="text-gray-300 mb-4 text-sm">
         Select which qBittorrent category to show in the Activity page. Only torrents in this category will be displayed.
       </p>
 
       {error && (
-        <div className="mb-4 p-3 border border-red-700 rounded text-red-200 text-sm" style={{ backgroundColor: 'rgb(127, 29, 29)' }}>
+        <div className="bg-red-900 mb-4 p-3 border border-red-700 rounded text-red-200 text-sm">
           {error}
         </div>
       )}
 
       {saveMessage && (
-        <div className="mb-4 p-3 border border-green-700 rounded text-green-200 text-sm" style={{ backgroundColor: 'rgb(21, 128, 61)' }}>
+        <div className="bg-green-700 mb-4 p-3 border border-green-700 rounded text-green-200 text-sm">
           {saveMessage}
         </div>
       )}
 
       {categories.length === 0 ? (
-        <div className="p-4 rounded text-center" style={{ backgroundColor: 'rgb(55, 65, 81)' }}>
+        <div className="bg-gray-600 p-4 rounded text-center">
           <p className="text-gray-300">
             No categories found in qBittorrent. Categories will be created automatically when you download releases.
           </p>
@@ -109,8 +122,7 @@ function QBittorrentCategorySelector() {
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="w-full px-4 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-white mb-4"
-            style={{ backgroundColor: 'rgb(55, 65, 81)' }}
+            className="bg-gray-600 w-full px-4 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-white mb-4"
           >
             <option value="">Select a category...</option>
             {categories.map((category) => (
@@ -124,20 +136,14 @@ function QBittorrentCategorySelector() {
             <button
               onClick={handleSave}
               disabled={isSaving || !selectedCategory}
-              className="px-6 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
-              style={{ backgroundColor: 'rgb(37, 99, 235)' }}
-              onMouseEnter={(e) => !isSaving && selectedCategory && (e.currentTarget.style.backgroundColor = 'rgb(29, 78, 216)')}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(37, 99, 235)'}
+              className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
             >
               {isSaving ? 'Saving...' : 'Save Category'}
             </button>
             <button
               onClick={handleReset}
               disabled={isSaving}
-              className="px-6 py-2 rounded transition disabled:opacity-50 text-white"
-              style={{ backgroundColor: 'rgb(75, 85, 99)' }}
-              onMouseEnter={(e) => !isSaving && (e.currentTarget.style.backgroundColor = 'rgb(107, 114, 128)')}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(75, 85, 99)'}
+              className="bg-gray-500 hover:bg-gray-400 px-6 py-2 rounded transition disabled:opacity-50 text-white"
             >
               Reset
             </button>
