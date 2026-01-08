@@ -4,20 +4,32 @@ import { api } from '../../api/client';
 interface GeneralTabProps {
   libraryPath: string;
   setLibraryPath: (path: string) => void;
-  dryRun: boolean;
-  setDryRun: (value: boolean) => void;
+  rssSyncInterval: number;
+  setRssSyncInterval: (value: number) => void;
+  searchSchedulerInterval: number;
+  setSearchSchedulerInterval: (value: number) => void;
+  autoGrabMinScore: number;
+  setAutoGrabMinScore: (value: number) => void;
+  autoGrabMinSeeders: number;
+  setAutoGrabMinSeeders: (value: number) => void;
   showSaveMessage: (type: 'success' | 'error', text: string) => void;
 }
 
 export default function GeneralTab({
   libraryPath,
   setLibraryPath,
-  dryRun,
-  setDryRun,
+  rssSyncInterval,
+  setRssSyncInterval,
+  searchSchedulerInterval,
+  setSearchSchedulerInterval,
+  autoGrabMinScore,
+  setAutoGrabMinScore,
+  autoGrabMinSeeders,
+  setAutoGrabMinSeeders,
   showSaveMessage,
 }: GeneralTabProps) {
   const [isSavingPath, setIsSavingPath] = useState(false);
-  const [isSavingDryRun, setIsSavingDryRun] = useState(false);
+  const [isSavingAutomation, setIsSavingAutomation] = useState(false);
 
   const handleSaveLibraryPath = useCallback(async () => {
     if (!libraryPath.trim()) {
@@ -40,55 +52,31 @@ export default function GeneralTab({
     }
   }, [libraryPath, showSaveMessage]);
 
-  const handleToggleDryRun = useCallback(async () => {
-    setIsSavingDryRun(true);
+  const handleSaveAutomation = useCallback(async () => {
+    setIsSavingAutomation(true);
     try {
-      const newValue = !dryRun;
-      const response = await api.updateSetting('dry_run', newValue);
-      if (response.success) {
-        setDryRun(newValue);
-        showSaveMessage('success', `Dry-run mode ${newValue ? 'enabled' : 'disabled'}`);
+      const results = await Promise.all([
+        api.updateSetting('rss_sync_interval', rssSyncInterval),
+        api.updateSetting('search_scheduler_interval', searchSchedulerInterval),
+        api.updateSetting('auto_grab_min_score', autoGrabMinScore),
+        api.updateSetting('auto_grab_min_seeders', autoGrabMinSeeders),
+      ]);
+
+      const allSuccessful = results.every((r) => r.success);
+      if (allSuccessful) {
+        showSaveMessage('success', 'Automation settings saved! Changes will take effect on next job run.');
       } else {
-        showSaveMessage('error', 'Failed to update dry-run mode');
+        showSaveMessage('error', 'Some settings failed to save');
       }
     } catch {
-      showSaveMessage('error', 'Failed to update dry-run mode');
+      showSaveMessage('error', 'Failed to save automation settings');
     } finally {
-      setIsSavingDryRun(false);
+      setIsSavingAutomation(false);
     }
-  }, [dryRun, setDryRun, showSaveMessage]);
+  }, [rssSyncInterval, searchSchedulerInterval, autoGrabMinScore, autoGrabMinSeeders, showSaveMessage]);
 
   return (
     <>
-      {/* Dry-Run Mode */}
-      <div className="bg-yellow-900 bg-opacity-30 border border-yellow-700 rounded-lg p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-xl font-semibold mb-2 text-yellow-200 flex items-center gap-2">
-              <svg className="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-              </svg>
-              Dry-Run Mode
-            </h3>
-            <p className="text-yellow-300 text-sm">
-              When enabled, Gamearr will log what it would download but won't actually send torrents to qBittorrent.
-              Useful for testing your configuration.
-            </p>
-          </div>
-          <button
-            onClick={handleToggleDryRun}
-            disabled={isSavingDryRun}
-            className={`px-6 py-3 rounded-lg font-semibold transition ${
-              dryRun
-                ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
-                : 'bg-gray-600 hover:bg-gray-700 text-gray-200'
-            } disabled:opacity-50`}
-          >
-            {isSavingDryRun ? 'Saving...' : dryRun ? 'Enabled' : 'Disabled'}
-          </button>
-        </div>
-      </div>
-
       {/* Library Path */}
       <div className="bg-gray-800 rounded-lg p-6">
         <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -124,6 +112,105 @@ export default function GeneralTab({
             {isSavingPath ? 'Saving...' : 'Save'}
           </button>
         </div>
+      </div>
+
+      {/* Automation Settings */}
+      <div className="bg-gray-800 rounded-lg p-6">
+        <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+          <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Automation Settings
+        </h3>
+        <p className="text-gray-400 mb-4">
+          Configure how often Gamearr searches for releases and the criteria for automatic downloads.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* RSS Sync Interval */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              RSS Sync Interval (minutes)
+            </label>
+            <input
+              type="number"
+              min={5}
+              max={1440}
+              value={rssSyncInterval}
+              onChange={(e) => setRssSyncInterval(Math.max(5, Math.min(1440, parseInt(e.target.value) || 15)))}
+              className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              How often to fetch new releases from RSS feeds (5-1440 min)
+            </p>
+          </div>
+
+          {/* Search Scheduler Interval */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              Search Interval (minutes)
+            </label>
+            <input
+              type="number"
+              min={5}
+              max={1440}
+              value={searchSchedulerInterval}
+              onChange={(e) => setSearchSchedulerInterval(Math.max(5, Math.min(1440, parseInt(e.target.value) || 15)))}
+              className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              How often to actively search for wanted games (5-1440 min)
+            </p>
+          </div>
+
+          {/* Auto-Grab Min Score */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              Minimum Quality Score
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={500}
+              value={autoGrabMinScore}
+              onChange={(e) => setAutoGrabMinScore(Math.max(0, Math.min(500, parseInt(e.target.value) || 100)))}
+              className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Releases must score at least this to auto-download (0-500)
+            </p>
+          </div>
+
+          {/* Auto-Grab Min Seeders */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              Minimum Seeders
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={autoGrabMinSeeders}
+              onChange={(e) => setAutoGrabMinSeeders(Math.max(0, Math.min(100, parseInt(e.target.value) || 5)))}
+              className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Releases must have at least this many seeders (0-100)
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 p-3 bg-gray-700 rounded text-sm text-gray-300">
+          <strong>Current auto-grab criteria:</strong> Score ≥ {autoGrabMinScore} AND Seeders ≥ {autoGrabMinSeeders}
+        </div>
+
+        <button
+          onClick={handleSaveAutomation}
+          disabled={isSavingAutomation}
+          className="mt-4 bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isSavingAutomation ? 'Saving...' : 'Save Automation Settings'}
+        </button>
       </div>
     </>
   );

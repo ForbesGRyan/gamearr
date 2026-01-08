@@ -12,23 +12,40 @@ import { fetchWithRetry, RateLimiter } from '../../utils/http';
 export class ProwlarrClient {
   private baseUrl: string;
   private apiKey: string;
+  private configured: boolean = false;
 
   // Conservative rate limit for Prowlarr (10 requests per second)
   private readonly rateLimiter = new RateLimiter({ maxRequests: 10, windowMs: 1000 });
 
   constructor(baseUrl?: string, apiKey?: string) {
-    this.baseUrl = baseUrl || process.env.PROWLARR_URL || 'http://localhost:9696';
+    this.baseUrl = baseUrl || process.env.PROWLARR_URL || '';
     this.apiKey = apiKey || process.env.PROWLARR_API_KEY || '';
 
     // Remove trailing slash from base URL
-    this.baseUrl = this.baseUrl.replace(/\/$/, '');
+    if (this.baseUrl) {
+      this.baseUrl = this.baseUrl.replace(/\/$/, '');
+      this.configured = !!(this.baseUrl && this.apiKey);
+    }
+  }
+
+  /**
+   * Configure the client with new credentials
+   */
+  configure(config: { url: string; apiKey: string }): void {
+    this.baseUrl = config.url?.replace(/\/$/, '') || '';
+    this.apiKey = config.apiKey || '';
+    this.configured = !!(this.baseUrl && this.apiKey);
+
+    if (this.configured) {
+      logger.info(`Prowlarr client configured: ${this.baseUrl}`);
+    }
   }
 
   /**
    * Check if credentials are configured
    */
   isConfigured(): boolean {
-    return !!this.baseUrl && !!this.apiKey;
+    return this.configured;
   }
 
   /**

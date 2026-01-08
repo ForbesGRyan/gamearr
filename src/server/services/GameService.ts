@@ -1,5 +1,8 @@
 import { gameRepository, type PaginationParams, type PaginatedResult } from '../repositories/GameRepository';
 import { igdbClient } from '../integrations/igdb/IGDBClient';
+import { indexerService } from './IndexerService';
+import { downloadService } from './DownloadService';
+import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
 import type { Game, NewGame } from '../db/schema';
 import type { GameSearchResult } from '../integrations/igdb/types';
 import { logger } from '../utils/logger';
@@ -116,7 +119,64 @@ export class GameService {
 
     logger.info(`Game added successfully: ${game.title} (ID: ${game.id}, Status: ${gameStatus})`);
 
+    // If the game is wanted and monitored, trigger an immediate search (fire and forget)
+    if (game.status === 'wanted' && game.monitored) {
+      this.triggerAutoSearch(game).catch((err) => {
+        logger.error(`Auto-search failed for ${game.title}:`, err);
+      });
+    }
+
     return game;
+  }
+
+  /**
+   * Trigger an immediate search for a game and auto-grab if criteria are met
+   * This is called asynchronously after adding a new game
+   */
+  private async triggerAutoSearch(game: Game): Promise<void> {
+    // Check if Prowlarr is configured
+    if (!prowlarrClient.isConfigured()) {
+      logger.debug(`Skipping auto-search for ${game.title}: Prowlarr not configured`);
+      return;
+    }
+
+    logger.info(`Triggering immediate search for newly added game: ${game.title}`);
+
+    try {
+      // Search for releases
+      const releases = await indexerService.searchForGame(game);
+
+      if (releases.length === 0) {
+        logger.info(`No releases found for ${game.title}`);
+        return;
+      }
+
+      // Find the best release that meets auto-grab criteria
+      let bestRelease = null;
+      for (const release of releases) {
+        if (await indexerService.shouldAutoGrab(release)) {
+          bestRelease = release;
+          break;
+        }
+      }
+
+      if (!bestRelease) {
+        logger.info(
+          `No releases meet auto-grab criteria for ${game.title} (best score: ${releases[0]?.score || 0})`
+        );
+        return;
+      }
+
+      logger.info(
+        `Auto-grabbing release for ${game.title}: ${bestRelease.title} (score: ${bestRelease.score})`
+      );
+
+      // Grab the release
+      await downloadService.grabRelease(game.id, bestRelease);
+      logger.info(`Successfully auto-grabbed ${bestRelease.title} for ${game.title}`);
+    } catch (error) {
+      logger.error(`Error during auto-search for ${game.title}:`, error);
+    }
   }
 
   /**

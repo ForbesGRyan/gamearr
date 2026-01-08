@@ -44,8 +44,14 @@ function Settings() {
   // Library path
   const [libraryPath, setLibraryPath] = useState('');
 
-  // Dry-run mode
-  const [dryRun, setDryRun] = useState(false);
+  // Dry-run mode (default ON for safety)
+  const [dryRun, setDryRun] = useState(true);
+
+  // Automation settings
+  const [rssSyncInterval, setRssSyncInterval] = useState(15);
+  const [searchSchedulerInterval, setSearchSchedulerInterval] = useState(15);
+  const [autoGrabMinScore, setAutoGrabMinScore] = useState(100);
+  const [autoGrabMinSeeders, setAutoGrabMinSeeders] = useState(5);
 
   // Update check settings
   const [updateCheckEnabled, setUpdateCheckEnabled] = useState(true);
@@ -94,6 +100,10 @@ function Settings() {
         defaultPolicyRes,
         steamApiKeyRes,
         steamIdRes,
+        rssSyncIntervalRes,
+        searchIntervalRes,
+        minScoreRes,
+        minSeedersRes,
       ] = await Promise.all([
         api.getSetting('prowlarr_url'),
         api.getSetting('prowlarr_api_key'),
@@ -109,6 +119,10 @@ function Settings() {
         api.getSetting('default_update_policy'),
         api.getSetting('steam_api_key'),
         api.getSetting('steam_id'),
+        api.getSetting('rss_sync_interval'),
+        api.getSetting('search_scheduler_interval'),
+        api.getSetting('auto_grab_min_score'),
+        api.getSetting('auto_grab_min_seeders'),
       ]);
 
       if (prowlarrUrlRes.success && prowlarrUrlRes.data) setProwlarrUrl(prowlarrUrlRes.data as string);
@@ -125,6 +139,10 @@ function Settings() {
       if (defaultPolicyRes.success && defaultPolicyRes.data) setDefaultUpdatePolicy(defaultPolicyRes.data as 'notify' | 'auto' | 'ignore');
       if (steamApiKeyRes.success && steamApiKeyRes.data) setSteamApiKey(steamApiKeyRes.data as string);
       if (steamIdRes.success && steamIdRes.data) setSteamId(steamIdRes.data as string);
+      if (rssSyncIntervalRes.success && rssSyncIntervalRes.data !== undefined) setRssSyncInterval(rssSyncIntervalRes.data as number);
+      if (searchIntervalRes.success && searchIntervalRes.data !== undefined) setSearchSchedulerInterval(searchIntervalRes.data as number);
+      if (minScoreRes.success && minScoreRes.data !== undefined) setAutoGrabMinScore(minScoreRes.data as number);
+      if (minSeedersRes.success && minSeedersRes.data !== undefined) setAutoGrabMinSeeders(minSeedersRes.data as number);
     } catch (err) {
       setLoadError('Failed to load settings. Please refresh the page.');
       console.error('Failed to load settings:', err);
@@ -263,8 +281,14 @@ function Settings() {
             <GeneralTab
               libraryPath={libraryPath}
               setLibraryPath={setLibraryPath}
-              dryRun={dryRun}
-              setDryRun={setDryRun}
+              rssSyncInterval={rssSyncInterval}
+              setRssSyncInterval={setRssSyncInterval}
+              searchSchedulerInterval={searchSchedulerInterval}
+              setSearchSchedulerInterval={setSearchSchedulerInterval}
+              autoGrabMinScore={autoGrabMinScore}
+              setAutoGrabMinScore={setAutoGrabMinScore}
+              autoGrabMinSeeders={autoGrabMinSeeders}
+              setAutoGrabMinSeeders={setAutoGrabMinSeeders}
               showSaveMessage={showSaveMessage}
             />
           )}
@@ -287,6 +311,8 @@ function Settings() {
               setQbUsername={setQbUsername}
               qbPassword={qbPassword}
               setQbPassword={setQbPassword}
+              dryRun={dryRun}
+              setDryRun={setDryRun}
               showSaveMessage={showSaveMessage}
             />
           )}

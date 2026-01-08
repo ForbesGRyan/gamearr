@@ -248,54 +248,129 @@ export class DownloadService {
   }
 
   /**
+   * Extract hash from a magnet link if present.
+   * Magnet links contain the hash in the format: magnet:?xt=urn:btih:HASH
+   */
+  private extractHashFromMagnet(url: string): string | null {
+    if (!url.startsWith('magnet:')) return null;
+
+    // URL decode first in case it's encoded
+    const decodedUrl = decodeURIComponent(url);
+
+    // Standard hex hash (40 characters)
+    const hexMatch = decodedUrl.match(/btih:([a-fA-F0-9]{40})/i);
+    if (hexMatch) {
+      logger.debug(`Extracted hex hash from magnet: ${hexMatch[1]}`);
+      return hexMatch[1].toLowerCase();
+    }
+
+    // Base32 encoded hash (32 chars) - common in some magnet links
+    const base32Match = decodedUrl.match(/btih:([A-Z2-7]{32})/i);
+    if (base32Match) {
+      logger.debug(`Extracted base32 hash from magnet: ${base32Match[1]}`);
+      // Return as-is; qBittorrent handles both formats
+      return base32Match[1].toLowerCase();
+    }
+
+    // Try to find hash anywhere after btih: or xt=urn:btih:
+    const looseMatch = decodedUrl.match(/(?:btih:|xt=urn:btih:)([a-fA-F0-9]{40}|[A-Z2-7]{32})/i);
+    if (looseMatch) {
+      logger.debug(`Extracted hash (loose match) from magnet: ${looseMatch[1]}`);
+      return looseMatch[1].toLowerCase();
+    }
+
+    logger.debug(`Could not extract hash from magnet URL`);
+    return null;
+  }
+
+  /**
    * Try to find and store the torrent hash after adding a torrent.
-   * This searches recent torrents to find the one we just added.
+   * Uses multiple strategies with retries.
    */
   private async tryFindAndStoreHash(
     releaseId: number,
     releaseName: string,
     releaseSize: number,
-    gameId: number
+    gameId: number,
+    downloadUrl: string
   ): Promise<string | null> {
     try {
-      // Wait a moment for qBittorrent to process the torrent
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Strategy 1: Extract hash directly from magnet link (instant, most reliable)
+      const isMagnet = downloadUrl.startsWith('magnet:');
+      logger.debug(`Hash lookup for release ${releaseId}: URL type=${isMagnet ? 'magnet' : 'http'}`);
 
-      const torrents = await qbittorrentClient.getTorrents();
+      const magnetHash = this.extractHashFromMagnet(downloadUrl);
+      if (magnetHash) {
+        await releaseRepository.update(releaseId, { torrentHash: magnetHash });
+        logger.info(`Stored torrent hash ${magnetHash} for release ${releaseId} (from magnet)`);
+        return magnetHash;
+      }
 
-      // Look for torrents with our game tag that were added recently
-      const recentTorrents = torrents
-        .filter(t => {
+      if (isMagnet) {
+        logger.warn(`Magnet link found but hash extraction failed for release ${releaseId}`);
+        logger.debug(`Magnet URL: ${downloadUrl.substring(0, 100)}...`);
+      }
+
+      // Strategy 2: Poll qBittorrent with retries for .torrent file URLs
+      const maxRetries = 5;
+      const delays = [2000, 3000, 5000, 8000, 10000]; // Progressive delays
+      const category = await settingsService.getQBittorrentCategory();
+      const addedAfter = new Date(Date.now() - 60000); // Look for torrents added in last minute
+
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+
+        const torrents = await qbittorrentClient.getTorrents();
+
+        // Filter to our category and recently added
+        const categoryTorrents = torrents.filter(t => t.category === category);
+        const recentInCategory = categoryTorrents
+          .filter(t => t.addedOn > addedAfter)
+          .sort((a, b) => b.addedOn.getTime() - a.addedOn.getTime());
+
+        if (attempt === 0) {
+          logger.debug(`qBittorrent: ${torrents.length} total, ${categoryTorrents.length} in "${category}", ${recentInCategory.length} recent`);
+          recentInCategory.slice(0, 3).forEach(t => {
+            logger.debug(`  Recent: "${t.name.substring(0, 50)}" added=${t.addedOn.toISOString()}`);
+          });
+        }
+
+        // Strategy 2a: Tag-based matching (if tags are available)
+        const tagMatch = torrents.find(t => {
           const tagGameId = this.parseGameIdFromTags(t.tags);
           return tagGameId === gameId;
-        })
-        .sort((a, b) => b.addedOn.getTime() - a.addedOn.getTime());
-
-      if (recentTorrents.length > 0) {
-        // Most recently added torrent with matching game ID
-        const match = recentTorrents[0];
-
-        // Store the hash
-        await releaseRepository.update(releaseId, { torrentHash: match.hash });
-        logger.info(`Stored torrent hash ${match.hash} for release ${releaseId}`);
-
-        return match.hash;
-      }
-
-      // Fallback: try name matching
-      const releaseTokens = this.extractKeyTokens(releaseName);
-      for (const torrent of torrents) {
-        const torrentTokens = this.extractKeyTokens(torrent.name);
-        const overlap = this.calculateTokenOverlap(releaseTokens, torrentTokens);
-
-        if (overlap >= 0.7 && this.sizesMatch(releaseSize, torrent.size)) {
-          await releaseRepository.update(releaseId, { torrentHash: torrent.hash });
-          logger.info(`Stored torrent hash ${torrent.hash} for release ${releaseId} (via name match)`);
-          return torrent.hash;
+        });
+        if (tagMatch) {
+          await releaseRepository.update(releaseId, { torrentHash: tagMatch.hash });
+          logger.info(`Stored hash ${tagMatch.hash} for release ${releaseId} (via tag match)`);
+          return tagMatch.hash;
         }
+
+        // Strategy 2b: Name matching within our category (most reliable for .torrent files)
+        const releaseTokens = this.extractKeyTokens(releaseName);
+        for (const torrent of recentInCategory) {
+          const torrentTokens = this.extractKeyTokens(torrent.name);
+          const overlap = this.calculateTokenOverlap(releaseTokens, torrentTokens);
+
+          if (overlap >= 0.5) { // Lower threshold since we're already filtered by category+time
+            await releaseRepository.update(releaseId, { torrentHash: torrent.hash });
+            logger.info(`Stored hash ${torrent.hash} for release ${releaseId} (name match ${(overlap*100).toFixed(0)}%, attempt ${attempt + 1})`);
+            return torrent.hash;
+          }
+        }
+
+        // Strategy 2c: If only one recent torrent in category, assume it's ours
+        if (recentInCategory.length === 1) {
+          const match = recentInCategory[0];
+          await releaseRepository.update(releaseId, { torrentHash: match.hash });
+          logger.info(`Stored hash ${match.hash} for release ${releaseId} (only recent in category, attempt ${attempt + 1})`);
+          return match.hash;
+        }
+
+        logger.debug(`Hash lookup attempt ${attempt + 1}/${maxRetries} failed for release ${releaseId}, retrying...`);
       }
 
-      logger.warn(`Could not find torrent hash for release ${releaseId}`);
+      logger.warn(`Could not find torrent hash for release ${releaseId} after ${maxRetries} attempts`);
       return null;
     } catch (error) {
       logger.error(`Failed to find/store hash for release ${releaseId}:`, error);
@@ -325,6 +400,10 @@ export class DownloadService {
       throw new NotFoundError('Game', gameId);
     }
 
+    // Get configured category
+    const category = await settingsService.getQBittorrentCategory();
+    const tags = `gamearr,game-${gameId}`;
+
     if (isDryRun) {
       // Log detailed information about what would be downloaded
       logger.info('═══════════════════════════════════════════════════════');
@@ -339,8 +418,8 @@ export class DownloadService {
       logger.info(`Match Confidence: ${release.matchConfidence}`);
       logger.info(`Quality Score: ${release.score}`);
       logger.info(`Download URL: ${release.downloadUrl}`);
-      logger.info(`Category: gamearr`);
-      logger.info(`Tags: gamearr,game-${gameId}`);
+      logger.info(`Category: ${category}`);
+      logger.info(`Tags: ${tags}`);
       logger.info('═══════════════════════════════════════════════════════');
 
       return {
@@ -363,10 +442,7 @@ export class DownloadService {
 
     const createdRelease = await releaseRepository.create(newRelease);
 
-    // Add to qBittorrent
-    const category = 'gamearr';
-    const tags = `gamearr,game-${gameId}`;
-
+    // Add to qBittorrent (category and tags already loaded above)
     try {
       await qbittorrentClient.addTorrent(release.downloadUrl, {
         category,
@@ -388,7 +464,8 @@ export class DownloadService {
         createdRelease.id,
         release.title,
         release.size,
-        gameId
+        gameId,
+        release.downloadUrl
       ).catch(err => logger.error('Background hash storage failed:', err));
 
       return {

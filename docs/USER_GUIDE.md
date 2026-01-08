@@ -354,31 +354,55 @@ Set per-game update behavior:
 **Behavior:**
 - Dry-Run Mode - Test without downloading
 
+**Automation:**
+- RSS Sync Interval (5-1440 minutes)
+- Search Scheduler Interval (5-1440 minutes)
+- Minimum Quality Score for auto-grab (0-500)
+- Minimum Seeders for auto-grab (0-100)
+
 ---
 
 ## Automation
 
-Gamearr runs background jobs automatically.
+Gamearr runs background jobs automatically. All intervals and thresholds are configurable in **Settings > General > Automation Settings**.
 
-### RSS Sync (Every 15 minutes)
+### RSS Sync
 
 - Fetches latest releases from indexers
 - Matches against wanted games
 - Auto-grabs qualifying releases
+- **Default interval:** 15 minutes (configurable: 5-1440 min)
 
-### Search Scheduler (Every 15 minutes)
+### Search Scheduler
 
 - Searches for all wanted games
 - Finds new releases
 - Auto-grabs based on quality score
+- **Default interval:** 15 minutes (configurable: 5-1440 min)
 
 ### Auto-Grab Criteria
 
 A release is automatically grabbed when:
-- Quality score >= 100
-- Seeders >= 5
+- Quality score >= configured minimum (default: 100, configurable: 0-500)
+- Seeders >= configured minimum (default: 5, configurable: 0-100)
 - Game is monitored
 - Game status is "Wanted"
+
+### Configuring Automation
+
+Go to **Settings > General** to adjust:
+
+| Setting | Default | Range | Description |
+|---------|---------|-------|-------------|
+| RSS Sync Interval | 15 min | 5-1440 min | How often to fetch RSS releases |
+| Search Interval | 15 min | 5-1440 min | How often to search for wanted games |
+| Minimum Quality Score | 100 | 0-500 | Threshold for auto-downloads |
+| Minimum Seeders | 5 | 0-100 | Required seeders for auto-downloads |
+
+**Tips:**
+- Lower the minimum score to auto-grab more releases (riskier)
+- Raise the minimum seeders for more reliable downloads
+- Increase intervals if you have limited API calls
 
 ### Download Monitor (Every 30 seconds)
 

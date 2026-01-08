@@ -21,6 +21,11 @@ const SETTINGS_KEYS = {
   // Authentication settings
   AUTH_ENABLED: 'auth_enabled',
   API_KEY_HASH: 'api_key_hash',
+  // Automation settings
+  RSS_SYNC_INTERVAL: 'rss_sync_interval',
+  SEARCH_SCHEDULER_INTERVAL: 'search_scheduler_interval',
+  AUTO_GRAB_MIN_SCORE: 'auto_grab_min_score',
+  AUTO_GRAB_MIN_SEEDERS: 'auto_grab_min_seeders',
 };
 
 // Map settings keys to their environment variable fallbacks
@@ -78,8 +83,8 @@ export class SettingsService {
    */
   async getDryRun(): Promise<boolean> {
     const dryRun = await settingsRepository.getJSON<boolean>(SETTINGS_KEYS.DRY_RUN);
-    // Default to false if not set
-    return dryRun ?? false;
+    // Default to true for safety - users should explicitly disable when ready
+    return dryRun ?? true;
   }
 
   /**
@@ -88,6 +93,74 @@ export class SettingsService {
   async setDryRun(enabled: boolean): Promise<void> {
     logger.info(`Setting dry-run mode: ${enabled ? 'ENABLED' : 'DISABLED'}`);
     await settingsRepository.setJSON(SETTINGS_KEYS.DRY_RUN, enabled);
+  }
+
+  /**
+   * Get RSS sync interval in minutes
+   */
+  async getRssSyncInterval(): Promise<number> {
+    const interval = await settingsRepository.getJSON<number>(SETTINGS_KEYS.RSS_SYNC_INTERVAL);
+    return interval ?? 15; // Default: 15 minutes
+  }
+
+  /**
+   * Set RSS sync interval in minutes
+   */
+  async setRssSyncInterval(minutes: number): Promise<void> {
+    const validMinutes = Math.max(5, Math.min(1440, minutes)); // 5 mins to 24 hours
+    logger.info(`Setting RSS sync interval: ${validMinutes} minutes`);
+    await settingsRepository.setJSON(SETTINGS_KEYS.RSS_SYNC_INTERVAL, validMinutes);
+  }
+
+  /**
+   * Get search scheduler interval in minutes
+   */
+  async getSearchSchedulerInterval(): Promise<number> {
+    const interval = await settingsRepository.getJSON<number>(SETTINGS_KEYS.SEARCH_SCHEDULER_INTERVAL);
+    return interval ?? 15; // Default: 15 minutes
+  }
+
+  /**
+   * Set search scheduler interval in minutes
+   */
+  async setSearchSchedulerInterval(minutes: number): Promise<void> {
+    const validMinutes = Math.max(5, Math.min(1440, minutes)); // 5 mins to 24 hours
+    logger.info(`Setting search scheduler interval: ${validMinutes} minutes`);
+    await settingsRepository.setJSON(SETTINGS_KEYS.SEARCH_SCHEDULER_INTERVAL, validMinutes);
+  }
+
+  /**
+   * Get minimum quality score for auto-grab
+   */
+  async getAutoGrabMinScore(): Promise<number> {
+    const score = await settingsRepository.getJSON<number>(SETTINGS_KEYS.AUTO_GRAB_MIN_SCORE);
+    return score ?? 100; // Default: 100
+  }
+
+  /**
+   * Set minimum quality score for auto-grab
+   */
+  async setAutoGrabMinScore(score: number): Promise<void> {
+    const validScore = Math.max(0, Math.min(500, score)); // 0 to 500
+    logger.info(`Setting auto-grab minimum score: ${validScore}`);
+    await settingsRepository.setJSON(SETTINGS_KEYS.AUTO_GRAB_MIN_SCORE, validScore);
+  }
+
+  /**
+   * Get minimum seeders for auto-grab
+   */
+  async getAutoGrabMinSeeders(): Promise<number> {
+    const seeders = await settingsRepository.getJSON<number>(SETTINGS_KEYS.AUTO_GRAB_MIN_SEEDERS);
+    return seeders ?? 5; // Default: 5
+  }
+
+  /**
+   * Set minimum seeders for auto-grab
+   */
+  async setAutoGrabMinSeeders(seeders: number): Promise<void> {
+    const validSeeders = Math.max(0, Math.min(100, seeders)); // 0 to 100
+    logger.info(`Setting auto-grab minimum seeders: ${validSeeders}`);
+    await settingsRepository.setJSON(SETTINGS_KEYS.AUTO_GRAB_MIN_SEEDERS, validSeeders);
   }
 
   /**

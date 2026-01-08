@@ -207,11 +207,22 @@ export class IndexerService {
 
   /**
    * Check if a release should be auto-grabbed
+   * Uses configurable thresholds from settings
    */
-  shouldAutoGrab(release: ScoredRelease): boolean {
-    // Auto-grab criteria from product plan:
-    // score >= 100 && seeders >= 5
-    return release.score >= 100 && release.seeders >= 5;
+  async shouldAutoGrab(release: ScoredRelease): Promise<boolean> {
+    const minScore = await settingsService.getAutoGrabMinScore();
+    const minSeeders = await settingsService.getAutoGrabMinSeeders();
+
+    return release.score >= minScore && release.seeders >= minSeeders;
+  }
+
+  /**
+   * Get current auto-grab criteria for display
+   */
+  async getAutoGrabCriteria(): Promise<{ minScore: number; minSeeders: number }> {
+    const minScore = await settingsService.getAutoGrabMinScore();
+    const minSeeders = await settingsService.getAutoGrabMinSeeders();
+    return { minScore, minSeeders };
   }
 }
 

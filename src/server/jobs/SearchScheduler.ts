@@ -1,4 +1,3 @@
-import { CronJob } from 'cron';
 import { gameRepository } from '../repositories/GameRepository';
 import { releaseRepository } from '../repositories/ReleaseRepository';
 import { indexerService } from '../services/IndexerService';
@@ -9,39 +8,52 @@ import type { Game } from '../db/schema';
 
 /**
  * Search Scheduler Job
- * Runs every 15 minutes to search for wanted games and auto-grab best releases
+ * Runs at configurable intervals (default: 15 minutes) to search for wanted games and auto-grab best releases
  */
 export class SearchScheduler {
-  private job: CronJob | null = null;
+  private intervalId: ReturnType<typeof setInterval> | null = null;
+  private currentIntervalMinutes: number = 15;
   private isRunning = false;
 
   /**
    * Start the search scheduler
    */
-  start() {
-    if (this.job) {
+  async start() {
+    if (this.intervalId) {
       logger.warn('Search scheduler is already running');
       return;
     }
 
-    logger.info('Starting search scheduler (runs every 15 minutes)');
+    // Get configured interval from settings
+    this.currentIntervalMinutes = await settingsService.getSearchSchedulerInterval();
 
-    // Run every 15 minutes
-    this.job = new CronJob('*/15 * * * *', async () => {
+    logger.info(`Starting search scheduler (runs every ${this.currentIntervalMinutes} minutes)`);
+
+    // Run immediately on start, then at the configured interval
+    this.run().catch((err) => logger.error('Initial search scheduler run failed:', err));
+
+    this.intervalId = setInterval(async () => {
+      // Check if interval has changed
+      const newInterval = await settingsService.getSearchSchedulerInterval();
+      if (newInterval !== this.currentIntervalMinutes) {
+        logger.info(`Search scheduler interval changed from ${this.currentIntervalMinutes} to ${newInterval} minutes, restarting...`);
+        this.stop();
+        await this.start();
+        return;
+      }
+
       await this.run();
-    });
-
-    this.job.start();
+    }, this.currentIntervalMinutes * 60 * 1000);
   }
 
   /**
    * Stop the search scheduler
    */
   stop() {
-    if (this.job) {
+    if (this.intervalId) {
       logger.info('Stopping search scheduler');
-      this.job.stop();
-      this.job = null;
+      clearInterval(this.intervalId);
+      this.intervalId = null;
     }
   }
 
@@ -181,9 +193,13 @@ export class SearchScheduler {
       }
 
       // Find the best release that meets auto-grab criteria
-      const bestRelease = releases.find((release) =>
-        indexerService.shouldAutoGrab(release)
-      );
+      let bestRelease = null;
+      for (const release of releases) {
+        if (await indexerService.shouldAutoGrab(release)) {
+          bestRelease = release;
+          break;
+        }
+      }
 
       if (!bestRelease) {
         logger.info(

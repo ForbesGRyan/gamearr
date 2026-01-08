@@ -14,6 +14,8 @@ interface DownloadsTabProps {
   setQbUsername: (username: string) => void;
   qbPassword: string;
   setQbPassword: (password: string) => void;
+  dryRun: boolean;
+  setDryRun: (value: boolean) => void;
   showSaveMessage: (type: 'success' | 'error', text: string) => void;
 }
 
@@ -24,10 +26,13 @@ export default function DownloadsTab({
   setQbUsername,
   qbPassword,
   setQbPassword,
+  dryRun,
+  setDryRun,
   showSaveMessage,
 }: DownloadsTabProps) {
   const [qbTest, setQbTest] = useState<ConnectionTestResult>({ status: 'idle' });
   const [isSavingQb, setIsSavingQb] = useState(false);
+  const [isSavingDryRun, setIsSavingDryRun] = useState(false);
 
   const handleSaveQb = useCallback(async () => {
     if (!qbHost.trim()) {
@@ -63,6 +68,24 @@ export default function DownloadsTab({
       setQbTest({ status: 'error', message: 'Connection test failed' });
     }
   }, []);
+
+  const handleToggleDryRun = useCallback(async () => {
+    setIsSavingDryRun(true);
+    try {
+      const newValue = !dryRun;
+      const response = await api.updateSetting('dry_run', newValue);
+      if (response.success) {
+        setDryRun(newValue);
+        showSaveMessage('success', `Dry-run mode ${newValue ? 'enabled' : 'disabled'}`);
+      } else {
+        showSaveMessage('error', 'Failed to update dry-run mode');
+      }
+    } catch {
+      showSaveMessage('error', 'Failed to update dry-run mode');
+    } finally {
+      setIsSavingDryRun(false);
+    }
+  }, [dryRun, setDryRun, showSaveMessage]);
 
   return (
     <>
@@ -138,6 +161,35 @@ export default function DownloadsTab({
 
       {/* qBittorrent Category Filter */}
       <QBittorrentCategorySelector />
+
+      {/* Dry-Run Mode */}
+      <div className="bg-gray-800 rounded-lg p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xl font-semibold mb-2 flex items-center gap-2">
+              <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              </svg>
+              Dry-Run Mode
+            </h3>
+            <p className="text-gray-400 text-sm">
+              When enabled, Gamearr will log what it would download but won't actually send torrents to qBittorrent.
+              Useful for testing your configuration.
+            </p>
+          </div>
+          <button
+            onClick={handleToggleDryRun}
+            disabled={isSavingDryRun}
+            className={`px-6 py-3 rounded-lg font-semibold transition ${
+              dryRun
+                ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                : 'bg-gray-600 hover:bg-gray-700 text-gray-200'
+            } disabled:opacity-50`}
+          >
+            {isSavingDryRun ? 'Saving...' : dryRun ? 'Enabled' : 'Disabled'}
+          </button>
+        </div>
+      </div>
     </>
   );
 }

@@ -21,7 +21,20 @@
       "Bash(timeout 5 bun run:*)",
       "Bash(bun add:*)",
       "Bash(git push)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Skill(frontend-design:frontend-design)",
+      "Bash(sqlite3:*)",
+      "Bash(bun build:*)",
+      "Bash(bunx tsc:*)",
+      "Bash(pushd:*)",
+      "Bash(popd)",
+      "Bash(Select-String -Pattern \"\\\\\\(fail\\\\\\)|\\\\\\(error\\\\\\)\")",
+      "Bash(Select-Object -First 20)",
+      "Bash(git reset:*)",
+      "Bash(bun -e:*)",
+      "Bash(bun outdated:*)",
+      "Bash(bun pm:*)",
+      "Bash(bun update:*)"
     ]
   }
 }

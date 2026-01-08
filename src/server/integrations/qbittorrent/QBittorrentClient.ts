@@ -20,24 +20,49 @@ export class QBittorrentClient {
   private username: string;
   private password: string;
   private cookie: string | null = null;
+  private configured: boolean = false;
 
   // Conservative rate limit for qBittorrent (10 requests per second)
   private readonly rateLimiter = new RateLimiter({ maxRequests: 10, windowMs: 1000 });
 
   constructor(config?: QBittorrentAuthConfig) {
-    this.host = config?.host || process.env.QBITTORRENT_HOST || 'http://localhost:8080';
-    this.username = config?.username || process.env.QBITTORRENT_USERNAME || 'admin';
-    this.password = config?.password || process.env.QBITTORRENT_PASSWORD || 'adminadmin';
+    this.host = config?.host || process.env.QBITTORRENT_HOST || '';
+    this.username = config?.username || process.env.QBITTORRENT_USERNAME || '';
+    this.password = config?.password || process.env.QBITTORRENT_PASSWORD || '';
 
     // Remove trailing slash from host
-    this.host = this.host.replace(/\/$/, '');
+    if (this.host) {
+      this.host = this.host.replace(/\/$/, '');
+      this.configured = true;
+    }
+  }
+
+  /**
+   * Configure the client with new credentials (called when settings are loaded/updated)
+   */
+  configure(config: QBittorrentAuthConfig): void {
+    const newHost = config.host?.replace(/\/$/, '') || '';
+
+    // If credentials changed, invalidate the cookie
+    if (this.host !== newHost || this.username !== config.username || this.password !== config.password) {
+      this.cookie = null;
+    }
+
+    this.host = newHost;
+    this.username = config.username || '';
+    this.password = config.password || '';
+    this.configured = !!(this.host && this.username && this.password);
+
+    if (this.configured) {
+      logger.info(`qBittorrent client configured: ${this.host}`);
+    }
   }
 
   /**
    * Check if credentials are configured
    */
   isConfigured(): boolean {
-    return !!this.host && !!this.username && !!this.password;
+    return this.configured;
   }
 
   /**
@@ -164,14 +189,36 @@ export class QBittorrentClient {
 
   /**
    * Add a torrent by URL or magnet link
+   * For magnet links: sends URL directly
+   * For .torrent URLs: downloads the file first, then uploads as binary
    */
   async addTorrent(url: string, options?: Partial<AddTorrentOptions>): Promise<string> {
-    logger.info(`Adding torrent to qBittorrent: ${url.substring(0, 50)}...`);
+    const isMagnet = url.startsWith('magnet:');
+    logger.info(`Adding ${isMagnet ? 'magnet' : 'torrent file'} to qBittorrent`);
+
+    try {
+      if (isMagnet) {
+        // Magnet links can be sent directly as URL
+        return await this.addTorrentByUrl(url, options);
+      } else {
+        // For .torrent URLs, download the file first then upload as binary
+        return await this.addTorrentByFile(url, options);
+      }
+    } catch (error) {
+      logger.error('Failed to add torrent:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add torrent by magnet URL (sent directly to qBittorrent)
+   */
+  private async addTorrentByUrl(url: string, options?: Partial<AddTorrentOptions>): Promise<string> {
+    logger.debug(`Sending magnet URL to qBittorrent`);
 
     const params = new URLSearchParams();
     params.append('urls', url);
 
-    // Add optional parameters
     if (options?.savepath) params.append('savepath', options.savepath);
     if (options?.category) params.append('category', options.category);
     if (options?.tags) params.append('tags', options.tags);
@@ -179,21 +226,75 @@ export class QBittorrentClient {
     if (options?.skip_checking) params.append('skip_checking', options.skip_checking);
     if (options?.rename) params.append('rename', options.rename);
 
-    try {
-      const result = await this.request<string>('torrents/add', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: params.toString(),
-      });
+    logger.debug(`qBittorrent options: category=${options?.category}, tags=${options?.tags}`);
 
-      logger.info('Torrent added successfully');
-      return result;
-    } catch (error) {
-      logger.error('Failed to add torrent:', error);
-      throw error;
+    const result = await this.request<string>('torrents/add', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params.toString(),
+    });
+
+    if (result === 'Fails.') {
+      throw new QBittorrentError(
+        'qBittorrent rejected the torrent - it may be invalid or already exists',
+        ErrorCode.QBITTORRENT_ERROR
+      );
     }
+
+    logger.info(`Magnet added successfully to qBittorrent`);
+    return result;
+  }
+
+  /**
+   * Add torrent by downloading .torrent file and uploading as binary
+   */
+  private async addTorrentByFile(url: string, options?: Partial<AddTorrentOptions>): Promise<string> {
+    logger.debug(`Downloading .torrent file from: ${url.substring(0, 80)}...`);
+
+    // Download the .torrent file
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new QBittorrentError(
+        `Failed to download .torrent file: ${response.status} ${response.statusText}`,
+        ErrorCode.QBITTORRENT_ERROR
+      );
+    }
+
+    const torrentData = await response.arrayBuffer();
+    logger.debug(`Downloaded .torrent file: ${torrentData.byteLength} bytes`);
+
+    // Create multipart form data with the torrent file
+    const formData = new FormData();
+    const blob = new Blob([torrentData], { type: 'application/x-bittorrent' });
+    formData.append('torrents', blob, 'torrent.torrent');
+
+    // Add optional parameters
+    if (options?.savepath) formData.append('savepath', options.savepath);
+    if (options?.category) formData.append('category', options.category);
+    if (options?.tags) formData.append('tags', options.tags);
+    if (options?.paused) formData.append('paused', options.paused);
+    if (options?.skip_checking) formData.append('skip_checking', options.skip_checking);
+    if (options?.rename) formData.append('rename', options.rename);
+
+    logger.debug(`qBittorrent options: category=${options?.category}, tags=${options?.tags}`);
+
+    // Upload to qBittorrent (multipart/form-data for file uploads)
+    const result = await this.request<string>('torrents/add', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (result === 'Fails.') {
+      throw new QBittorrentError(
+        'qBittorrent rejected the torrent file - it may be invalid or already exists',
+        ErrorCode.QBITTORRENT_ERROR
+      );
+    }
+
+    logger.info(`Torrent file uploaded successfully to qBittorrent`);
+    return result;
   }
 
   /**

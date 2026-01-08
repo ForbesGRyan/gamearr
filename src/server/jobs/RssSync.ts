@@ -1,4 +1,3 @@
-import { CronJob } from 'cron';
 import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
 import { gameRepository } from '../repositories/GameRepository';
 import { indexerService, type ScoredRelease } from '../services/IndexerService';
@@ -10,14 +9,15 @@ import type { ReleaseSearchResult } from '../integrations/prowlarr/types';
 
 /**
  * RSS Sync Job
- * Runs every 15 minutes to fetch new releases from indexers and match against wanted games
+ * Runs at configurable intervals (default: 15 minutes) to fetch new releases from indexers and match against wanted games
  *
  * This is different from SearchScheduler:
  * - SearchScheduler: Actively searches for each wanted game by name
  * - RssSync: Passively pulls all new releases and matches against wanted games
  */
 export class RssSync {
-  private job: CronJob | null = null;
+  private intervalId: ReturnType<typeof setInterval> | null = null;
+  private currentIntervalMinutes: number = 15;
   private isRunning = false;
   // Use Map with timestamps for efficient LRU-style eviction
   // Map<guid, timestamp> - timestamp helps with age-based cleanup
@@ -29,30 +29,42 @@ export class RssSync {
   /**
    * Start the RSS sync job
    */
-  start() {
-    if (this.job) {
+  async start() {
+    if (this.intervalId) {
       logger.warn('RSS sync is already running');
       return;
     }
 
-    logger.info('Starting RSS sync (runs every 15 minutes)');
+    // Get configured interval from settings
+    this.currentIntervalMinutes = await settingsService.getRssSyncInterval();
 
-    // Run every 15 minutes
-    this.job = new CronJob('*/15 * * * *', async () => {
+    logger.info(`Starting RSS sync (runs every ${this.currentIntervalMinutes} minutes)`);
+
+    // Run immediately on start, then at the configured interval
+    this.sync().catch((err) => logger.error('Initial RSS sync failed:', err));
+
+    this.intervalId = setInterval(async () => {
+      // Check if interval has changed
+      const newInterval = await settingsService.getRssSyncInterval();
+      if (newInterval !== this.currentIntervalMinutes) {
+        logger.info(`RSS sync interval changed from ${this.currentIntervalMinutes} to ${newInterval} minutes, restarting...`);
+        this.stop();
+        await this.start();
+        return;
+      }
+
       await this.sync();
-    });
-
-    this.job.start();
+    }, this.currentIntervalMinutes * 60 * 1000);
   }
 
   /**
    * Stop the RSS sync job
    */
   stop() {
-    if (this.job) {
+    if (this.intervalId) {
       logger.info('Stopping RSS sync');
-      this.job.stop();
-      this.job = null;
+      clearInterval(this.intervalId);
+      this.intervalId = null;
     }
   }
 
@@ -126,7 +138,7 @@ export class RssSync {
           const { game, scoredRelease } = match;
 
           // Check if it meets auto-grab criteria
-          if (indexerService.shouldAutoGrab(scoredRelease)) {
+          if (await indexerService.shouldAutoGrab(scoredRelease)) {
             logger.info(
               `${isDryRun ? '[DRY-RUN] ' : ''}RSS match found: ${release.title} -> ${game.title} (score: ${scoredRelease.score})`
             );

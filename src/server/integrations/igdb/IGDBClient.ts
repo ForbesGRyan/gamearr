@@ -17,6 +17,7 @@ export class IGDBClient {
   private clientSecret: string;
   private accessToken: string | null = null;
   private tokenExpiry: number = 0;
+  private configured: boolean = false;
 
   private readonly authUrl = 'https://id.twitch.tv/oauth2/token';
   private readonly apiUrl = 'https://api.igdb.com/v4';
@@ -27,13 +28,33 @@ export class IGDBClient {
   constructor(clientId?: string, clientSecret?: string) {
     this.clientId = clientId || process.env.IGDB_CLIENT_ID || '';
     this.clientSecret = clientSecret || process.env.IGDB_CLIENT_SECRET || '';
+    this.configured = !!(this.clientId && this.clientSecret);
+  }
+
+  /**
+   * Configure the client with new credentials
+   */
+  configure(config: { clientId: string; clientSecret: string }): void {
+    // Invalidate token if credentials changed
+    if (this.clientId !== config.clientId || this.clientSecret !== config.clientSecret) {
+      this.accessToken = null;
+      this.tokenExpiry = 0;
+    }
+
+    this.clientId = config.clientId || '';
+    this.clientSecret = config.clientSecret || '';
+    this.configured = !!(this.clientId && this.clientSecret);
+
+    if (this.configured) {
+      logger.info('IGDB client configured');
+    }
   }
 
   /**
    * Check if credentials are configured
    */
   isConfigured(): boolean {
-    return !!this.clientId && !!this.clientSecret;
+    return this.configured;
   }
 
   /**

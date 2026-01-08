@@ -39,6 +39,12 @@ import { rssSync } from './jobs/RssSync';
 import { metadataRefreshJob } from './jobs/MetadataRefreshJob';
 import { updateCheckJob } from './jobs/UpdateCheckJob';
 
+// Import integration clients for configuration
+import { qbittorrentClient } from './integrations/qbittorrent/QBittorrentClient';
+import { prowlarrClient } from './integrations/prowlarr/ProwlarrClient';
+import { igdbClient } from './integrations/igdb/IGDBClient';
+import { settingsService } from './services/SettingsService';
+
 const app = new Hono();
 
 // Middleware
@@ -121,20 +127,72 @@ const port = process.env.PORT || 7878;
 logger.info(`🎮 Gamearr v${APP_VERSION} starting...`);
 logger.info(`📡 Server running at http://localhost:${port}`);
 
-// Check if IGDB credentials are loaded (without logging sensitive data)
-if (process.env.IGDB_CLIENT_ID && process.env.IGDB_CLIENT_SECRET) {
-  logger.info('IGDB credentials loaded from environment');
-} else {
-  logger.warn('IGDB credentials not found in environment variables');
+/**
+ * Initialize integration clients from database settings
+ */
+async function initializeClients() {
+  try {
+    // Load qBittorrent settings
+    const qbHost = await settingsService.getSetting('qbittorrent_host');
+    const qbUsername = await settingsService.getSetting('qbittorrent_username');
+    const qbPassword = await settingsService.getSetting('qbittorrent_password');
+
+    if (qbHost && qbUsername && qbPassword) {
+      qbittorrentClient.configure({
+        host: qbHost,
+        username: qbUsername,
+        password: qbPassword,
+      });
+    } else if (process.env.QBITTORRENT_HOST) {
+      logger.info('qBittorrent credentials loaded from environment');
+    } else {
+      logger.warn('qBittorrent not configured - add settings in Settings > Downloads');
+    }
+
+    // Load Prowlarr settings
+    const prowlarrUrl = await settingsService.getSetting('prowlarr_url');
+    const prowlarrApiKey = await settingsService.getSetting('prowlarr_api_key');
+
+    if (prowlarrUrl && prowlarrApiKey) {
+      prowlarrClient.configure({
+        url: prowlarrUrl,
+        apiKey: prowlarrApiKey,
+      });
+    } else if (process.env.PROWLARR_URL) {
+      logger.info('Prowlarr credentials loaded from environment');
+    } else {
+      logger.warn('Prowlarr not configured - add settings in Settings > Indexers');
+    }
+
+    // Load IGDB settings
+    const igdbClientId = await settingsService.getSetting('igdb_client_id');
+    const igdbClientSecret = await settingsService.getSetting('igdb_client_secret');
+
+    if (igdbClientId && igdbClientSecret) {
+      igdbClient.configure({
+        clientId: igdbClientId,
+        clientSecret: igdbClientSecret,
+      });
+    } else if (process.env.IGDB_CLIENT_ID) {
+      logger.info('IGDB credentials loaded from environment');
+    } else {
+      logger.warn('IGDB not configured - add settings in Settings > Metadata');
+    }
+  } catch (error) {
+    logger.error('Failed to initialize clients from database:', error);
+  }
 }
 
-// Start background jobs
-downloadMonitor.start();
-searchScheduler.start();
-rssSync.start();
-metadataRefreshJob.start();
-updateCheckJob.start();
-logger.info('✅ Background jobs started (DownloadMonitor, SearchScheduler, RssSync, MetadataRefreshJob, UpdateCheckJob)');
+// Initialize clients and start jobs
+initializeClients().then(() => {
+  // Start background jobs
+  downloadMonitor.start();
+  searchScheduler.start();
+  rssSync.start();
+  metadataRefreshJob.start();
+  updateCheckJob.start();
+  logger.info('✅ Background jobs started');
+});
 
 export default {
   port,
