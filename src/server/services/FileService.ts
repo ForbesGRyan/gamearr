@@ -62,6 +62,7 @@ export interface LibraryFolder {
   path: string;
   libraryId?: number;
   libraryName?: string;
+  relativePath?: string; // Path relative to library root (e.g., "Switch/Game Name")
 }
 
 export class FileService {
@@ -472,7 +473,7 @@ export class FileService {
   }
 
   /**
-   * Refresh library scan and update cache
+   * Refresh library scan and update cache (recursively scans subdirectories)
    * @param libraryId Optional library ID to scan a specific library. If not provided, scans all libraries.
    */
   async refreshLibraryScan(libraryId?: number): Promise<LibraryFolder[]> {
@@ -496,11 +497,6 @@ export class FileService {
         return [];
       }
 
-      const dirents = await fsPromises.readdir(library.path, { withFileTypes: true });
-      const folderNames = dirents
-        .filter((dirent) => dirent.isDirectory())
-        .map((dirent) => dirent.name);
-
       // Get all games from database to check for matches
       const allGames = await gameRepository.findAll();
 
@@ -508,58 +504,18 @@ export class FileService {
       const existingFiles = await libraryFileRepository.findByLibraryId(libraryId);
       const existingPaths = new Set(existingFiles.map((f) => f.folderPath));
 
-      // Parse and cache each folder
+      // Parse and cache each folder recursively
       const libraryFolders: LibraryFolder[] = [];
-
-      for (const folderName of folderNames) {
-        const parsed = this.parseFolderName(folderName);
-        const folderPath = path.join(library.path, folderName);
-
-        // Try to find a matching game
-        const matchedGame = allGames.find((game) => {
-          const titleMatch = game.title.toLowerCase() === parsed.title.toLowerCase();
-
-          if (parsed.year && game.year) {
-            return titleMatch && game.year === parsed.year;
-          }
-
-          return titleMatch;
-        });
-
-        // Check if we have existing match data
-        const existingFile = existingFiles.find((f) => f.folderPath === folderPath);
-
-        // Upsert to database - preserve ignored status, set libraryId
-        await libraryFileRepository.upsert({
-          folderPath,
-          parsedTitle: parsed.title,
-          parsedYear: parsed.year || null,
-          matchedGameId: existingFile?.matchedGameId || matchedGame?.id || null,
-          libraryId: libraryId,
-          ignored: existingFile?.ignored || false, // Preserve ignored status
-        });
-
-        // Only add to results if not ignored AND not matched
-        // This makes it an "import" page showing only folders that need matching
-        const isMatched = !!(existingFile?.matchedGameId || matchedGame);
-        if (!existingFile?.ignored && !isMatched) {
-          libraryFolders.push({
-            folderName,
-            parsedTitle: parsed.title,
-            cleanedTitle: this.cleanDisplayTitle(parsed.title),
-            parsedYear: parsed.year,
-            parsedVersion: parsed.version,
-            matched: false,
-            gameId: undefined,
-            path: folderPath,
-            libraryId: libraryId,
-            libraryName: library.name,
-          });
-        }
-
-        // Remove from existing paths set
-        existingPaths.delete(folderPath);
-      }
+      await this.scanDirectoryForFolders(
+        library.path,
+        library.path,
+        library.name,
+        libraryId,
+        allGames,
+        existingFiles,
+        existingPaths,
+        libraryFolders
+      );
 
       // Delete cached files that no longer exist in filesystem
       for (const missingPath of existingPaths) {
@@ -578,6 +534,107 @@ export class FileService {
     } catch (error) {
       logger.error('Failed to refresh library scan:', error);
       return [];
+    }
+  }
+
+  /**
+   * Recursively scan a directory for game folders
+   */
+  private async scanDirectoryForFolders(
+    dirPath: string,
+    libraryRoot: string,
+    libraryName: string,
+    libraryId: number,
+    allGames: Array<{ id: number; title: string; year?: number | null }>,
+    existingFiles: Array<{ folderPath: string; matchedGameId: number | null; ignored: boolean }>,
+    existingPaths: Set<string>,
+    libraryFolders: LibraryFolder[]
+  ): Promise<void> {
+    const dirents = await fsPromises.readdir(dirPath, { withFileTypes: true });
+    const subDirs = dirents.filter((dirent) => dirent.isDirectory());
+
+    for (const dirent of subDirs) {
+      const folderName = dirent.name;
+      const folderPath = path.join(dirPath, folderName);
+      const parsed = this.parseFolderName(folderName);
+
+      // Check if this looks like a game folder (has a parseable name)
+      // or if it's a category folder (like "Switch", "3DS", etc.)
+      const hasGameFiles = await this.hasGameContent(folderPath);
+
+      if (hasGameFiles) {
+        // This is a game folder - process it
+        const matchedGame = allGames.find((game) => {
+          const titleMatch = game.title.toLowerCase() === parsed.title.toLowerCase();
+          if (parsed.year && game.year) {
+            return titleMatch && game.year === parsed.year;
+          }
+          return titleMatch;
+        });
+
+        const existingFile = existingFiles.find((f) => f.folderPath === folderPath);
+
+        // Upsert to database
+        await libraryFileRepository.upsert({
+          folderPath,
+          parsedTitle: parsed.title,
+          parsedYear: parsed.year || null,
+          matchedGameId: existingFile?.matchedGameId || matchedGame?.id || null,
+          libraryId: libraryId,
+          ignored: existingFile?.ignored || false,
+        });
+
+        // Only add to results if not ignored AND not matched
+        const isMatched = !!(existingFile?.matchedGameId || matchedGame);
+        if (!existingFile?.ignored && !isMatched) {
+          const relativePath = path.relative(libraryRoot, folderPath);
+          libraryFolders.push({
+            folderName,
+            parsedTitle: parsed.title,
+            cleanedTitle: this.cleanDisplayTitle(parsed.title),
+            parsedYear: parsed.year,
+            parsedVersion: parsed.version,
+            matched: false,
+            gameId: undefined,
+            path: folderPath,
+            libraryId: libraryId,
+            libraryName: libraryName,
+            relativePath: relativePath,
+          });
+        }
+
+        existingPaths.delete(folderPath);
+      } else {
+        // This might be a category folder - recurse into it
+        try {
+          await this.scanDirectoryForFolders(
+            folderPath,
+            libraryRoot,
+            libraryName,
+            libraryId,
+            allGames,
+            existingFiles,
+            existingPaths,
+            libraryFolders
+          );
+        } catch (err) {
+          logger.warn(`Failed to scan subdirectory ${folderPath}:`, err);
+        }
+      }
+    }
+  }
+
+  /**
+   * Check if a folder contains game content (files, not just more folders)
+   */
+  private async hasGameContent(folderPath: string): Promise<boolean> {
+    try {
+      const entries = await fsPromises.readdir(folderPath, { withFileTypes: true });
+      // A game folder typically has files (executables, data, etc.)
+      // A category folder only has subdirectories
+      return entries.some((entry) => entry.isFile());
+    } catch {
+      return false;
     }
   }
 

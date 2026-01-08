@@ -146,7 +146,7 @@ export function LibraryScanTab({
                         )}
                       </div>
                       <div className="text-sm text-gray-400">
-                        Folder: {folder.folderName}
+                        {folder.relativePath || folder.folderName}
                       </div>
                     </div>
                     {!suggestion && (

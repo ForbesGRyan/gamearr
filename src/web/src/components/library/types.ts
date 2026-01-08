@@ -40,6 +40,8 @@ export interface LibraryFolder {
   matched: boolean;
   gameId?: number;
   path: string;
+  libraryName?: string;
+  relativePath?: string;
 }
 
 export interface AutoMatchSuggestion {
