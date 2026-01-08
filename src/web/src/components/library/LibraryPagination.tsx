@@ -5,6 +5,7 @@ interface LibraryPaginationProps {
   totalItems: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
+  itemLabel?: string;
 }
 
 export function LibraryPagination({
@@ -14,6 +15,7 @@ export function LibraryPagination({
   totalItems,
   onPageChange,
   onPageSizeChange,
+  itemLabel = 'games',
 }: LibraryPaginationProps) {
   const startItem = (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalItems);
@@ -22,7 +24,7 @@ export function LibraryPagination({
     <div className="mt-6 flex items-center justify-between bg-gray-800 rounded-lg p-4">
       <div className="flex items-center gap-4">
         <span className="text-sm text-gray-400">
-          Showing {startItem}-{endItem} of {totalItems} games
+          Showing {startItem}-{endItem} of {totalItems} {itemLabel}
         </span>
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-400">Per page:</label>

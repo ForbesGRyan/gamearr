@@ -679,7 +679,8 @@ export class DownloadService {
         await this.assignLibrariesToGames(uniqueGameIds);
       }
     } catch (error) {
-      logger.error('Failed to sync download status:', error);
+      // Rethrow to let DownloadMonitor handle connection state tracking
+      throw error;
     }
   }
 

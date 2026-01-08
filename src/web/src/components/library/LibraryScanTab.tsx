@@ -1,5 +1,7 @@
+import { useState, useMemo } from 'react';
 import { GamepadIcon } from '../Icons';
 import StoreSelector from '../StoreSelector';
+import { LibraryPagination } from './LibraryPagination';
 import type { LibraryFolder, AutoMatchSuggestion } from './types';
 
 interface LibraryScanTabProps {
@@ -37,6 +39,36 @@ export function LibraryScanTab({
   onStoreChange,
   onOpenSteamImport,
 }: LibraryScanTabProps) {
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(() => {
+    const saved = localStorage.getItem('library-scan-page-size');
+    return saved ? parseInt(saved, 10) : 25;
+  });
+
+  // Calculate paginated folders
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(libraryFolders.length / pageSize));
+  }, [libraryFolders.length, pageSize]);
+
+  const paginatedFolders = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return libraryFolders.slice(startIndex, startIndex + pageSize);
+  }, [libraryFolders, currentPage, pageSize]);
+
+  // Reset to page 1 when folders change significantly
+  useMemo(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+    localStorage.setItem('library-scan-page-size', newSize.toString());
+  };
+
   return (
     <>
       {/* Import Sources */}
@@ -93,7 +125,7 @@ export function LibraryScanTab({
             folder to a game, or "Ignore" to hide it.
           </p>
           <div className="space-y-3">
-            {libraryFolders.map((folder) => {
+            {paginatedFolders.map((folder) => {
               const suggestion = autoMatchSuggestions[folder.path];
               const isMatching = isAutoMatching[folder.path];
 
@@ -219,6 +251,15 @@ export function LibraryScanTab({
               );
             })}
           </div>
+          <LibraryPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={libraryFolders.length}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={handlePageSizeChange}
+            itemLabel="folders"
+          />
         </div>
       )}
     </>

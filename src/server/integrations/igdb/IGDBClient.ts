@@ -262,12 +262,12 @@ export class IGDBClient {
           .replace(/[*?]/g, '')    // Remove regex wildcards
           .trim();
         return `query games "${idx}" {
-          fields name, cover.image_id, first_release_date, summary, platforms,
+          fields name, cover.image_id, first_release_date, summary, platforms.name,
                  genres.name, total_rating, game_modes.name,
                  involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
                  similar_games.name, similar_games.cover.image_id, game_type,
                  multiplayer_modes.*, themes.name;
-          where name ~ *"${escapedName}"* & game_type = 0 & platforms = (6);
+          where name ~ *"${escapedName}"* & game_type = 0;
           limit ${limit};
         };`;
       })
@@ -317,10 +317,10 @@ export class IGDBClient {
 
     logger.info(`Searching IGDB for: ${search}`);
 
-    // Get all matching games with expanded metadata
+    // Get all matching games with expanded metadata including platform names
     const query = `
       search "${search}";
-      fields name, cover.image_id, first_release_date, summary, platforms,
+      fields name, cover.image_id, first_release_date, summary, platforms.name,
              genres.name, total_rating, game_modes.name,
              involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
              similar_games.name, similar_games.cover.image_id, game_type,
@@ -331,17 +331,8 @@ export class IGDBClient {
 
     const results = await this.request<IGDBGame[]>('games', query);
 
-    // Filter for PC games (platform ID 6) and main games only
-    // Platform 6 = PC (Windows)
-    // Category: 0 = main game, 1 = DLC, 2 = expansion, 3 = bundle, etc.
-    const filteredGames = results.filter(game => {
-      // IGDB returns platforms as array of IDs (numbers) when not expanded
-      const hasPC = game.platforms && (game.platforms as number[]).includes(6);
-
-      return hasPC;
-    });
-
-    const mapped = filteredGames.map((game) => this.mapToSearchResult(game));
+    // Map all results (no longer filtering to PC-only)
+    const mapped = results.map((game) => this.mapToSearchResult(game));
 
     return mapped;
   }
@@ -370,6 +361,28 @@ export class IGDBClient {
     return this.mapToSearchResult(results[0]);
   }
 
+  // Common IGDB platform ID to name mapping for fallback
+  private static readonly PLATFORM_NAMES: Record<number, string> = {
+    6: 'PC',
+    14: 'Mac',
+    3: 'Linux',
+    48: 'PlayStation 4',
+    167: 'PlayStation 5',
+    9: 'PlayStation 3',
+    49: 'Xbox One',
+    169: 'Xbox Series X|S',
+    12: 'Xbox 360',
+    130: 'Nintendo Switch',
+    41: 'Wii U',
+    5: 'Wii',
+    37: 'Nintendo 3DS',
+    4: 'Nintendo 64',
+    19: 'Super Nintendo',
+    18: 'NES',
+    34: 'Android',
+    39: 'iOS',
+  };
+
   /**
    * Map IGDB game to our search result format
    */
@@ -384,8 +397,20 @@ export class IGDBClient {
       coverUrl = `https://images.igdb.com/igdb/image/upload/t_cover_big/${game.cover.image_id}.jpg`;
     }
 
-    // Platforms are returned as IDs, just use PC since we filtered for it
-    const platforms = ['PC'];
+    // Extract platform names - handle both expanded objects and raw IDs
+    let platforms: string[] | undefined;
+    if (game.platforms && game.platforms.length > 0) {
+      const firstPlatform = game.platforms[0];
+      if (typeof firstPlatform === 'object' && 'name' in firstPlatform) {
+        // Expanded platforms with names
+        platforms = (game.platforms as Array<{ id: number; name: string }>).map(p => p.name);
+      } else {
+        // Raw platform IDs - map to names using our lookup table
+        platforms = (game.platforms as number[])
+          .map(id => IGDBClient.PLATFORM_NAMES[id])
+          .filter((name): name is string => !!name);
+      }
+    }
 
     // Extract genres
     const genres = game.genres?.map(g => g.name) || undefined;
@@ -498,7 +523,7 @@ export class IGDBClient {
 
     // Fetch game details for all IDs in a single query
     const gamesQuery = `
-      fields name, cover.image_id, first_release_date, summary, platforms,
+      fields name, cover.image_id, first_release_date, summary, platforms.name,
              genres.name, total_rating, game_modes.name,
              involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
              similar_games.name, similar_games.cover.image_id,
