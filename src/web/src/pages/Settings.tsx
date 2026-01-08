@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, Suspense, lazy, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
 
@@ -22,8 +23,30 @@ function TabLoading() {
 }
 
 function Settings() {
-  // Tab state
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  // Tab state with URL params
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
+    const tabParam = searchParams.get('tab');
+    const validTabs: SettingsTab[] = ['general', 'libraries', 'indexers', 'downloads', 'metadata', 'updates'];
+    if (tabParam && validTabs.includes(tabParam as SettingsTab)) {
+      return tabParam as SettingsTab;
+    }
+    return 'general';
+  });
+
+  // Update URL when tab changes
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (activeTab !== currentTab) {
+      if (activeTab === 'general') {
+        // Remove tab param for default tab
+        searchParams.delete('tab');
+      } else {
+        searchParams.set('tab', activeTab);
+      }
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [activeTab, searchParams, setSearchParams]);
 
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
