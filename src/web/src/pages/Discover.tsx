@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { formatRelativeDate, formatBytes } from '../utils/formatters';
 import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
+import { usePreloadedData, invalidatePopularGamesCache } from '../hooks/usePreloadCache';
 
 type TabType = 'trending' | 'torrents';
 
@@ -73,11 +74,24 @@ function Discover() {
   const initialAge = parseInt(searchParams.get('age') || '30', 10);
   const initialType = parseInt(searchParams.get('type') || '2', 10);
 
+  // Use preloaded cache for faster initial load
+  const {
+    popularityTypes: cachedPopularityTypes,
+    isLoadingTypes: isCacheLoadingTypes,
+    getPopularityTypes: getCachedPopularityTypes,
+    getPopularGames: getCachedPopularGames,
+    getTopTorrents: getCachedTopTorrents,
+    hasCachedPopularGames,
+    hasCachedTorrents,
+    getCachedPopularGames: getPopularGamesFromCache,
+    getCachedTorrents: getTorrentsFromCache,
+  } = usePreloadedData();
+
   const [activeTab, setActiveTabState] = useState<TabType>(initialTab);
-  const [popularityTypes, setPopularityTypes] = useState<PopularityType[]>([]);
+  const [popularityTypes, setPopularityTypes] = useState<PopularityType[]>(cachedPopularityTypes || []);
   const [selectedType, setSelectedTypeState] = useState<number>(initialType);
   const [popularGames, setPopularGames] = useState<PopularGame[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!cachedPopularityTypes);
   const [isLoadingGames, setIsLoadingGames] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addingGame, setAddingGame] = useState<number | null>(null);
@@ -203,6 +217,15 @@ function Discover() {
 
   const loadPopularityTypes = async () => {
     try {
+      // Try to get from cache first
+      const cached = await getCachedPopularityTypes();
+      if (cached) {
+        setPopularityTypes(cached);
+        setIsLoading(false);
+        return;
+      }
+
+      // Fallback to direct API call
       const response = await api.getPopularityTypes();
       if (response.success && response.data) {
         setPopularityTypes(response.data as PopularityType[]);
@@ -215,9 +238,27 @@ function Discover() {
   };
 
   const loadPopularGames = async (type: number) => {
+    // Check if we have cached data for this type
+    if (hasCachedPopularGames(type)) {
+      const cached = getPopularGamesFromCache(type);
+      if (cached) {
+        setPopularGames(cached as PopularGame[]);
+        return;
+      }
+    }
+
     setIsLoadingGames(true);
     setError(null);
     try {
+      // Try cache-aware fetch
+      const cached = await getCachedPopularGames(type);
+      if (cached) {
+        setPopularGames(cached as PopularGame[]);
+        setIsLoadingGames(false);
+        return;
+      }
+
+      // Fallback to direct API call
       const response = await api.getPopularGames(type, 50);
       if (response.success && response.data) {
         setPopularGames(response.data as PopularGame[]);
@@ -232,10 +273,33 @@ function Discover() {
   };
 
   const loadTorrents = useCallback(async (query?: string) => {
+    const searchQuery = query || 'game';
+    const isDefaultSearch = searchQuery === 'game' && torrentMaxAge === 30;
+
+    // Check cache for default search
+    if (isDefaultSearch && hasCachedTorrents()) {
+      const cached = getTorrentsFromCache();
+      if (cached) {
+        setTorrents(cached);
+        return;
+      }
+    }
+
     setIsLoadingTorrents(true);
     setError(null);
     try {
-      const response = await api.getTopTorrents(query || 'game', 50, torrentMaxAge);
+      // Try cache-aware fetch for default search
+      if (isDefaultSearch) {
+        const cached = await getCachedTopTorrents();
+        if (cached) {
+          setTorrents(cached);
+          setIsLoadingTorrents(false);
+          return;
+        }
+      }
+
+      // Direct API call for custom searches
+      const response = await api.getTopTorrents(searchQuery, 50, torrentMaxAge);
       if (response.success && response.data) {
         setTorrents(response.data as TorrentRelease[]);
         if (query) {
@@ -249,7 +313,7 @@ function Discover() {
     } finally {
       setIsLoadingTorrents(false);
     }
-  }, [torrentMaxAge, setTorrentSearchWithUrl]);
+  }, [torrentMaxAge, setTorrentSearchWithUrl, hasCachedTorrents, getTorrentsFromCache, getCachedTopTorrents]);
 
   const handleTorrentSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -262,6 +326,14 @@ function Discover() {
   useEffect(() => {
     loadPopularityTypes();
   }, []);
+
+  // Sync with cached popularity types when they become available
+  useEffect(() => {
+    if (cachedPopularityTypes && cachedPopularityTypes.length > 0 && popularityTypes.length === 0) {
+      setPopularityTypes(cachedPopularityTypes);
+      setIsLoading(false);
+    }
+  }, [cachedPopularityTypes, popularityTypes.length]);
 
   // Load games when type changes
   useEffect(() => {
@@ -320,6 +392,8 @@ function Discover() {
               : pg
           )
         );
+        // Invalidate cache so future visits show updated inLibrary status
+        invalidatePopularGamesCache();
         setSuccessMessage(`Added "${game.title}" to library`);
         setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
       } else {
@@ -498,6 +572,8 @@ function Discover() {
       });
 
       if (grabResponse.success) {
+        // Invalidate cache so future visits show updated inLibrary status
+        invalidatePopularGamesCache();
         setSuccessMessage(`Added "${selectedGame.title}" and started download!`);
         setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
         // Close modal and reset state

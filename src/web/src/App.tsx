@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
 import Library from './pages/Library';
 import Discover from './pages/Discover';
@@ -6,6 +7,7 @@ import Activity from './pages/Activity';
 import Updates from './pages/Updates';
 import Settings from './pages/Settings';
 import { GamepadIcon } from './components/Icons';
+import { startBackgroundPreload } from './hooks/usePreloadCache';
 
 // Stable className function for NavLink to avoid re-renders
 const getNavLinkClassName = ({ isActive }: { isActive: boolean }) =>
@@ -16,6 +18,11 @@ const getNavLinkClassName = ({ isActive }: { isActive: boolean }) =>
   }`;
 
 function App() {
+  // Start background preloading of Discover page data
+  useEffect(() => {
+    startBackgroundPreload();
+  }, []);
+
   return (
     <Router>
       <div className="min-h-screen bg-gray-900 text-white">
