@@ -11,15 +11,17 @@ export interface CreateLibraryInput {
   platform?: string;
   monitored?: boolean;
   downloadEnabled?: boolean;
+  downloadCategory?: string;
   priority?: number;
 }
 
 export interface UpdateLibraryInput {
   name?: string;
   path?: string;
-  platform?: string;
+  platform?: string | null;
   monitored?: boolean;
   downloadEnabled?: boolean;
+  downloadCategory?: string | null;
   priority?: number;
 }
 
@@ -95,6 +97,7 @@ export class LibraryService {
       platform: input.platform || null,
       monitored: input.monitored ?? true,
       downloadEnabled: input.downloadEnabled ?? true,
+      downloadCategory: input.downloadCategory || 'gamearr',
       priority,
     };
 
@@ -145,6 +148,10 @@ export class LibraryService {
 
     if (input.priority !== undefined) {
       updates.priority = input.priority;
+    }
+
+    if (input.downloadCategory !== undefined) {
+      updates.downloadCategory = input.downloadCategory || 'gamearr';
     }
 
     logger.info(`Updating library ${id}: ${JSON.stringify(updates)}`);

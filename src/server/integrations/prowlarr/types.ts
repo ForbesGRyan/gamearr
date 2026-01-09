@@ -51,7 +51,9 @@ export interface ReleaseSearchResult {
   indexer: string;
   size: number;
   seeders: number;
+  leechers: number;
   downloadUrl: string;
+  infoUrl?: string;
   publishedAt: Date;
   quality?: string;
 }

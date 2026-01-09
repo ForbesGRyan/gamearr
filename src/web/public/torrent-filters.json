@@ -1,0 +1,61 @@
+{
+  "releaseGroups": [
+    "GOG",
+    "Steam",
+    "Repack",
+    "RELOADED",
+    "CODEX",
+    "PLAZA",
+    "SKIDROW",
+    "FitGirl",
+    "DODI",
+    "Scene",
+    "DRM-Free",
+    "DRMFree",
+    "TENOKE",
+    "RUNE",
+    "TiNYiSO",
+    "EMPRESS",
+    "Razor1911",
+    "HOODLUM",
+    "FAiRLIGHT",
+    "MYTH",
+    "DEViANCE",
+    "HI2U",
+    "DARKSiDERS",
+    "CPY",
+    "STEAMPUNKS",
+    "ALI213",
+    "3DM",
+    "P2P",
+    "ElAmigos",
+    "KaOs",
+    "PROPHET",
+    "TENOKE",
+    "bADkARMA",
+    "SUXXORS",
+    "VENOM"
+  ],
+  "platformTags": [
+    "PC",
+    "x64",
+    "x86",
+    "Win64",
+    "Windows"
+  ],
+  "languageTags": [
+    "Multi\\d+",
+    "MULTi\\d+",
+    "English",
+    "MULTI"
+  ],
+  "otherPatterns": [
+    "Portable",
+    "Proper",
+    "INTERNAL",
+    "UPDATE",
+    "ADDON",
+    "DLC",
+    "Incl\\.?\\s*DLC"
+  ]
+}

@@ -11,6 +11,7 @@ const libraryFields = {
   platform: libraries.platform,
   monitored: libraries.monitored,
   downloadEnabled: libraries.downloadEnabled,
+  downloadCategory: libraries.downloadCategory,
   priority: libraries.priority,
   createdAt: libraries.createdAt,
 };

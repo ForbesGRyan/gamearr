@@ -424,33 +424,29 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
               className="bg-gray-800 rounded-lg p-4 flex items-center justify-between"
             >
               <div className="flex-1">
-                <div className="flex items-center gap-3 mb-1">
-                  <h4 className="font-semibold text-lg">{library.name}</h4>
-                  {library.platform && (
-                    <span className="px-2 py-0.5 bg-blue-900 text-blue-300 text-xs rounded">
-                      {library.platform}
+                <h4 className="font-semibold text-lg mb-1">{library.name}</h4>
+                <p className="text-gray-400 text-sm font-mono mb-2">{library.path}</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 text-sm">
+                  <div>
+                    <span className="text-gray-500">Platform: </span>
+                    <span className="text-gray-300">{library.platform || 'None'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Category: </span>
+                    <span className="text-gray-300 font-mono">{library.downloadCategory || 'gamearr'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Priority: </span>
+                    <span className="text-gray-300">{library.priority}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Status: </span>
+                    <span className="text-gray-300">
+                      {library.monitored ? 'Monitored' : 'Not monitored'}
+                      {library.downloadEnabled ? ', Downloads enabled' : ''}
                     </span>
-                  )}
-                  {library.monitored && (
-                    <span className="px-2 py-0.5 bg-green-900 text-green-300 text-xs rounded">
-                      Monitored
-                    </span>
-                  )}
-                  {library.downloadEnabled && (
-                    <span className="px-2 py-0.5 bg-purple-900 text-purple-300 text-xs rounded">
-                      Downloads
-                    </span>
-                  )}
-                  {library.downloadCategory && library.downloadCategory !== 'gamearr' && (
-                    <span className="px-2 py-0.5 bg-gray-700 text-gray-300 text-xs rounded font-mono">
-                      {library.downloadCategory}
-                    </span>
-                  )}
+                  </div>
                 </div>
-                <p className="text-gray-400 text-sm font-mono">{library.path}</p>
-                {library.priority > 0 && (
-                  <p className="text-gray-500 text-xs mt-1">Priority: {library.priority}</p>
-                )}
               </div>
               <div className="flex items-center gap-2">
                 <button

@@ -105,7 +105,9 @@ export class ProwlarrClient {
    * Search for releases
    */
   async searchReleases(params: ProwlarrSearchParams): Promise<ReleaseSearchResult[]> {
-    const { query, indexerIds, categories, limit = 100, offset = 0, type = 'search' } = params;
+    // Note: Prowlarr returns results in indexer's default order (usually by date)
+    // Higher limits help capture older torrents with high seeders
+    const { query, indexerIds, categories, limit = 500, offset = 0, type = 'search' } = params;
 
     logger.info(`Searching Prowlarr for: ${query}`);
 
@@ -216,7 +218,9 @@ export class ProwlarrClient {
       indexer: release.indexer,
       size: release.size,
       seeders: release.seeders || 0,
+      leechers: release.leechers || 0,
       downloadUrl: release.downloadUrl || release.magnetUrl || '',
+      infoUrl: release.infoUrl,
       publishedAt: new Date(release.publishDate),
       quality: this.extractQuality(release.title),
     };
