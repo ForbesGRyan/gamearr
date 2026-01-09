@@ -69,7 +69,7 @@ export class GameService {
    * If no store, assumes user wants to download it (status: wanted, monitored: true)
    * libraryId can be specified to assign the game to a specific library
    */
-  async addGameFromIGDB(igdbId: number, monitored: boolean = true, store?: string | null, libraryId?: number): Promise<Game> {
+  async addGameFromIGDB(igdbId: number, monitored: boolean = true, store?: string | null, libraryId?: number, status?: 'wanted' | 'downloading' | 'downloaded'): Promise<Game> {
     // Check if game already exists
     const existing = await gameRepository.findByIgdbId(igdbId);
     if (existing) {
@@ -84,10 +84,11 @@ export class GameService {
 
     logger.info(`Adding game to library: ${igdbGame.title}`);
 
-    // If store is specified, user already owns it - no need to download or monitor
+    // Determine status: explicit status > store-based status > default 'wanted'
     const hasStore = !!store;
-    const gameStatus = hasStore ? 'downloaded' : 'wanted';
-    const shouldMonitor = hasStore ? false : monitored;
+    const gameStatus = status || (hasStore ? 'downloaded' : 'wanted');
+    // If status is 'downloaded' or store is set, default monitored to false
+    const shouldMonitor = (status === 'downloaded' || hasStore) ? false : monitored;
 
     if (hasStore) {
       logger.info(`Game has store (${store}) - setting status to 'downloaded' and monitored to false`);
