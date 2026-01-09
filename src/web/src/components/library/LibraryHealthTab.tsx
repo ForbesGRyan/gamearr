@@ -1,4 +1,6 @@
 import { formatBytes, formatTimestamp } from '../../utils/formatters';
+import { FolderIcon } from '../Icons';
+import { api } from '../../api/client';
 import type { LooseFile, DuplicateGroup } from './types';
 
 interface LibraryHealthTabProps {

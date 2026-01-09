@@ -128,6 +128,88 @@ export class IndexerService {
   }
 
   /**
+   * Platform indicators for release title detection
+   */
+  private static readonly PLATFORM_INDICATORS: { [key: string]: RegExp[] } = {
+    // PC platforms
+    'PC': [/\bPC\b/i, /\bWindows\b/i, /\bWin\b/i, /\bGOG\b/i, /\bSteam\b/i],
+    'PC (Windows)': [/\bPC\b/i, /\bWindows\b/i, /\bWin\b/i, /\bGOG\b/i, /\bSteam\b/i],
+    'Mac': [/\bMac\b/i, /\bmacOS\b/i, /\bOSX\b/i],
+    'Linux': [/\bLinux\b/i],
+    // PlayStation
+    'PlayStation 4': [/\bPS4\b/i, /\bPlayStation\s*4\b/i],
+    'PlayStation 5': [/\bPS5\b/i, /\bPlayStation\s*5\b/i],
+    'PlayStation VR': [/\bPSVR\b/i, /\bPS\s*VR\b/i],
+    'PlayStation VR2': [/\bPSVR2?\b/i, /\bPS\s*VR\s*2\b/i],
+    // Xbox
+    'Xbox One': [/\bXbox\s*One\b/i, /\bXB1\b/i, /\bXBOX1\b/i],
+    'Xbox Series X|S': [/\bXbox\s*Series\b/i, /\bXSX\b/i, /\bXSS\b/i],
+    // Nintendo
+    'Nintendo Switch': [/\bSwitch\b/i, /\bNSW\b/i, /\bNintendo\s*Switch\b/i],
+  };
+
+  /**
+   * Detect platform from release title
+   * Returns the detected platform or null if none found
+   */
+  private detectReleasePlatform(releaseTitle: string): string | null {
+    for (const [platform, patterns] of Object.entries(IndexerService.PLATFORM_INDICATORS)) {
+      for (const pattern of patterns) {
+        if (pattern.test(releaseTitle)) {
+          return platform;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Check if two platforms are compatible (same platform family)
+   */
+  private isPlatformMatch(gamePlatform: string, releasePlatform: string): boolean {
+    // Normalize platforms for comparison
+    const normalize = (p: string) => p.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    const normalizedGame = normalize(gamePlatform);
+    const normalizedRelease = normalize(releasePlatform);
+
+    // Direct match
+    if (normalizedGame === normalizedRelease) {
+      return true;
+    }
+
+    // PC family (PC, Windows, Mac, Linux are often bundled)
+    const pcPlatforms = ['pc', 'pcwindows', 'windows', 'mac', 'linux'];
+    if (pcPlatforms.some(p => normalizedGame.includes(p)) &&
+        pcPlatforms.some(p => normalizedRelease.includes(p))) {
+      return true;
+    }
+
+    // PlayStation family
+    const psPlatforms = ['playstation', 'ps4', 'ps5', 'psvr'];
+    if (psPlatforms.some(p => normalizedGame.includes(p)) &&
+        psPlatforms.some(p => normalizedRelease.includes(p))) {
+      return true;
+    }
+
+    // Xbox family
+    const xboxPlatforms = ['xbox', 'xb1', 'xsx', 'xss'];
+    if (xboxPlatforms.some(p => normalizedGame.includes(p)) &&
+        xboxPlatforms.some(p => normalizedRelease.includes(p))) {
+      return true;
+    }
+
+    // Nintendo family
+    const nintendoPlatforms = ['switch', 'nsw', 'nintendo'];
+    if (nintendoPlatforms.some(p => normalizedGame.includes(p)) &&
+        nintendoPlatforms.some(p => normalizedRelease.includes(p))) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Score a release based on quality and matching
    */
   private scoreRelease(release: ReleaseSearchResult, game: Game): ScoredRelease {
@@ -136,6 +218,20 @@ export class IndexerService {
 
     const releaseTitleLower = release.title.toLowerCase();
     const gameTitleLower = game.title.toLowerCase();
+
+    // Platform matching - heavily penalize wrong platform releases
+    const detectedPlatform = this.detectReleasePlatform(release.title);
+    if (detectedPlatform && game.platform) {
+      if (!this.isPlatformMatch(game.platform, detectedPlatform)) {
+        // Wrong platform - heavy penalty to filter it out
+        score -= 200;
+        matchConfidence = 'low';
+        logger.debug(`Platform mismatch for "${release.title}": detected ${detectedPlatform}, game is ${game.platform}`);
+      } else {
+        // Correct platform - small bonus
+        score += 10;
+      }
+    }
 
     // Title matching
     if (releaseTitleLower.includes(gameTitleLower)) {

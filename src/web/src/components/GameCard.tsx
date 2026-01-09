@@ -23,9 +23,10 @@ interface GameCardProps {
   onEdit?: (game: Game) => void;
   selected?: boolean;
   onToggleSelect?: (id: number) => void;
+  priority?: boolean; // True for first few cards to load eagerly
 }
 
-function GameCard({ game, onToggleMonitor, onDelete, onSearch, onEdit, selected, onToggleSelect }: GameCardProps) {
+function GameCard({ game, onToggleMonitor, onDelete, onSearch, onEdit, selected, onToggleSelect, priority = false }: GameCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const statusColors = {
@@ -56,6 +57,9 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, onEdit, selected,
             src={game.coverUrl}
             alt={game.title}
             className="w-full h-full object-cover"
+            loading={priority ? 'eager' : 'lazy'}
+            decoding="async"
+            fetchPriority={priority ? 'high' : 'auto'}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-500 text-4xl">
@@ -63,9 +67,9 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, onEdit, selected,
           </div>
         )}
 
-        {/* Selection Checkbox */}
+        {/* Selection Checkbox - z-20 to stay above hover overlay */}
         {onToggleSelect && (
-          <div className={`absolute top-2 left-2 transition ${selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+          <div className={`absolute top-2 left-2 z-20 transition ${selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
             <input
               type="checkbox"
               checked={selected || false}
@@ -77,33 +81,30 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, onEdit, selected,
           </div>
         )}
 
-        {/* Status Badge */}
-        <div className="absolute top-2 right-2">
+        {/* Badges - all on right side */}
+        <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+          {/* Status Badge */}
           <span
             className={`${statusColors[game.status]} px-2 py-1 rounded text-xs font-semibold`}
           >
             {statusLabels[game.status]}
           </span>
-        </div>
 
-        {/* Update Available Badge */}
-        {game.updateAvailable && (
-          <div className={`absolute ${onToggleSelect ? 'top-9' : 'top-2'} left-2`}>
+          {/* Update Available Badge */}
+          {game.updateAvailable && (
             <span className="bg-orange-500 px-2 py-1 rounded text-xs font-semibold flex items-center gap-1">
               <RefreshIcon className="w-3 h-3" />
               Update
             </span>
-          </div>
-        )}
+          )}
 
-        {/* Monitored Badge */}
-        {!game.monitored && !game.updateAvailable && (
-          <div className={`absolute ${onToggleSelect ? 'top-9' : 'top-2'} left-2`}>
+          {/* Unmonitored Badge */}
+          {!game.monitored && !game.updateAvailable && (
             <span className="bg-gray-900 px-2 py-1 rounded text-xs font-semibold">
               Unmonitored
             </span>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Hover Actions */}
         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-60 transition flex items-center justify-center opacity-0 group-hover:opacity-100" role="group" aria-label={`Actions for ${game.title}`}>

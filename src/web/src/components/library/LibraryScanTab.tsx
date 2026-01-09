@@ -1,9 +1,13 @@
 import { useState, useMemo } from 'react';
-import { GamepadIcon } from '../Icons';
+import { GamepadIcon, MagnifyingGlassIcon } from '../Icons';
 import StoreSelector from '../StoreSelector';
 import { LibraryPagination } from './LibraryPagination';
 import type { LibraryFolder, AutoMatchSuggestion } from './types';
 import type { Library } from '../../api/client';
+
+type SortField = 'name' | 'year' | 'path' | 'library';
+type SortDirection = 'asc' | 'desc';
+type SuggestionFilter = 'all' | 'suggested' | 'not_suggested';
 
 interface LibraryScanTabProps {
   isScanLoaded: boolean;
@@ -14,6 +18,8 @@ interface LibraryScanTabProps {
   selectedStore: Record<string, string | undefined>;
   libraries: Library[];
   selectedLibrary: Record<string, number | undefined>;
+  isBackgroundAutoMatching: boolean;
+  backgroundAutoMatchProgress: { current: number; total: number };
   onScanLibrary: () => void;
   onAutoMatch: (folder: LibraryFolder) => void;
   onManualMatch: (folder: LibraryFolder) => void;
@@ -21,6 +27,7 @@ interface LibraryScanTabProps {
   onConfirmAutoMatch: (folder: LibraryFolder) => void;
   onEditAutoMatch: (folder: LibraryFolder) => void;
   onCancelAutoMatch: (folder: LibraryFolder) => void;
+  onCancelBackgroundAutoMatch: () => void;
   onStoreChange: (folderPath: string, store: string | undefined) => void;
   onLibraryChange: (folderPath: string, libraryId: number | undefined) => void;
   onOpenSteamImport: () => void;
@@ -35,6 +42,8 @@ export function LibraryScanTab({
   selectedStore,
   libraries,
   selectedLibrary,
+  isBackgroundAutoMatching,
+  backgroundAutoMatchProgress,
   onScanLibrary,
   onAutoMatch,
   onManualMatch,
@@ -42,6 +51,7 @@ export function LibraryScanTab({
   onConfirmAutoMatch,
   onEditAutoMatch,
   onCancelAutoMatch,
+  onCancelBackgroundAutoMatch,
   onStoreChange,
   onLibraryChange,
   onOpenSteamImport,
@@ -53,17 +63,107 @@ export function LibraryScanTab({
     return saved ? parseInt(saved, 10) : 25;
   });
 
-  // Calculate paginated folders
+  // Search, sort, and filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [suggestionFilter, setSuggestionFilter] = useState<SuggestionFilter>('all');
+  const [hasYearFilter, setHasYearFilter] = useState<boolean | null>(null);
+  const [hasVersionFilter, setHasVersionFilter] = useState<boolean | null>(null);
+  const [libraryFilter, setLibraryFilter] = useState<string>('all');
+
+  // Get unique library names for filter dropdown
+  const uniqueLibraryNames = useMemo(() => {
+    const names = new Set<string>();
+    libraryFolders.forEach(folder => {
+      if (folder.libraryName) {
+        names.add(folder.libraryName);
+      }
+    });
+    return Array.from(names).sort();
+  }, [libraryFolders]);
+
+  // Filter and sort folders
+  const filteredAndSortedFolders = useMemo(() => {
+    let result = [...libraryFolders];
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(folder =>
+        folder.cleanedTitle.toLowerCase().includes(query) ||
+        folder.folderName.toLowerCase().includes(query) ||
+        folder.path.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply suggestion filter
+    if (suggestionFilter !== 'all') {
+      result = result.filter(folder => {
+        const hasSuggestion = !!autoMatchSuggestions[folder.path];
+        return suggestionFilter === 'suggested' ? hasSuggestion : !hasSuggestion;
+      });
+    }
+
+    // Apply year filter
+    if (hasYearFilter !== null) {
+      result = result.filter(folder =>
+        hasYearFilter ? !!folder.parsedYear : !folder.parsedYear
+      );
+    }
+
+    // Apply version filter
+    if (hasVersionFilter !== null) {
+      result = result.filter(folder =>
+        hasVersionFilter ? !!folder.parsedVersion : !folder.parsedVersion
+      );
+    }
+
+    // Apply library filter
+    if (libraryFilter !== 'all') {
+      result = result.filter(folder => folder.libraryName === libraryFilter);
+    }
+
+    // Apply sorting
+    result.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case 'name':
+          comparison = a.cleanedTitle.localeCompare(b.cleanedTitle);
+          break;
+        case 'year':
+          const yearA = a.parsedYear || 0;
+          const yearB = b.parsedYear || 0;
+          comparison = yearA - yearB;
+          break;
+        case 'path':
+          comparison = a.path.localeCompare(b.path);
+          break;
+        case 'library':
+          const libA = a.libraryName || '';
+          const libB = b.libraryName || '';
+          comparison = libA.localeCompare(libB);
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    return result;
+  }, [libraryFolders, searchQuery, sortField, sortDirection, suggestionFilter, hasYearFilter, hasVersionFilter, libraryFilter, autoMatchSuggestions]);
+
+  // Calculate paginated folders from filtered results
   const totalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(libraryFolders.length / pageSize));
-  }, [libraryFolders.length, pageSize]);
+    return Math.max(1, Math.ceil(filteredAndSortedFolders.length / pageSize));
+  }, [filteredAndSortedFolders.length, pageSize]);
 
   const paginatedFolders = useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize;
-    return libraryFolders.slice(startIndex, startIndex + pageSize);
-  }, [libraryFolders, currentPage, pageSize]);
+    return filteredAndSortedFolders.slice(startIndex, startIndex + pageSize);
+  }, [filteredAndSortedFolders, currentPage, pageSize]);
 
-  // Reset to page 1 when folders change significantly
+  // Reset to page 1 when filters change or folders change significantly
   useMemo(() => {
     if (currentPage > totalPages) {
       setCurrentPage(1);
@@ -75,6 +175,27 @@ export function LibraryScanTab({
     setCurrentPage(1);
     localStorage.setItem('library-scan-page-size', newSize.toString());
   };
+
+  const handleSortChange = (field: SortField) => {
+    if (field === sortField) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setSuggestionFilter('all');
+    setHasYearFilter(null);
+    setHasVersionFilter(null);
+    setLibraryFilter('all');
+    setCurrentPage(1);
+  };
+
+  const hasActiveFilters = searchQuery || suggestionFilter !== 'all' || hasYearFilter !== null || hasVersionFilter !== null || libraryFilter !== 'all';
 
   return (
     <>
@@ -124,13 +245,176 @@ export function LibraryScanTab({
         </div>
       ) : (
         <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-xl font-semibold mb-4">
-            Folders to Import ({libraryFolders.length})
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold">
+              Folders to Import ({filteredAndSortedFolders.length}{filteredAndSortedFolders.length !== libraryFolders.length ? ` of ${libraryFolders.length}` : ''})
+            </h3>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="text-sm text-blue-400 hover:text-blue-300 transition"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
           <p className="text-gray-400 text-sm mb-4">
-            These folders aren't linked to any games yet. Click "Match" to search and link each
-            folder to a game, or "Ignore" to hide it.
+            These folders aren't linked to any games yet. Review the auto-matched suggestions below,
+            or use Manual Match to search for a specific game.
           </p>
+
+          {/* Background Auto-Match Progress */}
+          {isBackgroundAutoMatching && (
+            <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-4 mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+                  <span className="text-sm text-blue-300">
+                    Auto-matching folders... ({backgroundAutoMatchProgress.current} of {backgroundAutoMatchProgress.total})
+                  </span>
+                </div>
+                <button
+                  onClick={onCancelBackgroundAutoMatch}
+                  className="text-sm text-gray-400 hover:text-white transition"
+                >
+                  Cancel
+                </button>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2">
+                <div
+                  className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                  style={{
+                    width: `${backgroundAutoMatchProgress.total > 0
+                      ? (backgroundAutoMatchProgress.current / backgroundAutoMatchProgress.total) * 100
+                      : 0}%`
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Search, Sort, and Filter Controls */}
+          <div className="bg-gray-700 rounded-lg p-4 mb-4 space-y-3">
+            {/* Search and Sort Row */}
+            <div className="flex flex-wrap gap-3">
+              {/* Search Input */}
+              <div className="relative flex-1 min-w-[200px]">
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search folders..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full bg-gray-600 border border-gray-500 rounded pl-10 pr-4 py-2 text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Sort Dropdown */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-400">Sort:</label>
+                <select
+                  value={sortField}
+                  onChange={(e) => handleSortChange(e.target.value as SortField)}
+                  className="bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="name">Name</option>
+                  <option value="year">Year</option>
+                  <option value="path">Path</option>
+                  <option value="library">Library</option>
+                </select>
+                <button
+                  onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  className="bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white hover:bg-gray-500 transition"
+                  title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}
+                >
+                  {sortDirection === 'asc' ? '↑' : '↓'}
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Row */}
+            <div className="flex flex-wrap gap-3 items-center">
+              <span className="text-sm text-gray-400">Filter:</span>
+
+              {/* Suggestion Status Filter */}
+              <select
+                value={suggestionFilter}
+                onChange={(e) => {
+                  setSuggestionFilter(e.target.value as SuggestionFilter);
+                  setCurrentPage(1);
+                }}
+                className="bg-gray-600 border border-gray-500 rounded px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+              >
+                <option value="all">All Match Status</option>
+                <option value="suggested">Ready to Confirm</option>
+                <option value="not_suggested">Needs Review</option>
+              </select>
+
+              {/* Year Filter */}
+              <select
+                value={hasYearFilter === null ? 'all' : hasYearFilter ? 'yes' : 'no'}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setHasYearFilter(val === 'all' ? null : val === 'yes');
+                  setCurrentPage(1);
+                }}
+                className="bg-gray-600 border border-gray-500 rounded px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+              >
+                <option value="all">All Years</option>
+                <option value="yes">Has Year</option>
+                <option value="no">No Year</option>
+              </select>
+
+              {/* Version Filter */}
+              <select
+                value={hasVersionFilter === null ? 'all' : hasVersionFilter ? 'yes' : 'no'}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setHasVersionFilter(val === 'all' ? null : val === 'yes');
+                  setCurrentPage(1);
+                }}
+                className="bg-gray-600 border border-gray-500 rounded px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+              >
+                <option value="all">All Versions</option>
+                <option value="yes">Has Version</option>
+                <option value="no">No Version</option>
+              </select>
+
+              {/* Library Filter - only show if there are multiple libraries */}
+              {uniqueLibraryNames.length > 1 && (
+                <select
+                  value={libraryFilter}
+                  onChange={(e) => {
+                    setLibraryFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="bg-gray-600 border border-gray-500 rounded px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="all">All Libraries</option>
+                  {uniqueLibraryNames.map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+
+          {/* No Results Message */}
+          {filteredAndSortedFolders.length === 0 && hasActiveFilters && (
+            <div className="text-center py-8 text-gray-400">
+              <p>No folders match your search or filters.</p>
+              <button
+                onClick={clearFilters}
+                className="mt-2 text-blue-400 hover:text-blue-300 transition"
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
+
           <div className="space-y-3">
             {paginatedFolders.map((folder) => {
               const suggestion = autoMatchSuggestions[folder.path];
@@ -152,8 +436,8 @@ export function LibraryScanTab({
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-400">
-                        {folder.relativePath || folder.folderName}
+                      <div className="text-sm text-gray-400 truncate" title={folder.path}>
+                        {folder.path}
                       </div>
                     </div>
                     {!suggestion && (
@@ -286,7 +570,7 @@ export function LibraryScanTab({
             currentPage={currentPage}
             totalPages={totalPages}
             pageSize={pageSize}
-            totalItems={libraryFolders.length}
+            totalItems={filteredAndSortedFolders.length}
             onPageChange={setCurrentPage}
             onPageSizeChange={handlePageSizeChange}
             itemLabel="folders"

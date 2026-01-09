@@ -19,5 +19,18 @@ export default defineConfig({
   build: {
     outDir: '../../dist',
     emptyOutDir: true,
+    // Optimize chunk splitting
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split React into its own chunk for better caching
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+    // Minimize CSS
+    cssMinify: true,
+    // Target modern browsers for smaller bundles
+    target: 'es2020',
   },
 });

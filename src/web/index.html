@@ -4,13 +4,110 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gamearr</title>
+
+    <!-- Preconnect to external origins -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <title>Gamearr</title>
+    <!-- Preconnect to IGDB for cover images -->
+    <link rel="preconnect" href="https://images.igdb.com" crossorigin>
+    <!-- Prefetch games API so data is ready when React loads -->
+    <link rel="prefetch" href="/api/v1/games" as="fetch" crossorigin>
+
+    <!-- Critical inline CSS for instant first paint -->
+    <style>
+      *,*::before,*::after{box-sizing:border-box}
+      body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#111827;color:#fff;-webkit-font-smoothing:antialiased}
+      #root{min-height:100vh}
+      /* Header */
+      .shell-header{background:#1f2937;border-bottom:1px solid #374151;height:64px}
+      .shell-header-inner{max-width:1280px;margin:0 auto;padding:0 16px;height:100%;display:flex;align-items:center}
+      .shell-logo{font-size:1.5rem;font-weight:700;color:#3b82f6;display:flex;align-items:center;gap:8px}
+      .shell-nav{display:flex;gap:16px;margin-left:32px}
+      .shell-nav-item{padding:8px 12px;border-radius:6px;color:#9ca3af;font-size:14px}
+      /* Main content */
+      .shell-main{max-width:1280px;margin:0 auto;padding:32px 16px}
+      /* Page header */
+      .shell-page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+      .shell-title{font-size:1.875rem;font-weight:700;line-height:2.25rem}
+      .shell-btn{height:40px;padding:0 16px;background:#2563eb;border-radius:6px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500}
+      /* Tabs */
+      .shell-tabs{display:flex;gap:8px;border-bottom:1px solid #374151;margin-bottom:24px;padding-bottom:0}
+      .shell-tab{padding:8px 16px;color:#9ca3af;font-size:14px;border-bottom:2px solid transparent}
+      .shell-tab-active{color:#3b82f6;border-bottom-color:#3b82f6}
+      /* Filter bar */
+      .shell-filters{background:#1f2937;border-radius:8px;padding:16px;margin-bottom:24px;display:flex;gap:16px;flex-wrap:wrap}
+      .shell-filter{height:36px;background:#374151;border-radius:6px}
+      /* Game grid */
+      .shell-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:24px}
+      .shell-card{background:#1f2937;border-radius:8px;overflow:hidden}
+      .shell-card-img{aspect-ratio:2/3;background:#374151}
+      .shell-card-info{padding:12px}
+      .shell-card-title{height:16px;background:#374151;border-radius:4px;margin-bottom:8px}
+      .shell-card-meta{height:12px;width:60%;background:#374151;border-radius:4px}
+      /* Animation */
+      .shell-skeleton{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}
+      @keyframes pulse{50%{opacity:.5}}
+    </style>
+
+    <!-- Defer non-critical font loading -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"></noscript>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Static shell for instant first paint -->
+    <div id="root">
+      <div class="shell-header">
+        <div class="shell-header-inner">
+          <div class="shell-logo">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+              <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Gamearr
+          </div>
+          <nav class="shell-nav">
+            <span class="shell-nav-item">Library</span>
+            <span class="shell-nav-item">Discover</span>
+            <span class="shell-nav-item">Search</span>
+            <span class="shell-nav-item">Activity</span>
+            <span class="shell-nav-item">Updates</span>
+            <span class="shell-nav-item">Settings</span>
+          </nav>
+        </div>
+      </div>
+      <div class="shell-main">
+        <!-- Page header -->
+        <div class="shell-page-header">
+          <h2 class="shell-title">Library</h2>
+          <div class="shell-btn">+ Add Game</div>
+        </div>
+        <!-- Tabs -->
+        <div class="shell-tabs">
+          <span class="shell-tab shell-tab-active">Games</span>
+          <span class="shell-tab">Import</span>
+          <span class="shell-tab">Health</span>
+        </div>
+        <!-- Filter bar -->
+        <div class="shell-filters shell-skeleton">
+          <div class="shell-filter" style="width:180px"></div>
+          <div class="shell-filter" style="width:140px"></div>
+          <div class="shell-filter" style="width:120px"></div>
+          <div class="shell-filter" style="width:140px"></div>
+        </div>
+        <!-- Game grid -->
+        <div class="shell-grid shell-skeleton">
+          <div class="shell-card"><div class="shell-card-img"></div><div class="shell-card-info"><div class="shell-card-title"></div><div class="shell-card-meta"></div></div></div>
+          <div class="shell-card"><div class="shell-card-img"></div><div class="shell-card-info"><div class="shell-card-title"></div><div class="shell-card-meta"></div></div></div>
+          <div class="shell-card"><div class="shell-card-img"></div><div class="shell-card-info"><div class="shell-card-title"></div><div class="shell-card-meta"></div></div></div>
+          <div class="shell-card"><div class="shell-card-img"></div><div class="shell-card-info"><div class="shell-card-title"></div><div class="shell-card-meta"></div></div></div>
+          <div class="shell-card"><div class="shell-card-img"></div><div class="shell-card-info"><div class="shell-card-title"></div><div class="shell-card-meta"></div></div></div>
+          <div class="shell-card"><div class="shell-card-img"></div><div class="shell-card-info"><div class="shell-card-title"></div><div class="shell-card-meta"></div></div></div>
+          <div class="shell-card"><div class="shell-card-img"></div><div class="shell-card-info"><div class="shell-card-title"></div><div class="shell-card-meta"></div></div></div>
+          <div class="shell-card"><div class="shell-card-img"></div><div class="shell-card-info"><div class="shell-card-title"></div><div class="shell-card-meta"></div></div></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

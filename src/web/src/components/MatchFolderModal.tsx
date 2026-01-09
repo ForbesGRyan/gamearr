@@ -29,6 +29,7 @@ interface LibraryFolder {
   matched: boolean;
   gameId?: number;
   path: string;
+  libraryName?: string;
 }
 
 interface MatchFolderModalProps {
@@ -72,6 +73,18 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
       handleAutoSearch(folder.parsedTitle);
     }
   }, [folder]);
+
+  // Auto-select library based on folder's library name
+  useEffect(() => {
+    if (folder?.libraryName && libraries.length > 0) {
+      const matchingLibrary = libraries.find(
+        lib => lib.name.toLowerCase() === folder.libraryName?.toLowerCase()
+      );
+      if (matchingLibrary) {
+        setSelectedLibraryId(matchingLibrary.id);
+      }
+    }
+  }, [folder, libraries]);
 
   // Initialize platform selection for search results (default to PC if available)
   useEffect(() => {

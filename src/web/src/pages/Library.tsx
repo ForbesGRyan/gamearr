@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import GameCard from '../components/GameCard';
 import AddGameModal from '../components/AddGameModal';
@@ -42,25 +42,34 @@ function Library() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam === 'games' || tabParam === 'scan' || tabParam === 'health') {
+    if (tabParam === 'scan' || tabParam === 'health') {
       return tabParam;
     }
     return 'games';
   });
 
-  // Update URL when tab changes
+  // Sync URL → state when URL changes externally (e.g., from nav dropdown)
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    const newTab: Tab = (tabParam === 'scan' || tabParam === 'health') ? tabParam : 'games';
+    if (newTab !== activeTab) {
+      setActiveTab(newTab);
+    }
+  }, [searchParams]);
+
+  // Update URL when tab changes via internal clicks
   useEffect(() => {
     const currentTab = searchParams.get('tab');
-    if (activeTab !== currentTab) {
+    const expectedTab = activeTab === 'games' ? null : activeTab;
+    if (expectedTab !== currentTab) {
       if (activeTab === 'games') {
-        // Remove tab param for default tab
         searchParams.delete('tab');
       } else {
         searchParams.set('tab', activeTab);
       }
       setSearchParams(searchParams, { replace: true });
     }
-  }, [activeTab, searchParams, setSearchParams]);
+  }, [activeTab]);
   const [games, setGames] = useState<Game[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -92,6 +101,11 @@ function Library() {
   const [isAutoMatching, setIsAutoMatching] = useState<Record<string, boolean>>({});
   const [selectedStore, setSelectedStore] = useState<Record<string, string | null>>({});
   const [selectedLibraryForMatch, setSelectedLibraryForMatch] = useState<Record<string, number | undefined>>({});
+
+  // Background auto-matching state
+  const [isBackgroundAutoMatching, setIsBackgroundAutoMatching] = useState(false);
+  const [backgroundAutoMatchProgress, setBackgroundAutoMatchProgress] = useState({ current: 0, total: 0 });
+  const backgroundAutoMatchAbortRef = useRef(false);
 
   // Health tab state
   const [looseFiles, setLooseFiles] = useState<LooseFile[]>([]);
@@ -791,6 +805,15 @@ function Library() {
         );
 
         setTimeout(() => setScanMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
+
+        // Start background auto-matching for unmatched folders
+        const unmatchedFolders = folders.filter(f => !f.matched);
+        if (unmatchedFolders.length > 0) {
+          // Small delay before starting to let the UI settle
+          setTimeout(() => {
+            runBackgroundAutoMatch(unmatchedFolders);
+          }, 500);
+        }
       } else {
         setError(response.error || 'Library scan failed');
       }
@@ -852,6 +875,19 @@ function Library() {
           ...prev,
           [folder.path]: response.data as AutoMatchSuggestion,
         }));
+
+        // Auto-populate library based on folder's library name
+        if (folder.libraryName) {
+          const matchingLibrary = libraries.find(
+            lib => lib.name.toLowerCase() === folder.libraryName?.toLowerCase()
+          );
+          if (matchingLibrary) {
+            setSelectedLibraryForMatch((prev) => ({
+              ...prev,
+              [folder.path]: matchingLibrary.id,
+            }));
+          }
+        }
       } else {
         setError(response.error || 'Failed to auto-match folder');
       }
@@ -861,6 +897,77 @@ function Library() {
       setIsAutoMatching((prev) => ({ ...prev, [folder.path]: false }));
     }
   };
+
+  // Background auto-match all unmatched folders
+  const runBackgroundAutoMatch = useCallback(async (folders: LibraryFolder[]) => {
+    // Filter to only unmatched folders that don't already have suggestions
+    const foldersToMatch = folders.filter(f => !f.matched);
+
+    if (foldersToMatch.length === 0) return;
+
+    setIsBackgroundAutoMatching(true);
+    setBackgroundAutoMatchProgress({ current: 0, total: foldersToMatch.length });
+    backgroundAutoMatchAbortRef.current = false;
+
+    for (let i = 0; i < foldersToMatch.length; i++) {
+      // Check if aborted
+      if (backgroundAutoMatchAbortRef.current) {
+        break;
+      }
+
+      const folder = foldersToMatch[i];
+
+      // Skip if already has a suggestion
+      if (autoMatchSuggestions[folder.path]) {
+        setBackgroundAutoMatchProgress({ current: i + 1, total: foldersToMatch.length });
+        continue;
+      }
+
+      setIsAutoMatching((prev) => ({ ...prev, [folder.path]: true }));
+
+      try {
+        const response = await api.autoMatchFolder(folder.parsedTitle, folder.parsedYear);
+
+        if (response.success && response.data) {
+          setAutoMatchSuggestions((prev) => ({
+            ...prev,
+            [folder.path]: response.data as AutoMatchSuggestion,
+          }));
+
+          // Auto-populate library based on folder's library name
+          if (folder.libraryName) {
+            const matchingLibrary = libraries.find(
+              lib => lib.name.toLowerCase() === folder.libraryName?.toLowerCase()
+            );
+            if (matchingLibrary) {
+              setSelectedLibraryForMatch((prev) => ({
+                ...prev,
+                [folder.path]: matchingLibrary.id,
+              }));
+            }
+          }
+        }
+        // Silently skip folders that don't match - no error shown
+      } catch {
+        // Silently continue on error
+      } finally {
+        setIsAutoMatching((prev) => ({ ...prev, [folder.path]: false }));
+      }
+
+      setBackgroundAutoMatchProgress({ current: i + 1, total: foldersToMatch.length });
+
+      // Small delay between requests to avoid overwhelming the API
+      if (i < foldersToMatch.length - 1 && !backgroundAutoMatchAbortRef.current) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
+
+    setIsBackgroundAutoMatching(false);
+  }, [autoMatchSuggestions, libraries]);
+
+  const cancelBackgroundAutoMatch = useCallback(() => {
+    backgroundAutoMatchAbortRef.current = true;
+  }, []);
 
   const handleConfirmAutoMatch = async (folder: LibraryFolder) => {
     const suggestion = autoMatchSuggestions[folder.path];
@@ -1334,7 +1441,7 @@ function Library() {
               {/* Poster View */}
               {viewMode === 'posters' && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                  {getPaginatedGames().map((game) => (
+                  {getPaginatedGames().map((game, index) => (
                     <GameCard
                       key={game.id}
                       game={game}
@@ -1344,6 +1451,7 @@ function Library() {
                       onEdit={handleEdit}
                       selected={selectedGameIds.has(game.id)}
                       onToggleSelect={toggleGameSelection}
+                      priority={index < 8}
                     />
                   ))}
                 </div>
@@ -1808,6 +1916,8 @@ function Library() {
           selectedStore={selectedStore}
           libraries={libraries}
           selectedLibrary={selectedLibraryForMatch}
+          isBackgroundAutoMatching={isBackgroundAutoMatching}
+          backgroundAutoMatchProgress={backgroundAutoMatchProgress}
           onScanLibrary={handleScanLibrary}
           onAutoMatch={handleAutoMatch}
           onManualMatch={handleMatchFolder}
@@ -1815,6 +1925,7 @@ function Library() {
           onConfirmAutoMatch={handleConfirmAutoMatch}
           onEditAutoMatch={handleEditAutoMatch}
           onCancelAutoMatch={handleCancelAutoMatch}
+          onCancelBackgroundAutoMatch={cancelBackgroundAutoMatch}
           onStoreChange={(folderPath, store) =>
             setSelectedStore((prev) => ({ ...prev, [folderPath]: store }))
           }

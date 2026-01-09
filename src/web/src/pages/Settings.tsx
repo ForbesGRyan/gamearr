@@ -25,28 +25,41 @@ function TabLoading() {
 function Settings() {
   // Tab state with URL params
   const [searchParams, setSearchParams] = useSearchParams();
+  // Valid tabs for validation
+  const validTabs: SettingsTab[] = ['general', 'libraries', 'indexers', 'downloads', 'metadata', 'updates'];
+
   const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
     const tabParam = searchParams.get('tab');
-    const validTabs: SettingsTab[] = ['general', 'libraries', 'indexers', 'downloads', 'metadata', 'updates'];
     if (tabParam && validTabs.includes(tabParam as SettingsTab)) {
       return tabParam as SettingsTab;
     }
     return 'general';
   });
 
-  // Update URL when tab changes
+  // Sync URL → state when URL changes externally (e.g., from nav dropdown)
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    const newTab: SettingsTab = (tabParam && validTabs.includes(tabParam as SettingsTab))
+      ? (tabParam as SettingsTab)
+      : 'general';
+    if (newTab !== activeTab) {
+      setActiveTab(newTab);
+    }
+  }, [searchParams]);
+
+  // Update URL when tab changes via internal clicks
   useEffect(() => {
     const currentTab = searchParams.get('tab');
-    if (activeTab !== currentTab) {
+    const expectedTab = activeTab === 'general' ? null : activeTab;
+    if (expectedTab !== currentTab) {
       if (activeTab === 'general') {
-        // Remove tab param for default tab
         searchParams.delete('tab');
       } else {
         searchParams.set('tab', activeTab);
       }
       setSearchParams(searchParams, { replace: true });
     }
-  }, [activeTab, searchParams, setSearchParams]);
+  }, [activeTab]);
 
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
