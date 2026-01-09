@@ -488,27 +488,39 @@ export class DownloadService {
 
   /**
    * Get all active downloads
-   * Filters to configured category and excludes completed downloads
+   * Filters to configured category and optionally includes completed downloads
    */
-  async getActiveDownloads() {
+  async getActiveDownloads(includeCompleted: boolean = false) {
     try {
       const torrents = await qbittorrentClient.getTorrents();
 
-      // Get configured category filter
+      // Get configured category filter from settings
       const categoryFilter = await settingsService.getQBittorrentCategory();
 
-      // Filter for configured category and exclude completed downloads
+      logger.info(`getActiveDownloads: includeCompleted=${includeCompleted}, categoryFilter="${categoryFilter}", totalTorrents=${torrents.length}`);
+
+      // Filter torrents based on category and completion status
       const filteredTorrents = torrents.filter((torrent) => {
-        // Only show torrents in configured category
-        const isInCategory = torrent.category === categoryFilter;
+        // Apply category filter (if configured)
+        // Support hierarchical categories: "Games" matches "Games" and "Games/PC"
+        const isInCategory = !categoryFilter ||
+          torrent.category === categoryFilter ||
+          torrent.category.startsWith(categoryFilter + '/');
+        const isCompleted = torrent.progress >= 1;
 
-        // Exclude completed downloads (100% progress)
-        const isNotCompleted = torrent.progress < 1;
+        // Include if: in category AND (includeCompleted OR not completed)
+        const include = isInCategory && (includeCompleted || !isCompleted);
 
-        return isInCategory && isNotCompleted;
+        return include;
       });
 
-      return filteredTorrents;
+      logger.info(`getActiveDownloads: returning ${filteredTorrents.length} torrents`);
+
+      // Map torrents to include gameId from tags
+      return filteredTorrents.map((torrent) => ({
+        ...torrent,
+        gameId: this.parseGameIdFromTags(torrent.tags),
+      }));
     } catch (error) {
       logger.error('Failed to get active downloads:', error);
       throw error;
@@ -581,6 +593,49 @@ export class DownloadService {
     } catch (error) {
       logger.error('Failed to resume download:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Link torrents to a game by folder path
+   * Finds torrents whose save path matches and adds the game tag
+   */
+  async linkTorrentsToGame(folderPath: string, gameId: number): Promise<number> {
+    if (!qbittorrentClient.isConfigured()) {
+      logger.debug('qBittorrent not configured, skipping torrent linking');
+      return 0;
+    }
+
+    try {
+      const matchingTorrents = await qbittorrentClient.findTorrentsByPath(folderPath);
+
+      if (matchingTorrents.length === 0) {
+        logger.debug(`No torrents found matching path: ${folderPath}`);
+        return 0;
+      }
+
+      // Filter out torrents that already have a game tag
+      const torrentsToTag = matchingTorrents.filter((torrent) => {
+        const existingGameId = this.parseGameIdFromTags(torrent.tags);
+        return existingGameId === null;
+      });
+
+      if (torrentsToTag.length === 0) {
+        logger.debug(`All matching torrents already have game tags`);
+        return 0;
+      }
+
+      const hashes = torrentsToTag.map((t) => t.hash);
+      const tag = `game-${gameId}`;
+
+      await qbittorrentClient.addTags(hashes, tag);
+      logger.info(`Linked ${hashes.length} torrent(s) to game ${gameId}: ${hashes.join(', ')}`);
+
+      return hashes.length;
+    } catch (error) {
+      logger.error('Failed to link torrents to game:', error);
+      // Don't throw - this is a non-critical operation
+      return 0;
     }
   }
 

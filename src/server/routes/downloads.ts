@@ -7,10 +7,11 @@ const downloads = new Hono();
 
 // GET /api/v1/downloads - Get current downloads
 downloads.get('/', async (c) => {
-  logger.info('GET /api/v1/downloads');
+  const includeCompleted = c.req.query('includeCompleted') === 'true';
+  logger.info(`GET /api/v1/downloads (includeCompleted: ${includeCompleted})`);
 
   try {
-    const activeDownloads = await downloadService.getActiveDownloads();
+    const activeDownloads = await downloadService.getActiveDownloads(includeCompleted);
     return c.json({ success: true, data: activeDownloads });
   } catch (error) {
     logger.error('Failed to get downloads:', error);

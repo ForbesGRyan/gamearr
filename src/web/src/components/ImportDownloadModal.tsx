@@ -1,53 +1,23 @@
 import { useState, useEffect } from 'react';
-import { api, Library } from '../api/client';
-import StoreSelector from './StoreSelector';
+import { api, Download, Library, SearchResult } from '../api/client';
 import { CloseIcon, GamepadIcon } from './Icons';
 
-interface SearchResult {
-  igdbId: number;
-  title: string;
-  year?: number;
-  coverUrl?: string;
-  summary?: string;
-  platforms?: string[];
-  genres?: string[];
-  totalRating?: number;
-  developer?: string;
-  publisher?: string;
-  gameModes?: string[];
-  similarGames?: Array<{
-    igdbId: number;
-    name: string;
-    coverUrl?: string;
-  }>;
-}
-
-interface LibraryFolder {
-  folderName: string;
-  parsedTitle: string;
-  parsedYear?: number;
-  matched: boolean;
-  gameId?: number;
-  path: string;
-}
-
-interface MatchFolderModalProps {
+interface ImportDownloadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onFolderMatched: () => void;
-  folder: LibraryFolder | null;
+  onImported: () => void;
+  download: Download | null;
 }
 
-function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFolderModalProps) {
+function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDownloadModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [isMatching, setIsMatching] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedStore, setSelectedStore] = useState<string | null>(null);
-  const [selectedPlatforms, setSelectedPlatforms] = useState<Record<number, string>>({});
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Record<number, string>>({});
 
   // Load libraries on mount
   useEffect(() => {
@@ -55,6 +25,10 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
       const response = await api.getLibraries();
       if (response.success && response.data) {
         setLibraries(response.data);
+        // Auto-select first library if available
+        if (response.data.length > 0 && !selectedLibraryId) {
+          setSelectedLibraryId(response.data[0].id);
+        }
       }
     };
     if (isOpen) {
@@ -62,16 +36,15 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
     }
   }, [isOpen]);
 
-  // Pre-fill search with parsed title when folder changes
+  // Extract game name from torrent name and auto-search
   useEffect(() => {
-    if (folder) {
-      setSearchQuery(folder.parsedTitle);
+    if (download) {
+      const cleanedName = cleanTorrentName(download.name);
+      setSearchQuery(cleanedName);
       setSelectedPlatforms({});
-      setSelectedLibraryId(null);
-      // Auto-search when opening
-      handleAutoSearch(folder.parsedTitle);
+      handleAutoSearch(cleanedName);
     }
-  }, [folder]);
+  }, [download]);
 
   // Initialize platform selection for search results (default to PC if available)
   useEffect(() => {
@@ -102,7 +75,35 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
     }
   }, [isOpen, onClose]);
 
-  if (!isOpen || !folder) return null;
+  if (!isOpen || !download) return null;
+
+  // Clean torrent name to extract game title
+  function cleanTorrentName(name: string): string {
+    let cleaned = name;
+
+    // Remove common release group tags and scene info
+    const patternsToRemove = [
+      /[-._]?(CODEX|PLAZA|SKIDROW|RELOADED|FitGirl|GOG|Steam|Repack|RUNE|DARKSiDERS|EMPRESS|TiNYiSO|DODI|ElAmigos|KaOs)/gi,
+      /[-._]?(x64|x86|Win64|Windows|PC|MacOS|Linux)/gi,
+      /[-._]?(v\d+[\d.]*\w*)/gi, // Version numbers
+      /[-._]?(Multi\d*|MULTI\d*)/gi,
+      /[-._]?(Incl|Including|Update|DLC|Bonus|OST|Soundtrack)/gi,
+      /[-._]?(Portable|Proper|REPACK|RIP)/gi,
+      /[-._]?\d{4}[-._]?\d{2}[-._]?\d{2}/g, // Dates
+      /\[.*?\]/g, // Bracketed content
+      /\(.*?\)/g, // Parenthetical content
+      /[-._]+/g, // Replace multiple separators with space
+    ];
+
+    for (const pattern of patternsToRemove) {
+      cleaned = cleaned.replace(pattern, ' ');
+    }
+
+    // Clean up extra spaces
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+    return cleaned;
+  }
 
   const handleAutoSearch = async (query: string) => {
     if (!query.trim()) return;
@@ -114,7 +115,7 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
       const response = await api.searchGames(query);
 
       if (response.success && response.data) {
-        setSearchResults(response.data as SearchResult[]);
+        setSearchResults(response.data);
       } else {
         setError(response.error || 'Search failed');
         setSearchResults([]);
@@ -133,36 +134,45 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
     await handleAutoSearch(searchQuery);
   };
 
-  const handleMatchGame = async (game: SearchResult) => {
-    setIsMatching(true);
+  const handleImportGame = async (game: SearchResult) => {
+    setIsImporting(true);
     setError(null);
 
     try {
       // Get selected platform for this game
       const platform = selectedPlatforms[game.igdbId] || game.platforms?.[0] || 'PC';
 
-      // Pass the full SearchResult with selected platform
-      const gameWithPlatform = {
-        ...game,
-        platforms: [platform], // Override with selected platform
-      };
-
-      const response = await api.matchLibraryFolder(folder.path, folder.folderName, gameWithPlatform, selectedStore, selectedLibraryId);
+      // Add the game with status 'downloaded'
+      const response = await api.addGame({
+        igdbId: game.igdbId,
+        title: game.title,
+        year: game.year,
+        platform,
+        coverUrl: game.coverUrl,
+        summary: game.summary,
+        genres: game.genres?.join(', '),
+        totalRating: game.totalRating,
+        developer: game.developer,
+        publisher: game.publisher,
+        gameModes: game.gameModes?.join(', '),
+        status: 'downloaded',
+        monitored: true,
+        libraryId: selectedLibraryId || undefined,
+      });
 
       if (response.success) {
-        onFolderMatched();
+        onImported();
         onClose();
         setSearchQuery('');
         setSearchResults([]);
         setSelectedPlatforms({});
-        setSelectedLibraryId(null);
       } else {
-        setError(response.error || 'Failed to match folder');
+        setError(response.error || 'Failed to import game');
       }
     } catch (err) {
-      setError('Failed to match folder');
+      setError('Failed to import game');
     } finally {
-      setIsMatching(false);
+      setIsImporting(false);
     }
   };
 
@@ -172,9 +182,9 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
         {/* Header */}
         <div className="bg-gray-700 flex items-center justify-between p-6 border-b border-gray-600">
           <div>
-            <h2 className="text-2xl font-bold text-white">Match Library Folder</h2>
-            <p className="text-sm text-gray-300 mt-1">
-              Folder: <span className="font-mono">{folder.folderName}</span>
+            <h2 className="text-2xl font-bold text-white">Import to Library</h2>
+            <p className="text-sm text-gray-300 mt-1 truncate max-w-lg" title={download.name}>
+              {download.name}
             </p>
           </div>
           <button
@@ -205,36 +215,26 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
             </button>
           </form>
 
-          <div className="mt-4 flex gap-4">
-            <div className="flex-1">
-              <StoreSelector value={selectedStore} onChange={setSelectedStore} label="Digital Store (Optional)" />
-              <p className="text-xs text-gray-400 mt-1">
-                Select a store if you own this game digitally.
-              </p>
+          {/* Library Selector */}
+          {libraries.length > 0 && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Add to Library
+              </label>
+              <select
+                value={selectedLibraryId || ''}
+                onChange={(e) => setSelectedLibraryId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full bg-gray-600 border border-gray-600 rounded px-4 py-2 text-white focus:border-blue-500 focus:outline-none"
+              >
+                <option value="">No Library (General)</option>
+                {libraries.map((lib) => (
+                  <option key={lib.id} value={lib.id}>
+                    {lib.name} {lib.platform ? `(${lib.platform})` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
-            {libraries.length > 0 && (
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Add to Library
-                </label>
-                <select
-                  value={selectedLibraryId || ''}
-                  onChange={(e) => setSelectedLibraryId(e.target.value ? Number(e.target.value) : null)}
-                  className="w-full bg-gray-600 border border-gray-600 rounded px-4 py-2 text-white focus:border-blue-500 focus:outline-none"
-                >
-                  <option value="">No Library (General)</option>
-                  {libraries.map((lib) => (
-                    <option key={lib.id} value={lib.id}>
-                      {lib.name} {lib.platform ? `(${lib.platform})` : ''}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-400 mt-1">
-                  Organize this game into a library.
-                </p>
-              </div>
-            )}
-          </div>
+          )}
 
           {error && (
             <div className="bg-red-900 mt-3 p-3 border border-red-700 rounded text-red-200 text-sm">
@@ -247,7 +247,7 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
         <div className="flex-1 overflow-y-auto p-6">
           {searchResults.length === 0 ? (
             <div className="text-center text-gray-200 py-12">
-              {isSearching ? 'Searching...' : 'Search for games to match this folder'}
+              {isSearching ? 'Searching...' : 'Search for a game to import'}
             </div>
           ) : (
             <div className="space-y-3">
@@ -308,14 +308,14 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
                     )}
                   </div>
 
-                  {/* Match Button */}
+                  {/* Import Button */}
                   <div className="flex-shrink-0">
                     <button
-                      onClick={() => handleMatchGame(game)}
-                      disabled={isMatching}
+                      onClick={() => handleImportGame(game)}
+                      disabled={isImporting}
                       className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
                     >
-                      {isMatching ? 'Matching...' : 'Match'}
+                      {isImporting ? 'Importing...' : 'Import'}
                     </button>
                   </div>
                 </div>
@@ -328,4 +328,4 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
   );
 }
 
-export default MatchFolderModal;
+export default ImportDownloadModal;

@@ -151,6 +151,7 @@ export interface Download {
   state: string;
   savePath: string;
   addedOn: string;
+  gameId?: number | null;
 }
 
 export interface Release {
@@ -393,8 +394,9 @@ class ApiClient {
   }
 
   // Downloads
-  async getDownloads(): Promise<ApiResponse<Download[]>> {
-    return this.request<Download[]>('/downloads');
+  async getDownloads(includeCompleted: boolean = false): Promise<ApiResponse<Download[]>> {
+    const params = includeCompleted ? '?includeCompleted=true' : '';
+    return this.request<Download[]>(`/downloads${params}`);
   }
 
   async getDownload(hash: string): Promise<ApiResponse<Download>> {
@@ -610,10 +612,10 @@ class ApiClient {
     });
   }
 
-  async matchLibraryFolder(folderPath: string, folderName: string, igdbGame: IGDBGame, store?: string | null): Promise<ApiResponse<Game>> {
+  async matchLibraryFolder(folderPath: string, folderName: string, igdbGame: IGDBGame, store?: string | null, libraryId?: number | null): Promise<ApiResponse<Game>> {
     return this.request<Game>('/library/match', {
       method: 'POST',
-      body: JSON.stringify({ folderPath, folderName, igdbGame, store }),
+      body: JSON.stringify({ folderPath, folderName, igdbGame, store, libraryId }),
     });
   }
 

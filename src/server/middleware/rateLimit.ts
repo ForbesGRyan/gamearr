@@ -138,11 +138,11 @@ export const generalRateLimiter = createRateLimiter({
   message: 'Too many requests, please try again later',
 });
 
-// Sensitive endpoints rate limiter: 10 requests per minute
+// Sensitive endpoints rate limiter: 60 requests per minute
 // For auth, settings, and other sensitive operations
 export const sensitiveRateLimiter = createRateLimiter({
   windowMs: 60 * 1000, // 1 minute
-  maxRequests: 10,
+  maxRequests: 60,
   message: 'Too many requests to sensitive endpoint, please try again later',
 });
 

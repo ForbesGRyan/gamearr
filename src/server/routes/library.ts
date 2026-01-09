@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { fileService } from '../services/FileService';
 import { gameRepository } from '../repositories/GameRepository';
 import { gameService } from '../services/GameService';
+import { downloadService } from '../services/DownloadService';
 import { logger } from '../utils/logger';
 import { validatePathWithinBase } from '../utils/pathSecurity';
 import { settingsService } from '../services/SettingsService';
@@ -45,6 +46,7 @@ const matchSchema = z.object({
     { message: 'Either id or igdbId must be a valid positive number' }
   ),
   store: z.string().nullable().optional(),
+  libraryId: z.number().int().positive().nullable().optional(),
 }).refine(
   (data) => data.folderPath || data.folderName,
   { message: 'Either folderPath or folderName must be provided' }
@@ -159,7 +161,7 @@ library.post('/match', zValidator('json', matchSchema), async (c) => {
   logger.info('POST /api/v1/library/match');
 
   try {
-    const { folderPath, folderName, igdbGame, store } = c.req.valid('json');
+    const { folderPath, folderName, igdbGame, store, libraryId } = c.req.valid('json');
 
     // Support both formats: GameSearchResult format (igdbId) or raw IGDB format (id)
     const gameIgdbId = igdbGame.igdbId || igdbGame.id;
@@ -184,9 +186,10 @@ library.post('/match', zValidator('json', matchSchema), async (c) => {
         status: 'downloaded',
         folderPath: folderPath || existingGame.folderPath,
         store: store || existingGame.store,
+        libraryId: libraryId || existingGame.libraryId,
       });
 
-      game = { ...existingGame, status: 'downloaded', folderPath: folderPath || existingGame.folderPath };
+      game = { ...existingGame, status: 'downloaded', folderPath: folderPath || existingGame.folderPath, libraryId: libraryId || existingGame.libraryId };
       wasExisting = true;
     } else {
       // Create new game with downloaded status (since it's already in library)
@@ -199,6 +202,7 @@ library.post('/match', zValidator('json', matchSchema), async (c) => {
         platform: gamePlatform,
         store: store || null,
         folderPath: folderPath || null,
+        libraryId: libraryId || null,
         monitored: true,
         status: 'downloaded',
         // Metadata from GameSearchResult (if available)
@@ -217,6 +221,12 @@ library.post('/match', zValidator('json', matchSchema), async (c) => {
     // Match folder to game if folderPath is provided (marks it as matched so it won't show in future scans)
     if (folderPath) {
       await fileService.matchFolderToGame(folderPath, game.id);
+
+      // Try to link any matching qBittorrent torrents to this game
+      const linkedCount = await downloadService.linkTorrentsToGame(folderPath, game.id);
+      if (linkedCount > 0) {
+        logger.info(`Linked ${linkedCount} qBittorrent torrent(s) to game ${game.id}`);
+      }
     }
 
     const action = wasExisting ? 'Linked' : 'Matched';
@@ -254,6 +264,12 @@ library.post('/match-existing', zValidator('json', matchExistingSchema), async (
 
     if (!success) {
       return c.json({ success: false, error: 'Failed to match folder to game', code: ErrorCode.UNKNOWN }, 500);
+    }
+
+    // Try to link any matching qBittorrent torrents to this game
+    const linkedCount = await downloadService.linkTorrentsToGame(folderPath, gameId);
+    if (linkedCount > 0) {
+      logger.info(`Linked ${linkedCount} qBittorrent torrent(s) to game ${gameId}`);
     }
 
     logger.info(`Matched library folder "${folderPath}" to existing game: ${game.title}`);

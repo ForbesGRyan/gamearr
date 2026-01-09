@@ -377,13 +377,14 @@ export class QBittorrentClient {
   }
 
   /**
-   * Pause torrents
+   * Pause/stop torrents
+   * Note: qBittorrent v4.4.0+ uses 'stop' instead of 'pause'
    */
   async pauseTorrents(hashes: string[]): Promise<void> {
     const params = new URLSearchParams();
     params.append('hashes', hashes.join('|'));
 
-    await this.request('torrents/pause', {
+    await this.request('torrents/stop', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -393,18 +394,52 @@ export class QBittorrentClient {
   }
 
   /**
-   * Resume torrents
+   * Resume/start torrents
+   * Note: qBittorrent v4.4.0+ uses 'start' instead of 'resume'
    */
   async resumeTorrents(hashes: string[]): Promise<void> {
     const params = new URLSearchParams();
     params.append('hashes', hashes.join('|'));
 
-    await this.request('torrents/resume', {
+    await this.request('torrents/start', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: params.toString(),
+    });
+  }
+
+  /**
+   * Add tags to torrents
+   */
+  async addTags(hashes: string[], tags: string): Promise<void> {
+    const params = new URLSearchParams();
+    params.append('hashes', hashes.join('|'));
+    params.append('tags', tags);
+
+    await this.request('torrents/addTags', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params.toString(),
+    });
+  }
+
+  /**
+   * Find torrents by save path
+   */
+  async findTorrentsByPath(folderPath: string): Promise<TorrentInfo[]> {
+    const torrents = await this.getTorrents();
+
+    // Normalize paths for comparison (handle both / and \)
+    const normalizedFolder = folderPath.replace(/\\/g, '/').toLowerCase();
+
+    return torrents.filter((torrent) => {
+      const torrentPath = torrent.savePath.replace(/\\/g, '/').toLowerCase();
+      // Check if the torrent save path contains the folder path or vice versa
+      return torrentPath.includes(normalizedFolder) || normalizedFolder.includes(torrentPath);
     });
   }
 
