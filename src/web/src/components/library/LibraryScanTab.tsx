@@ -3,6 +3,7 @@ import { GamepadIcon } from '../Icons';
 import StoreSelector from '../StoreSelector';
 import { LibraryPagination } from './LibraryPagination';
 import type { LibraryFolder, AutoMatchSuggestion } from './types';
+import type { Library } from '../../api/client';
 
 interface LibraryScanTabProps {
   isScanLoaded: boolean;
@@ -11,6 +12,8 @@ interface LibraryScanTabProps {
   autoMatchSuggestions: Record<string, AutoMatchSuggestion>;
   isAutoMatching: Record<string, boolean>;
   selectedStore: Record<string, string | undefined>;
+  libraries: Library[];
+  selectedLibrary: Record<string, number | undefined>;
   onScanLibrary: () => void;
   onAutoMatch: (folder: LibraryFolder) => void;
   onManualMatch: (folder: LibraryFolder) => void;
@@ -19,6 +22,7 @@ interface LibraryScanTabProps {
   onEditAutoMatch: (folder: LibraryFolder) => void;
   onCancelAutoMatch: (folder: LibraryFolder) => void;
   onStoreChange: (folderPath: string, store: string | undefined) => void;
+  onLibraryChange: (folderPath: string, libraryId: number | undefined) => void;
   onOpenSteamImport: () => void;
 }
 
@@ -29,6 +33,8 @@ export function LibraryScanTab({
   autoMatchSuggestions,
   isAutoMatching,
   selectedStore,
+  libraries,
+  selectedLibrary,
   onScanLibrary,
   onAutoMatch,
   onManualMatch,
@@ -37,6 +43,7 @@ export function LibraryScanTab({
   onEditAutoMatch,
   onCancelAutoMatch,
   onStoreChange,
+  onLibraryChange,
   onOpenSteamImport,
 }: LibraryScanTabProps) {
   // Pagination state
@@ -214,15 +221,39 @@ export function LibraryScanTab({
                         </div>
                       </div>
 
-                      <div className="mb-4">
-                        <StoreSelector
-                          value={selectedStore[folder.path] || null}
-                          onChange={(store) => onStoreChange(folder.path, store || undefined)}
-                          label="Digital Store (Optional)"
-                        />
-                        <p className="text-xs text-gray-400 mt-1">
-                          Select a store if you own this game digitally.
-                        </p>
+                      <div className="mb-4 flex gap-4">
+                        <div className="flex-1">
+                          <StoreSelector
+                            value={selectedStore[folder.path] || null}
+                            onChange={(store) => onStoreChange(folder.path, store || undefined)}
+                            label="Digital Store (Optional)"
+                          />
+                          <p className="text-xs text-gray-400 mt-1">
+                            Select a store if you own this game digitally.
+                          </p>
+                        </div>
+                        {libraries.length > 0 && (
+                          <div className="flex-1">
+                            <label className="block text-sm font-medium text-gray-300 mb-2">
+                              Add to Library
+                            </label>
+                            <select
+                              value={selectedLibrary[folder.path] || ''}
+                              onChange={(e) => onLibraryChange(folder.path, e.target.value ? Number(e.target.value) : undefined)}
+                              className="w-full bg-gray-600 border border-gray-600 rounded px-4 py-2 text-white focus:border-blue-500 focus:outline-none"
+                            >
+                              <option value="">No Library (General)</option>
+                              {libraries.map((lib) => (
+                                <option key={lib.id} value={lib.id}>
+                                  {lib.name} {lib.platform ? `(${lib.platform})` : ''}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-xs text-gray-400 mt-1">
+                              Organize this game into a library.
+                            </p>
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex gap-2">

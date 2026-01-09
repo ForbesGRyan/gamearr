@@ -91,6 +91,7 @@ function Library() {
   const [autoMatchSuggestions, setAutoMatchSuggestions] = useState<Record<string, AutoMatchSuggestion>>({});
   const [isAutoMatching, setIsAutoMatching] = useState<Record<string, boolean>>({});
   const [selectedStore, setSelectedStore] = useState<Record<string, string | null>>({});
+  const [selectedLibraryForMatch, setSelectedLibraryForMatch] = useState<Record<string, number | undefined>>({});
 
   // Health tab state
   const [looseFiles, setLooseFiles] = useState<LooseFile[]>([]);
@@ -871,7 +872,8 @@ function Library() {
         folder.path,
         folder.folderName,
         suggestion, // Send full suggestion with all metadata
-        selectedStore[folder.path] || null
+        selectedStore[folder.path] || null,
+        selectedLibraryForMatch[folder.path] || null
       );
 
       if (response.success) {
@@ -1804,6 +1806,8 @@ function Library() {
           autoMatchSuggestions={autoMatchSuggestions}
           isAutoMatching={isAutoMatching}
           selectedStore={selectedStore}
+          libraries={libraries}
+          selectedLibrary={selectedLibraryForMatch}
           onScanLibrary={handleScanLibrary}
           onAutoMatch={handleAutoMatch}
           onManualMatch={handleMatchFolder}
@@ -1813,6 +1817,9 @@ function Library() {
           onCancelAutoMatch={handleCancelAutoMatch}
           onStoreChange={(folderPath, store) =>
             setSelectedStore((prev) => ({ ...prev, [folderPath]: store }))
+          }
+          onLibraryChange={(folderPath, libraryId) =>
+            setSelectedLibraryForMatch((prev) => ({ ...prev, [folderPath]: libraryId }))
           }
           onOpenSteamImport={handleOpenSteamImport}
         />
