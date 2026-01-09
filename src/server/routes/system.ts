@@ -1,10 +1,15 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
+import { spawn } from 'child_process';
+import { existsSync, statSync } from 'fs';
 import { logger } from '../utils/logger';
 import { APP_VERSION } from '../utils/version';
 import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
 import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
 import { settingsService } from '../services/SettingsService';
 import { gameRepository } from '../repositories/GameRepository';
+import { ErrorCode } from '../utils/errors';
 
 const system = new Hono();
 
@@ -226,5 +231,77 @@ async function getGameStats() {
     return undefined;
   }
 }
+
+// Schema for open folder request
+const openFolderSchema = z.object({
+  path: z.string().min(1),
+});
+
+// POST /api/v1/system/open-folder - Open a folder in the system file browser
+system.post('/open-folder', zValidator('json', openFolderSchema), async (c) => {
+  const { path } = c.req.valid('json');
+  logger.info(`POST /api/v1/system/open-folder: ${path}`);
+
+  try {
+    // Check if path exists
+    if (!existsSync(path)) {
+      return c.json({
+        success: false,
+        error: 'Path does not exist',
+        code: ErrorCode.NOT_FOUND,
+      }, 404);
+    }
+
+    // Check if it's a directory (if not, open parent directory)
+    let folderPath = path;
+    try {
+      const stats = statSync(path);
+      if (!stats.isDirectory()) {
+        // It's a file, get the parent directory
+        folderPath = path.substring(0, Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')));
+      }
+    } catch {
+      // If stat fails, try to open anyway
+    }
+
+    // Determine the command based on OS
+    const platform = process.platform;
+    let command: string;
+    let args: string[];
+
+    if (platform === 'win32') {
+      command = 'explorer';
+      args = [folderPath];
+    } else if (platform === 'darwin') {
+      command = 'open';
+      args = [folderPath];
+    } else {
+      // Linux and others
+      command = 'xdg-open';
+      args = [folderPath];
+    }
+
+    // Spawn the process detached so it doesn't block
+    const child = spawn(command, args, {
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.unref();
+
+    logger.info(`Opened folder: ${folderPath}`);
+
+    return c.json({
+      success: true,
+      data: { path: folderPath },
+    });
+  } catch (error) {
+    logger.error('Failed to open folder:', error);
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to open folder',
+      code: ErrorCode.UNKNOWN,
+    }, 500);
+  }
+});
 
 export default system;

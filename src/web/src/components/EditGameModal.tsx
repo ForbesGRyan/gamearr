@@ -465,13 +465,33 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Library Folder Path
             </label>
-            <input
-              type="text"
-              value={folderPath}
-              onChange={(e) => setFolderPath(e.target.value)}
-              placeholder="e.g., C:\Games\Game Title (2023)"
-              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={folderPath}
+                onChange={(e) => setFolderPath(e.target.value)}
+                placeholder="e.g., C:\Games\Game Title (2023)"
+                className="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {folderPath && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const response = await api.openFolder(folderPath);
+                    if (!response.success) {
+                      setError(response.error || 'Failed to open folder');
+                    }
+                  }}
+                  className="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded transition text-sm flex items-center gap-1.5"
+                  title="Open folder in file browser"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+                  </svg>
+                  Open
+                </button>
+              )}
+            </div>
             <p className="text-xs text-gray-400 mt-1">
               The folder where this game is stored on your system.
             </p>

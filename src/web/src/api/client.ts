@@ -731,6 +731,14 @@ class ApiClient {
   async getLibraryPlatforms(): Promise<ApiResponse<string[]>> {
     return this.request<string[]>('/libraries/platforms');
   }
+
+  // System
+  async openFolder(path: string): Promise<ApiResponse<{ path: string }>> {
+    return this.request<{ path: string }>('/system/open-folder', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    });
+  }
 }
 
 export const api = new ApiClient();
