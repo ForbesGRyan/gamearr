@@ -2,6 +2,7 @@ import { gameRepository, type PaginationParams, type PaginatedResult } from '../
 import { igdbClient } from '../integrations/igdb/IGDBClient';
 import { indexerService } from './IndexerService';
 import { downloadService } from './DownloadService';
+import { settingsService } from './SettingsService';
 import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
 import type { Game, NewGame } from '../db/schema';
 import type { GameSearchResult } from '../integrations/igdb/types';
@@ -94,6 +95,9 @@ export class GameService {
       logger.info(`Game has store (${store}) - setting status to 'downloaded' and monitored to false`);
     }
 
+    // Get the default update policy from settings
+    const defaultUpdatePolicy = await settingsService.getSetting('default_update_policy') as 'notify' | 'auto' | 'ignore' | null;
+
     // Create new game entry with metadata
     const newGame: NewGame = {
       igdbId: igdbGame.igdbId,
@@ -106,6 +110,7 @@ export class GameService {
       coverUrl: igdbGame.coverUrl,
       folderPath: null,
       libraryId: libraryId || null,
+      updatePolicy: defaultUpdatePolicy || 'notify',
       // Metadata from IGDB
       summary: igdbGame.summary || null,
       genres: igdbGame.genres ? JSON.stringify(igdbGame.genres) : null,

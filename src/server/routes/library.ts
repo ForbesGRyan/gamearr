@@ -192,6 +192,9 @@ library.post('/match', zValidator('json', matchSchema), async (c) => {
       game = { ...existingGame, status: 'downloaded', folderPath: folderPath || existingGame.folderPath, libraryId: libraryId || existingGame.libraryId };
       wasExisting = true;
     } else {
+      // Get the default update policy from settings
+      const defaultUpdatePolicy = await settingsService.getSetting('default_update_policy') as 'notify' | 'auto' | 'ignore' | null;
+
       // Create new game with downloaded status (since it's already in library)
       // Include metadata if available from GameSearchResult format
       game = await gameRepository.create({
@@ -205,6 +208,7 @@ library.post('/match', zValidator('json', matchSchema), async (c) => {
         libraryId: libraryId || null,
         monitored: true,
         status: 'downloaded',
+        updatePolicy: defaultUpdatePolicy || 'notify',
         // Metadata from GameSearchResult (if available)
         summary: igdbGame.summary || null,
         genres: igdbGame.genres ? JSON.stringify(igdbGame.genres) : null,

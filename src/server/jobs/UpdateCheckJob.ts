@@ -24,9 +24,10 @@ export class UpdateCheckJob {
   async start() {
     logger.info('Starting UpdateCheckJob...');
 
-    // Check if update checking is enabled
-    const enabled = await settingsService.getSetting('update_check_enabled');
-    if (enabled === false) {
+    // Check if update checking is enabled (stored as JSON string "true"/"false")
+    const enabledSetting = await settingsService.getSetting('update_check_enabled');
+    const isEnabled = enabledSetting === null || enabledSetting === 'true'; // Default to enabled if not set
+    if (!isEnabled) {
       logger.info('Update checking is disabled in settings');
       return;
     }
@@ -109,9 +110,10 @@ export class UpdateCheckJob {
       return;
     }
 
-    // Re-check if enabled (setting might have changed)
-    const enabled = await settingsService.getSetting('update_check_enabled');
-    if (enabled === false) {
+    // Re-check if enabled (setting might have changed, stored as JSON string "true"/"false")
+    const enabledSetting = await settingsService.getSetting('update_check_enabled');
+    const isEnabled = enabledSetting === null || enabledSetting === 'true';
+    if (!isEnabled) {
       logger.debug('Update checking is disabled, skipping');
       this.releaseLock();
       return;
