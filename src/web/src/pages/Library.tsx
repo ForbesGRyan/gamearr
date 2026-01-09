@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import GameCard from '../components/GameCard';
 import AddGameModal from '../components/AddGameModal';
 import SearchReleasesModal from '../components/SearchReleasesModal';
 import MatchFolderModal from '../components/MatchFolderModal';
-import EditGameModal from '../components/EditGameModal';
 import ConfirmModal from '../components/ConfirmModal';
+import { getGameDetailPath } from '../utils/slug';
 import StoreIcon from '../components/StoreIcon';
 import StoreSelector from '../components/StoreSelector';
 import { api, SteamGame } from '../api/client';
@@ -40,6 +40,7 @@ type Tab = 'games' | 'scan' | 'health';
 
 function Library() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'scan' || tabParam === 'health') {
@@ -95,8 +96,6 @@ function Library() {
   const [isMatchModalOpen, setIsMatchModalOpen] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<LibraryFolder | null>(null);
   const [isScanLoaded, setIsScanLoaded] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedGameForEdit, setSelectedGameForEdit] = useState<Game | null>(null);
   const [autoMatchSuggestions, setAutoMatchSuggestions] = useState<Record<string, AutoMatchSuggestion>>({});
   const [isAutoMatching, setIsAutoMatching] = useState<Record<string, boolean>>({});
   const [selectedStore, setSelectedStore] = useState<Record<string, string | null>>({});
@@ -859,9 +858,8 @@ function Library() {
   };
 
   const handleEdit = useCallback((game: Game) => {
-    setSelectedGameForEdit(game);
-    setIsEditModalOpen(true);
-  }, []);
+    navigate(getGameDetailPath(game.platform, game.title));
+  }, [navigate]);
 
   const handleAutoMatch = async (folder: LibraryFolder) => {
     setIsAutoMatching((prev) => ({ ...prev, [folder.path]: true }));
@@ -974,11 +972,46 @@ function Library() {
     if (!suggestion) return;
 
     try {
+      // Determine the correct platform based on the selected library or infer from folder
+      let targetPlatform: string | undefined;
+      const libraryId = selectedLibraryForMatch[folder.path];
+      if (libraryId) {
+        const library = libraries.find(l => l.id === libraryId);
+        targetPlatform = library?.platform || undefined;
+      }
+
+      // If we have a target platform and the suggestion has platforms, reorder to prefer matching platform
+      let suggestionWithPlatform = suggestion;
+      if (targetPlatform && suggestion.platforms && suggestion.platforms.length > 0) {
+        const matchingPlatform = suggestion.platforms.find(p =>
+          p.toLowerCase().includes(targetPlatform!.toLowerCase()) ||
+          targetPlatform!.toLowerCase().includes(p.toLowerCase().replace(/[^a-z]/g, ''))
+        );
+        if (matchingPlatform) {
+          // Put the matching platform first
+          suggestionWithPlatform = {
+            ...suggestion,
+            platforms: [matchingPlatform],
+          };
+        }
+      } else if (suggestion.platforms && suggestion.platforms.length > 0) {
+        // No library platform specified - default to PC if available
+        const pcPlatform = suggestion.platforms.find(p =>
+          p.toLowerCase().includes('pc') || p.toLowerCase().includes('windows')
+        );
+        if (pcPlatform) {
+          suggestionWithPlatform = {
+            ...suggestion,
+            platforms: [pcPlatform],
+          };
+        }
+      }
+
       // Pass the full GameSearchResult format directly (includes metadata)
       const response = await api.matchLibraryFolder(
         folder.path,
         folder.folderName,
-        suggestion, // Send full suggestion with all metadata
+        suggestionWithPlatform, // Send suggestion with correct platform
         selectedStore[folder.path] || null,
         selectedLibraryForMatch[folder.path] || null
       );
@@ -1448,7 +1481,6 @@ function Library() {
                       onToggleMonitor={handleToggleMonitor}
                       onDelete={handleDelete}
                       onSearch={handleSearch}
-                      onEdit={handleEdit}
                       selected={selectedGameIds.has(game.id)}
                       onToggleSelect={toggleGameSelection}
                       priority={index < 8}
@@ -2137,16 +2169,7 @@ function Library() {
         folder={selectedFolder}
       />
 
-      <EditGameModal
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setSelectedGameForEdit(null);
-        }}
-        onGameUpdated={loadGames}
-        game={selectedGameForEdit}
-      />
-
+      
       <ConfirmModal
         isOpen={gameToDelete !== null}
         title="Delete Game"

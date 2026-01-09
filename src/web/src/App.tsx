@@ -8,6 +8,7 @@ import { startBackgroundPreload } from './hooks/usePreloadCache';
 // Library is eagerly fetched since it's the default route
 const libraryPromise = import('./pages/Library');
 const Library = lazy(() => libraryPromise);
+const GameDetail = lazy(() => import('./pages/GameDetail'));
 const Discover = lazy(() => import('./pages/Discover'));
 const Search = lazy(() => import('./pages/Search'));
 const Activity = lazy(() => import('./pages/Activity'));
@@ -124,6 +125,7 @@ function App() {
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<Library />} />
+              <Route path="/game/:platform/:slug" element={<GameDetail />} />
               <Route path="/discover" element={<Discover />} />
               <Route path="/search" element={<Search />} />
               <Route path="/activity" element={<Activity />} />

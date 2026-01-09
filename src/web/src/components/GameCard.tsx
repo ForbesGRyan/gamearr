@@ -1,7 +1,9 @@
 import React, { useState, memo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import StoreIcon from './StoreIcon';
 import ConfirmModal from './ConfirmModal';
 import { EyeIcon, EyeSlashIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, GamepadIcon, RefreshIcon } from './Icons';
+import { getGameDetailPath } from '../utils/slug';
 
 interface Game {
   id: number;
@@ -20,14 +22,18 @@ interface GameCardProps {
   onToggleMonitor: (id: number) => void;
   onDelete: (id: number) => void;
   onSearch?: (game: Game) => void;
-  onEdit?: (game: Game) => void;
   selected?: boolean;
   onToggleSelect?: (id: number) => void;
   priority?: boolean; // True for first few cards to load eagerly
 }
 
-function GameCard({ game, onToggleMonitor, onDelete, onSearch, onEdit, selected, onToggleSelect, priority = false }: GameCardProps) {
+function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggleSelect, priority = false }: GameCardProps) {
+  const navigate = useNavigate();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleNavigateToDetail = () => {
+    navigate(getGameDetailPath(game.platform, game.title));
+  };
 
   const statusColors = {
     wanted: 'bg-orange-500',
@@ -118,16 +124,14 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, onEdit, selected,
               >
                 {game.monitored ? <EyeIcon aria-hidden="true" /> : <EyeSlashIcon aria-hidden="true" />}
               </button>
-              {onEdit && (
-                <button
-                  onClick={() => onEdit(game)}
-                  className="bg-purple-600 hover:bg-purple-700 px-3 py-2 rounded transition text-sm"
-                  title="Edit"
-                  aria-label={`Edit ${game.title}`}
-                >
-                  <PencilIcon aria-hidden="true" />
-                </button>
-              )}
+              <button
+                onClick={handleNavigateToDetail}
+                className="bg-purple-600 hover:bg-purple-700 px-3 py-2 rounded transition text-sm"
+                title="View Details"
+                aria-label={`View details for ${game.title}`}
+              >
+                <PencilIcon aria-hidden="true" />
+              </button>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 className="bg-red-600 hover:bg-red-700 px-3 py-2 rounded transition text-sm"

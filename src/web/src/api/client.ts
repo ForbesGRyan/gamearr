@@ -76,6 +76,8 @@ export interface UpdateGameRequest {
   folderPath?: string;
   installedVersion?: string;
   updatePolicy?: 'notify' | 'auto' | 'ignore';
+  store?: string | null;
+  libraryId?: number | null;
 }
 
 export interface ReleaseData {
@@ -127,6 +129,7 @@ export interface Game {
   store?: string | null;
   steamName?: string | null;
   folderPath?: string | null;
+  libraryId?: number | null;
   updateAvailable?: boolean;
   installedVersion?: string | null;
   latestVersion?: string | null;
@@ -138,6 +141,8 @@ export interface Game {
   developer?: string;
   publisher?: string;
   gameModes?: string;
+  similarGames?: string;
+  addedAt?: string;
 }
 
 export interface Download {
@@ -165,6 +170,7 @@ export interface Release {
   quality?: string;
   score?: number;
   matchConfidence?: 'high' | 'medium' | 'low';
+  categories?: number[];
 }
 
 export interface SearchResult {
@@ -245,6 +251,30 @@ export interface GameUpdate {
   indexer?: string;
   detectedAt: string;
   status: 'pending' | 'grabbed' | 'dismissed';
+}
+
+export interface GrabbedRelease {
+  id: number;
+  gameId: number;
+  title: string;
+  size?: number;
+  seeders?: number;
+  downloadUrl: string;
+  indexer: string;
+  quality?: string;
+  torrentHash?: string;
+  grabbedAt?: string;
+  status: 'pending' | 'downloading' | 'completed' | 'failed';
+}
+
+export interface DownloadHistoryEntry {
+  id: number;
+  gameId: number;
+  releaseId: number;
+  downloadId: string;
+  status: string;
+  progress: number;
+  completedAt?: string;
 }
 
 export interface PopularityType {
@@ -378,6 +408,18 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify({ igdbId }),
     });
+  }
+
+  async getGameBySlug(platform: string, slug: string): Promise<ApiResponse<Game>> {
+    return this.request<Game>(`/games/lookup/${encodeURIComponent(platform)}/${encodeURIComponent(slug)}`);
+  }
+
+  async getGameReleases(gameId: number): Promise<ApiResponse<GrabbedRelease[]>> {
+    return this.request<GrabbedRelease[]>(`/games/${gameId}/releases`);
+  }
+
+  async getGameHistory(gameId: number): Promise<ApiResponse<DownloadHistoryEntry[]>> {
+    return this.request<DownloadHistoryEntry[]>(`/games/${gameId}/history`);
   }
 
   // Search

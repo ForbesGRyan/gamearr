@@ -23,6 +23,7 @@ const updateGameSchema = z.object({
   store: z.string().nullable().optional(),
   updatePolicy: z.enum(['notify', 'auto', 'ignore']).optional(),
   libraryId: z.number().int().positive().nullable().optional(),
+  platform: z.string().optional(),
 });
 
 // GET /api/v1/games - List all games (supports pagination via ?limit=20&offset=0)
@@ -87,6 +88,25 @@ games.post('/', zValidator('json', addGameSchema), async (c) => {
   }
 });
 
+// GET /api/v1/games/lookup/:platform/:slug - Find game by platform and slug
+games.get('/lookup/:platform/:slug', async (c) => {
+  const platform = c.req.param('platform');
+  const slug = c.req.param('slug');
+
+  logger.info(`GET /api/v1/games/lookup/${platform}/${slug}`);
+
+  try {
+    const game = await gameService.findByPlatformAndSlug(platform, slug);
+    if (!game) {
+      return c.json({ success: false, error: 'Game not found', code: ErrorCode.NOT_FOUND }, 404);
+    }
+    return c.json({ success: true, data: game });
+  } catch (error) {
+    logger.error('Failed to lookup game:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
 // GET /api/v1/games/:id - Get game details
 games.get('/:id', async (c) => {
   const id = parseInt(c.req.param('id'));
@@ -145,6 +165,40 @@ games.delete('/:id', async (c) => {
     if (errorMessage.toLowerCase().includes('not found')) {
       return c.json({ success: false, error: errorMessage, code: ErrorCode.NOT_FOUND }, 404);
     }
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// GET /api/v1/games/:id/releases - Get all releases for a game
+games.get('/:id/releases', async (c) => {
+  const id = parseInt(c.req.param('id'));
+  if (isNaN(id)) {
+    return c.json({ success: false, error: 'Invalid game ID', code: ErrorCode.VALIDATION_ERROR }, 400);
+  }
+  logger.info(`GET /api/v1/games/${id}/releases`);
+
+  try {
+    const releases = await gameService.getGameReleases(id);
+    return c.json({ success: true, data: releases });
+  } catch (error) {
+    logger.error('Failed to get game releases:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// GET /api/v1/games/:id/history - Get download history for a game
+games.get('/:id/history', async (c) => {
+  const id = parseInt(c.req.param('id'));
+  if (isNaN(id)) {
+    return c.json({ success: false, error: 'Invalid game ID', code: ErrorCode.VALIDATION_ERROR }, 400);
+  }
+  logger.info(`GET /api/v1/games/${id}/history`);
+
+  try {
+    const history = await gameService.getGameHistory(id);
+    return c.json({ success: true, data: history });
+  } catch (error) {
+    logger.error('Failed to get game history:', error);
     return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });

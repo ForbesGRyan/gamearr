@@ -212,6 +212,9 @@ export class ProwlarrClient {
    * Map Prowlarr release to our search result format
    */
   private mapToSearchResult(release: ProwlarrRelease): ReleaseSearchResult {
+    // Extract category IDs from category objects
+    const categoryIds = release.categories?.map(cat => cat.id) || [];
+
     return {
       guid: release.guid,
       title: release.title,
@@ -223,6 +226,7 @@ export class ProwlarrClient {
       infoUrl: release.infoUrl,
       publishedAt: new Date(release.publishDate),
       quality: this.extractQuality(release.title),
+      categories: categoryIds,
     };
   }
 

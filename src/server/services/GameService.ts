@@ -1,10 +1,12 @@
 import { gameRepository, type PaginationParams, type PaginatedResult } from '../repositories/GameRepository';
+import { releaseRepository } from '../repositories/ReleaseRepository';
+import { downloadHistoryRepository } from '../repositories/DownloadHistoryRepository';
 import { igdbClient } from '../integrations/igdb/IGDBClient';
 import { indexerService } from './IndexerService';
 import { downloadService } from './DownloadService';
 import { settingsService } from './SettingsService';
 import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
-import type { Game, NewGame } from '../db/schema';
+import type { Game, NewGame, Release, DownloadHistory } from '../db/schema';
 import type { GameSearchResult } from '../integrations/igdb/types';
 import { logger } from '../utils/logger';
 import { NotConfiguredError, NotFoundError, ConflictError } from '../utils/errors';
@@ -272,6 +274,78 @@ export class GameService {
 
     logger.info(`Game rematched successfully: ${updatedGame.title}`);
     return updatedGame;
+  }
+
+  /**
+   * Generate a URL-safe slug from a title
+   */
+  private generateSlug(title: string): string {
+    return title
+      .toLowerCase()
+      .replace(/['']/g, '')           // Remove apostrophes
+      .replace(/[:\-–—]/g, ' ')       // Replace colons/dashes with spaces
+      .replace(/[^a-z0-9\s]/g, '')    // Remove special characters
+      .trim()
+      .replace(/\s+/g, '-')           // Replace spaces with hyphens
+      .replace(/-+/g, '-');           // Collapse multiple hyphens
+  }
+
+  /**
+   * Check if a platform string represents a PC platform
+   */
+  private isPcPlatform(platform: string): boolean {
+    const lower = platform.toLowerCase();
+    return lower.includes('pc') || lower.includes('windows') || lower === 'microsoft windows';
+  }
+
+  /**
+   * Find a game by platform and title slug
+   */
+  async findByPlatformAndSlug(platform: string, slug: string): Promise<Game | undefined> {
+    const allGames = await gameRepository.findAll();
+
+    // Normalize platform for comparison
+    const normalizedPlatform = platform.toLowerCase().replace(/-/g, ' ');
+    const isSearchingForPc = normalizedPlatform === 'pc' || this.isPcPlatform(normalizedPlatform);
+
+    // Find game where platform matches and slug matches
+    return allGames.find(game => {
+      const gameSlug = this.generateSlug(game.title);
+      if (gameSlug !== slug) return false;
+
+      // If searching for PC, match any PC variant
+      if (isSearchingForPc) {
+        return this.isPcPlatform(game.platform);
+      }
+
+      // For other platforms, do flexible matching
+      const gamePlatform = game.platform.toLowerCase();
+      return gamePlatform === normalizedPlatform ||
+        gamePlatform.includes(normalizedPlatform) ||
+        normalizedPlatform.includes(gamePlatform);
+    });
+  }
+
+  /**
+   * Get all releases for a game
+   */
+  async getGameReleases(gameId: number): Promise<Release[]> {
+    const game = await gameRepository.findById(gameId);
+    if (!game) {
+      throw new NotFoundError('Game', gameId);
+    }
+    return releaseRepository.findByGameId(gameId);
+  }
+
+  /**
+   * Get download history for a game
+   */
+  async getGameHistory(gameId: number): Promise<DownloadHistory[]> {
+    const game = await gameRepository.findById(gameId);
+    if (!game) {
+      throw new NotFoundError('Game', gameId);
+    }
+    return downloadHistoryRepository.findByGameId(gameId);
   }
 }
 

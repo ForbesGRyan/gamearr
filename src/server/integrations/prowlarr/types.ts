@@ -15,6 +15,12 @@ export interface ProwlarrRssParams {
   limit?: number;
 }
 
+export interface ProwlarrCategory {
+  id: number;
+  name: string;
+  subCategories?: ProwlarrCategory[];
+}
+
 export interface ProwlarrRelease {
   guid: string;
   title: string;
@@ -27,7 +33,7 @@ export interface ProwlarrRelease {
   infoUrl?: string;
   seeders?: number;
   leechers?: number;
-  categories?: number[];
+  categories?: ProwlarrCategory[];
   protocol: 'torrent' | 'usenet';
 }
 
@@ -56,4 +62,5 @@ export interface ReleaseSearchResult {
   infoUrl?: string;
   publishedAt: Date;
   quality?: string;
+  categories?: number[];
 }
