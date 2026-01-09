@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api } from '../api/client';
+import { api, Library } from '../api/client';
 import StoreSelector from './StoreSelector';
 import ConfirmModal from './ConfirmModal';
 import { CloseIcon } from './Icons';
@@ -16,6 +16,7 @@ interface Game {
   store?: string | null;
   steamName?: string | null;
   folderPath?: string | null;
+  libraryId?: number | null;
   // Update tracking fields
   updateAvailable?: boolean;
   installedVersion?: string | null;
@@ -60,6 +61,8 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
   const [monitored, setMonitored] = useState(true);
   const [status, setStatus] = useState<'wanted' | 'downloading' | 'downloaded'>('wanted');
   const [updatePolicy, setUpdatePolicy] = useState<'notify' | 'auto' | 'ignore'>('notify');
+  const [libraryId, setLibraryId] = useState<number | null>(null);
+  const [libraries, setLibraries] = useState<Library[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,6 +81,19 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
   const [selectedRematch, setSelectedRematch] = useState<IGDBSearchResult | null>(null);
   const [isRematching, setIsRematching] = useState(false);
 
+  // Load libraries on mount
+  useEffect(() => {
+    const loadLibraries = async () => {
+      const response = await api.getLibraries();
+      if (response.success && response.data) {
+        setLibraries(response.data);
+      }
+    };
+    if (isOpen) {
+      loadLibraries();
+    }
+  }, [isOpen]);
+
   // Load game data when modal opens
   useEffect(() => {
     if (game) {
@@ -86,6 +102,7 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
       setMonitored(game.monitored);
       setStatus(game.status);
       setUpdatePolicy(game.updatePolicy || 'notify');
+      setLibraryId(game.libraryId || null);
       // Reset rematch state
       setShowRematch(false);
       setRematchQuery('');
@@ -261,6 +278,7 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
         monitored,
         status,
         updatePolicy,
+        libraryId: libraryId || null,
       };
 
       const response = await api.updateGame(game.id, updates);
@@ -402,6 +420,28 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
               Select a store if you own this game digitally. Games with a store won't be downloaded.
             </p>
           </div>
+
+          {/* Library Selector */}
+          {libraries.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Library</label>
+              <select
+                value={libraryId || ''}
+                onChange={(e) => setLibraryId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">No Library (General)</option>
+                {libraries.map((lib) => (
+                  <option key={lib.id} value={lib.id}>
+                    {lib.name} {lib.platform ? `(${lib.platform})` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                Organize this game into a specific library collection.
+              </p>
+            </div>
+          )}
 
           {/* Status Selector */}
           <div>

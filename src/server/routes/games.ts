@@ -22,6 +22,7 @@ const updateGameSchema = z.object({
   folderPath: z.string().nullable().optional(),
   store: z.string().nullable().optional(),
   updatePolicy: z.enum(['notify', 'auto', 'ignore']).optional(),
+  libraryId: z.number().int().positive().nullable().optional(),
 });
 
 // GET /api/v1/games - List all games (supports pagination via ?limit=20&offset=0)
