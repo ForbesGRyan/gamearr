@@ -171,10 +171,10 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
       <div className="bg-gray-900 rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-600">
         {/* Header */}
         <div className="bg-gray-700 flex items-center justify-between p-6 border-b border-gray-600">
-          <div>
+          <div className="flex-1 min-w-0 mr-4">
             <h2 className="text-2xl font-bold text-white">Match Library Folder</h2>
-            <p className="text-sm text-gray-300 mt-1">
-              Folder: <span className="font-mono">{folder.folderName}</span>
+            <p className="text-sm text-gray-300 mt-1 truncate" title={folder.path}>
+              <span className="font-mono">{folder.path}</span>
             </p>
           </div>
           <button
