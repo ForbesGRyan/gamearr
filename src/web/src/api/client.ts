@@ -195,6 +195,16 @@ export interface SystemStatus {
   qbittorrent: boolean;
 }
 
+export interface SetupStatus {
+  isComplete: boolean;
+  steps: {
+    library: { configured: boolean; required: boolean };
+    igdb: { configured: boolean; required: boolean };
+    prowlarr: { configured: boolean; required: boolean };
+    qbittorrent: { configured: boolean; required: boolean };
+  };
+}
+
 export interface Indexer {
   id: number;
   name: string;
@@ -474,6 +484,10 @@ class ApiClient {
   // System
   async getSystemStatus(): Promise<ApiResponse<SystemStatus>> {
     return this.request<SystemStatus>('/system/status');
+  }
+
+  async getSetupStatus(): Promise<ApiResponse<SetupStatus>> {
+    return this.request<SetupStatus>('/system/setup-status');
   }
 
   // Indexers

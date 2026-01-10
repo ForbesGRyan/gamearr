@@ -104,6 +104,62 @@ system.get('/logs', async (c) => {
   return c.json({ success: true, data: [] });
 });
 
+// GET /api/v1/system/setup-status - Check if initial setup is complete
+system.get('/setup-status', async (c) => {
+  logger.info('GET /api/v1/system/setup-status');
+
+  try {
+    // Import libraries repository
+    const { libraryRepository } = await import('../repositories/LibraryRepository');
+
+    // Check each required component
+    const libraries = await libraryRepository.findAll();
+    const hasLibrary = libraries.length > 0;
+
+    const igdbClientId = await settingsService.getIGDBClientId();
+    const igdbClientSecret = await settingsService.getIGDBClientSecret();
+    const hasIGDB = !!(igdbClientId && igdbClientSecret);
+
+    const prowlarrUrl = await settingsService.getSetting('prowlarr_url');
+    const prowlarrApiKey = await settingsService.getSetting('prowlarr_api_key');
+    const hasProwlarr = !!(prowlarrUrl && prowlarrApiKey);
+
+    const qbHost = await settingsService.getSetting('qbittorrent_host');
+    const qbUsername = await settingsService.getSetting('qbittorrent_username');
+    const qbPassword = await settingsService.getSetting('qbittorrent_password');
+    const hasQBittorrent = !!(qbHost && qbUsername && qbPassword);
+
+    const isComplete = hasLibrary && hasIGDB && hasProwlarr && hasQBittorrent;
+
+    return c.json({
+      success: true,
+      data: {
+        isComplete,
+        steps: {
+          library: { configured: hasLibrary, required: true },
+          igdb: { configured: hasIGDB, required: true },
+          prowlarr: { configured: hasProwlarr, required: true },
+          qbittorrent: { configured: hasQBittorrent, required: true },
+        },
+      },
+    });
+  } catch (error) {
+    logger.error('Failed to check setup status:', error);
+    return c.json({
+      success: true,
+      data: {
+        isComplete: false,
+        steps: {
+          library: { configured: false, required: true },
+          igdb: { configured: false, required: true },
+          prowlarr: { configured: false, required: true },
+          qbittorrent: { configured: false, required: true },
+        },
+      },
+    });
+  }
+});
+
 /**
  * Check database connectivity
  */

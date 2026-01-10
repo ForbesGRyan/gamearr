@@ -1,8 +1,9 @@
-import { useEffect, Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
+import { useEffect, useState, Suspense, lazy } from 'react';
+import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import { GamepadIcon } from './components/Icons';
 import { NavDropdown } from './components/NavDropdown';
 import { startBackgroundPreload } from './hooks/usePreloadCache';
+import { api } from './api/client';
 
 // Lazy load all page components for faster initial load
 // Library is eagerly fetched since it's the default route
@@ -14,6 +15,7 @@ const Search = lazy(() => import('./pages/Search'));
 const Activity = lazy(() => import('./pages/Activity'));
 const Updates = lazy(() => import('./pages/Updates'));
 const Settings = lazy(() => import('./pages/Settings'));
+const Setup = lazy(() => import('./pages/Setup').then(m => ({ default: m.Setup })));
 
 // Loading skeleton that resembles the Library page
 function PageLoader() {
@@ -61,6 +63,113 @@ const getNavLinkClassName = ({ isActive }: { isActive: boolean }) =>
       : 'text-gray-300 hover:bg-gray-700'
   }`;
 
+// Component to check setup status and redirect if needed
+function SetupGuard({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const [isChecking, setIsChecking] = useState(true);
+  const [needsSetup, setNeedsSetup] = useState(false);
+
+  useEffect(() => {
+    const checkSetup = async () => {
+      try {
+        const response = await api.getSetupStatus();
+        if (response.success && response.data) {
+          setNeedsSetup(!response.data.isComplete);
+        }
+      } catch (error) {
+        // If we can't check, assume setup is needed
+        setNeedsSetup(true);
+      } finally {
+        setIsChecking(false);
+      }
+    };
+
+    // Don't check if we're already on the setup page
+    if (location.pathname !== '/setup') {
+      checkSetup();
+    } else {
+      setIsChecking(false);
+    }
+  }, [location.pathname]);
+
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-400">Loading...</div>
+      </div>
+    );
+  }
+
+  // Redirect to setup if needed (and not already there)
+  if (needsSetup && location.pathname !== '/setup') {
+    return <Navigate to="/setup" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Main layout with header and navigation
+function MainLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-gray-900 text-white">
+      {/* Header */}
+      <header className="bg-gray-800 border-b border-gray-700" role="banner">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-8">
+              <h1 className="text-2xl font-bold text-blue-500 flex items-center gap-2">
+                <GamepadIcon className="w-7 h-7" aria-hidden="true" />
+                Gamearr
+              </h1>
+              <nav className="flex space-x-4" aria-label="Main navigation">
+                <NavDropdown
+                  label="Library"
+                  basePath="/"
+                  end
+                  items={[
+                    { label: 'Games', to: '/', tab: undefined },
+                    { label: 'Import', to: '/?tab=scan', tab: 'scan' },
+                    { label: 'Health', to: '/?tab=health', tab: 'health' },
+                  ]}
+                />
+                <NavLink to="/discover" viewTransition className={getNavLinkClassName}>
+                  Discover
+                </NavLink>
+                <NavLink to="/search" viewTransition className={getNavLinkClassName}>
+                  Search
+                </NavLink>
+                <NavLink to="/activity" viewTransition className={getNavLinkClassName}>
+                  Activity
+                </NavLink>
+                <NavLink to="/updates" viewTransition className={getNavLinkClassName}>
+                  Updates
+                </NavLink>
+                <NavDropdown
+                  label="Settings"
+                  basePath="/settings"
+                  items={[
+                    { label: 'General', to: '/settings', tab: undefined },
+                    { label: 'Libraries', to: '/settings?tab=libraries', tab: 'libraries' },
+                    { label: 'Indexers', to: '/settings?tab=indexers', tab: 'indexers' },
+                    { label: 'Downloads', to: '/settings?tab=downloads', tab: 'downloads' },
+                    { label: 'Metadata', to: '/settings?tab=metadata', tab: 'metadata' },
+                    { label: 'Updates', to: '/settings?tab=updates', tab: 'updates' },
+                  ]}
+                />
+              </nav>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-8" role="main">
+        {children}
+      </main>
+    </div>
+  );
+}
+
 function App() {
   // Start background preloading of Discover page data
   useEffect(() => {
@@ -69,72 +178,23 @@ function App() {
 
   return (
     <Router>
-      <div className="min-h-screen bg-gray-900 text-white">
-        {/* Header */}
-        <header className="bg-gray-800 border-b border-gray-700" role="banner">
-          <div className="container mx-auto px-4">
-            <div className="flex items-center justify-between h-16">
-              <div className="flex items-center space-x-8">
-                <h1 className="text-2xl font-bold text-blue-500 flex items-center gap-2">
-                  <GamepadIcon className="w-7 h-7" aria-hidden="true" />
-                  Gamearr
-                </h1>
-                <nav className="flex space-x-4" aria-label="Main navigation">
-                  <NavDropdown
-                    label="Library"
-                    basePath="/"
-                    end
-                    items={[
-                      { label: 'Games', to: '/', tab: undefined },
-                      { label: 'Import', to: '/?tab=scan', tab: 'scan' },
-                      { label: 'Health', to: '/?tab=health', tab: 'health' },
-                    ]}
-                  />
-                  <NavLink to="/discover" viewTransition className={getNavLinkClassName}>
-                    Discover
-                  </NavLink>
-                  <NavLink to="/search" viewTransition className={getNavLinkClassName}>
-                    Search
-                  </NavLink>
-                  <NavLink to="/activity" viewTransition className={getNavLinkClassName}>
-                    Activity
-                  </NavLink>
-                  <NavLink to="/updates" viewTransition className={getNavLinkClassName}>
-                    Updates
-                  </NavLink>
-                  <NavDropdown
-                    label="Settings"
-                    basePath="/settings"
-                    items={[
-                      { label: 'General', to: '/settings', tab: undefined },
-                      { label: 'Libraries', to: '/settings?tab=libraries', tab: 'libraries' },
-                      { label: 'Indexers', to: '/settings?tab=indexers', tab: 'indexers' },
-                      { label: 'Downloads', to: '/settings?tab=downloads', tab: 'downloads' },
-                      { label: 'Metadata', to: '/settings?tab=metadata', tab: 'metadata' },
-                      { label: 'Updates', to: '/settings?tab=updates', tab: 'updates' },
-                    ]}
-                  />
-                </nav>
-              </div>
-            </div>
-          </div>
-        </header>
+      <SetupGuard>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            {/* Setup page - no header/nav */}
+            <Route path="/setup" element={<Setup />} />
 
-        {/* Main Content */}
-        <main className="container mx-auto px-4 py-8" role="main">
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
-              <Route path="/" element={<Library />} />
-              <Route path="/game/:platform/:slug" element={<GameDetail />} />
-              <Route path="/discover" element={<Discover />} />
-              <Route path="/search" element={<Search />} />
-              <Route path="/activity" element={<Activity />} />
-              <Route path="/updates" element={<Updates />} />
-              <Route path="/settings" element={<Settings />} />
-            </Routes>
-          </Suspense>
-        </main>
-      </div>
+            {/* Main app routes - with header/nav */}
+            <Route path="/" element={<MainLayout><Library /></MainLayout>} />
+            <Route path="/game/:platform/:slug" element={<MainLayout><GameDetail /></MainLayout>} />
+            <Route path="/discover" element={<MainLayout><Discover /></MainLayout>} />
+            <Route path="/search" element={<MainLayout><Search /></MainLayout>} />
+            <Route path="/activity" element={<MainLayout><Activity /></MainLayout>} />
+            <Route path="/updates" element={<MainLayout><Updates /></MainLayout>} />
+            <Route path="/settings" element={<MainLayout><Settings /></MainLayout>} />
+          </Routes>
+        </Suspense>
+      </SetupGuard>
     </Router>
   );
 }
