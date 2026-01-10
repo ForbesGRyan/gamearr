@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import { downloadService } from '../services/DownloadService';
+import { settingsService } from '../services/SettingsService';
+import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
 
@@ -25,6 +27,19 @@ downloads.get('/test', async (c) => {
   logger.info('GET /api/v1/downloads/test');
 
   try {
+    // Reload settings and reconfigure client before testing
+    const qbHost = await settingsService.getSetting('qbittorrent_host');
+    const qbUsername = await settingsService.getSetting('qbittorrent_username');
+    const qbPassword = await settingsService.getSetting('qbittorrent_password');
+
+    if (qbHost) {
+      qbittorrentClient.configure({
+        host: qbHost,
+        username: qbUsername || '',
+        password: qbPassword || '',
+      });
+    }
+
     const connected = await downloadService.testConnection();
     return c.json({ success: true, data: connected });
   } catch (error) {

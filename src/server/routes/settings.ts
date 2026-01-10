@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { settingsService } from '../services/SettingsService';
 import { downloadService } from '../services/DownloadService';
+import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
 import { ALL_CATEGORIES, DEFAULT_CATEGORIES, CATEGORY_GROUPS } from '../../shared/categories';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
@@ -144,6 +145,20 @@ settings.get('/qbittorrent/categories', async (c) => {
   logger.info('GET /api/v1/settings/qbittorrent/categories');
 
   try {
+    // Reload settings and reconfigure client before fetching
+    // This ensures we use the latest saved settings
+    const qbHost = await settingsService.getSetting('qbittorrent_host');
+    const qbUsername = await settingsService.getSetting('qbittorrent_username');
+    const qbPassword = await settingsService.getSetting('qbittorrent_password');
+
+    if (qbHost && qbUsername !== null) {
+      qbittorrentClient.configure({
+        host: qbHost,
+        username: qbUsername || '',
+        password: qbPassword || '',
+      });
+    }
+
     const categories = await downloadService.getCategories();
     return c.json({ success: true, data: categories });
   } catch (error) {

@@ -144,11 +144,12 @@ async function initializeClients() {
     const qbUsername = await settingsService.getSetting('qbittorrent_username');
     const qbPassword = await settingsService.getSetting('qbittorrent_password');
 
-    if (qbHost && qbUsername && qbPassword) {
+    // Allow empty password - some qBittorrent setups don't require one
+    if (qbHost && qbUsername !== null) {
       qbittorrentClient.configure({
         host: qbHost,
-        username: qbUsername,
-        password: qbPassword,
+        username: qbUsername || '',
+        password: qbPassword || '',
       });
     } else if (process.env.QBITTORRENT_HOST) {
       logger.info('qBittorrent credentials loaded from environment');

@@ -50,8 +50,9 @@ export class QBittorrentClient {
 
     this.host = newHost;
     this.username = config.username || '';
-    this.password = config.password || '';
-    this.configured = !!(this.host && this.username && this.password);
+    this.password = config.password ?? '';
+    // Allow empty password - some qBittorrent setups don't require one
+    this.configured = !!(this.host && this.username !== undefined);
 
     if (this.configured) {
       logger.info(`qBittorrent client configured: ${this.host}`);
@@ -450,6 +451,7 @@ export class QBittorrentClient {
    * Test connection to qBittorrent
    */
   async testConnection(): Promise<boolean> {
+    logger.info(`testConnection called - configured: ${this.configured}, host: ${this.host}, user: ${this.username}`);
     try {
       const version = await this.request<string>('app/version');
       logger.info(`Connected to qBittorrent v${version}`);
