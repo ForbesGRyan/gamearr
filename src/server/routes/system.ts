@@ -116,8 +116,8 @@ system.get('/setup-status', async (c) => {
     const libraries = await libraryRepository.findAll();
     const hasLibrary = libraries.length > 0;
 
-    const igdbClientId = await settingsService.getIGDBClientId();
-    const igdbClientSecret = await settingsService.getIGDBClientSecret();
+    const igdbClientId = await settingsService.getSetting('igdb_client_id');
+    const igdbClientSecret = await settingsService.getSetting('igdb_client_secret');
     const hasIGDB = !!(igdbClientId && igdbClientSecret);
 
     const prowlarrUrl = await settingsService.getSetting('prowlarr_url');
@@ -127,9 +127,12 @@ system.get('/setup-status', async (c) => {
     const qbHost = await settingsService.getSetting('qbittorrent_host');
     const qbUsername = await settingsService.getSetting('qbittorrent_username');
     const qbPassword = await settingsService.getSetting('qbittorrent_password');
-    const hasQBittorrent = !!(qbHost && qbUsername && qbPassword);
+    const hasQBittorrent = !!(qbHost && qbUsername);
 
-    const isComplete = hasLibrary && hasIGDB && hasProwlarr && hasQBittorrent;
+    // Check if setup was skipped
+    const setupSkipped = await settingsService.getSetting('setup_skipped');
+
+    const isComplete = setupSkipped === 'true' || (hasLibrary && hasIGDB && hasProwlarr && hasQBittorrent);
 
     return c.json({
       success: true,
@@ -157,6 +160,19 @@ system.get('/setup-status', async (c) => {
         },
       },
     });
+  }
+});
+
+// POST /api/v1/system/skip-setup - Mark setup as skipped
+system.post('/skip-setup', async (c) => {
+  logger.info('POST /api/v1/system/skip-setup');
+
+  try {
+    await settingsService.setSetting('setup_skipped', 'true');
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error('Failed to skip setup:', error);
+    return c.json({ success: false, error: 'Failed to skip setup' }, 500);
   }
 });
 

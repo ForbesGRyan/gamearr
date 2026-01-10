@@ -1,18 +1,15 @@
-version: "3.8"
-
 services:
   gamearr:
     build: .
     # Or use the pre-built image:
     # image: ghcr.io/yourusername/gamearr:latest
     container_name: gamearr
-    ports:
-      - "7878:7878"
+    network_mode: host
     volumes:
       # Configuration and database
       - ./config:/config
       # Your game library (where completed games are organized)
-      - /path/to/library:/library
+      - smb_data:/library
       # Download client's completed downloads folder
       - /path/to/downloads:/downloads
     environment:
@@ -28,3 +25,10 @@ services:
 # networks:
 #   arr-network:
 #     external: true
+
+volumes:
+  smb_data:
+    driver_opts:
+      type: cifs
+      o: "username=ryan,password=1purpleelephant,uid=3000,gid=3000"
+      device: "//192.168.1.59/data"

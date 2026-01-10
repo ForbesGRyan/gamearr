@@ -75,8 +75,12 @@ app.use('/api/*', cors({
 }));
 
 // Auth middleware - protects API routes when authentication is enabled
-// Skip auth for: /api/v1/auth/status (needed to check if auth is enabled)
-const authMiddleware = createAuthMiddleware(['/api/v1/auth/status']);
+// Skip auth for setup-related endpoints (needed before user is authenticated)
+const authMiddleware = createAuthMiddleware([
+  '/api/v1/auth/status',
+  '/api/v1/system/setup-status',
+  '/api/v1/system/skip-setup',
+]);
 app.use('/api/*', authMiddleware);
 
 // Rate limiting middleware

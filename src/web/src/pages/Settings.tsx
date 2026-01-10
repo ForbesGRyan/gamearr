@@ -279,8 +279,8 @@ function Settings() {
   return (
     <div>
       <div className="mb-6">
-        <h2 className="text-3xl font-bold mb-2">Settings</h2>
-        <p className="text-gray-400">Configure Gamearr's integrations and preferences</p>
+        <h2 className="text-2xl md:text-3xl font-bold mb-2">Settings</h2>
+        <p className="text-gray-400 text-sm md:text-base">Configure Gamearr's integrations and preferences</p>
       </div>
 
       {/* Global save message */}
@@ -294,21 +294,22 @@ function Settings() {
         </div>
       )}
 
-      {/* Tab Navigation */}
-      <div className="border-b border-gray-700 mb-6">
-        <nav className="flex gap-1">
+      {/* Tab Navigation - Horizontally scrollable on mobile */}
+      <div className="border-b border-gray-700 mb-6 -mx-4 px-4 md:mx-0 md:px-0">
+        <nav className="flex gap-1 overflow-x-auto scrollbar-hide pb-px">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap min-h-[44px] ${
                 activeTab === tab.id
                   ? 'border-blue-500 text-blue-400'
                   : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-600'
               }`}
             >
               {tab.icon}
-              {tab.label}
+              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
             </button>
           ))}
         </nav>

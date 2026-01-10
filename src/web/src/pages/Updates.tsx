@@ -146,8 +146,8 @@ function Updates() {
   return (
     <div>
       <div className="mb-6">
-        <h2 className="text-3xl font-bold mb-2">Updates</h2>
-        <p className="text-gray-400">
+        <h2 className="text-2xl md:text-3xl font-bold mb-2">Updates</h2>
+        <p className="text-gray-400 text-sm md:text-base">
           Available updates for your downloaded games
         </p>
       </div>

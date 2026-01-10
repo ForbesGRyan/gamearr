@@ -2,6 +2,7 @@ import { useEffect, useState, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import { GamepadIcon } from './components/Icons';
 import { NavDropdown } from './components/NavDropdown';
+import { MobileNav } from './components/MobileNav';
 import { startBackgroundPreload } from './hooks/usePreloadCache';
 import { api } from './api/client';
 
@@ -86,9 +87,13 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
 
     // Don't check if we're already on the setup page
     if (location.pathname !== '/setup') {
+      // Reset checking state when navigating away from setup
+      setIsChecking(true);
+      setNeedsSetup(false);
       checkSetup();
     } else {
       setIsChecking(false);
+      setNeedsSetup(false);
     }
   }, [location.pathname]);
 
@@ -110,18 +115,36 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
 
 // Main layout with header and navigation
 function MainLayout({ children }: { children: React.ReactNode }) {
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
+      {/* Mobile Navigation Drawer */}
+      <MobileNav isOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+
       {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700" role="banner">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <h1 className="text-2xl font-bold text-blue-500 flex items-center gap-2">
-                <GamepadIcon className="w-7 h-7" aria-hidden="true" />
-                Gamearr
+            <div className="flex items-center space-x-4 md:space-x-8">
+              {/* Hamburger Menu Button - Mobile Only */}
+              <button
+                onClick={() => setMobileNavOpen(true)}
+                className="md:hidden p-2 -ml-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 transition"
+                aria-label="Open navigation menu"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+
+              <h1 className="text-xl md:text-2xl font-bold text-blue-500 flex items-center gap-2">
+                <GamepadIcon className="w-6 h-6 md:w-7 md:h-7" aria-hidden="true" />
+                <span className="hidden sm:inline">Gamearr</span>
               </h1>
-              <nav className="flex space-x-4" aria-label="Main navigation">
+
+              {/* Desktop Navigation - Hidden on Mobile */}
+              <nav className="hidden md:flex space-x-4" aria-label="Main navigation">
                 <NavDropdown
                   label="Library"
                   basePath="/"
@@ -163,7 +186,7 @@ function MainLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8" role="main">
+      <main className="container mx-auto px-4 py-6 md:py-8" role="main">
         {children}
       </main>
     </div>

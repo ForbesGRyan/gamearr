@@ -490,6 +490,10 @@ class ApiClient {
     return this.request<SetupStatus>('/system/setup-status');
   }
 
+  async skipSetup(): Promise<ApiResponse<void>> {
+    return this.request<void>('/system/skip-setup', { method: 'POST' });
+  }
+
   // Indexers
   async getIndexers(): Promise<ApiResponse<Indexer[]>> {
     return this.request<Indexer[]>('/indexers');
