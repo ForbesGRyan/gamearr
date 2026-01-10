@@ -498,9 +498,6 @@ export class FileService {
         return [];
       }
 
-      // Get all games from database to check for matches
-      const allGames = await gameRepository.findAll();
-
       // Get existing cached files for this library
       const existingFiles = await libraryFileRepository.findByLibraryId(libraryId);
       const existingPaths = new Set(existingFiles.map((f) => f.folderPath));
@@ -512,7 +509,6 @@ export class FileService {
         library.path,
         library.name,
         libraryId,
-        allGames,
         existingFiles,
         existingPaths,
         libraryFolders
@@ -546,7 +542,6 @@ export class FileService {
     libraryRoot: string,
     libraryName: string,
     libraryId: number,
-    allGames: Array<{ id: number; title: string; year?: number | null }>,
     existingFiles: Array<{ folderPath: string; matchedGameId: number | null; ignored: boolean }>,
     existingPaths: Set<string>,
     libraryFolders: LibraryFolder[]
@@ -565,28 +560,20 @@ export class FileService {
 
       if (hasGameFiles) {
         // This is a game folder - process it
-        const matchedGame = allGames.find((game) => {
-          const titleMatch = game.title.toLowerCase() === parsed.title.toLowerCase();
-          if (parsed.year && game.year) {
-            return titleMatch && game.year === parsed.year;
-          }
-          return titleMatch;
-        });
-
         const existingFile = existingFiles.find((f) => f.folderPath === folderPath);
 
-        // Upsert to database
+        // Upsert to database - preserve existing match, don't auto-match
         await libraryFileRepository.upsert({
           folderPath,
           parsedTitle: parsed.title,
           parsedYear: parsed.year || null,
-          matchedGameId: existingFile?.matchedGameId || matchedGame?.id || null,
+          matchedGameId: existingFile?.matchedGameId || null,
           libraryId: libraryId,
           ignored: existingFile?.ignored || false,
         });
 
-        // Only add to results if not ignored AND not matched
-        const isMatched = !!(existingFile?.matchedGameId || matchedGame);
+        // Only add to results if not ignored AND not already matched by user
+        const isMatched = !!existingFile?.matchedGameId;
         if (!existingFile?.ignored && !isMatched) {
           const relativePath = path.relative(libraryRoot, folderPath);
           libraryFolders.push({
@@ -613,7 +600,6 @@ export class FileService {
             libraryRoot,
             libraryName,
             libraryId,
-            allGames,
             existingFiles,
             existingPaths,
             libraryFolders
