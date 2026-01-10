@@ -3,6 +3,12 @@ FROM oven/bun:1 AS builder
 
 WORKDIR /app
 
+# Install build dependencies for native modules (better-sqlite3)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy package files
 COPY package.json bun.lock ./
 COPY src/web/package.json src/web/bun.lock ./src/web/
