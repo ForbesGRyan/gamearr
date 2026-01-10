@@ -72,7 +72,7 @@ export class GameService {
    * If no store, assumes user wants to download it (status: wanted, monitored: true)
    * libraryId can be specified to assign the game to a specific library
    */
-  async addGameFromIGDB(igdbId: number, monitored: boolean = true, store?: string | null, libraryId?: number, status?: 'wanted' | 'downloading' | 'downloaded'): Promise<Game> {
+  async addGameFromIGDB(igdbId: number, monitored: boolean = true, store?: string | null, libraryId?: number, status?: 'wanted' | 'downloading' | 'downloaded', platform?: string): Promise<Game> {
     // Check if game already exists
     const existing = await gameRepository.findByIgdbId(igdbId);
     if (existing) {
@@ -105,7 +105,7 @@ export class GameService {
       igdbId: igdbGame.igdbId,
       title: igdbGame.title,
       year: igdbGame.year,
-      platform: igdbGame.platforms?.[0] || 'PC',
+      platform: platform || igdbGame.platforms?.[0] || 'PC',
       store: store || null,
       monitored: shouldMonitor,
       status: gameStatus,

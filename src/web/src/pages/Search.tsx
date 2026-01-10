@@ -87,6 +87,7 @@ function Search() {
   const [selectedStore, setSelectedStore] = useState<string | null>(null);
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
   const [addingGameId, setAddingGameId] = useState<number | null>(null);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Record<number, string>>({});
 
   // Releases search state
   const [releases, setReleases] = useState<Release[]>([]);
@@ -152,12 +153,16 @@ function Search() {
     setAddingGameId(game.igdbId);
     setError(null);
 
+    // Use selected platform, or default to first platform if available
+    const platform = selectedPlatforms[game.igdbId] || game.platforms?.[0];
+
     try {
       const response = await api.addGame({
         igdbId: game.igdbId,
         monitored: true,
         store: selectedStore,
         libraryId: selectedLibraryId ?? undefined,
+        platform,
       });
 
       if (response.success && response.data) {
@@ -434,10 +439,29 @@ function Search() {
                         )}
                       </h3>
                       {game.platforms && game.platforms.length > 0 && (
-                        <p className="text-sm text-gray-400 mt-1">
-                          {game.platforms.slice(0, 3).join(', ')}
-                          {game.platforms.length > 3 && ` +${game.platforms.length - 3} more`}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {game.platforms.length === 1 ? (
+                            <span className="text-sm text-gray-400">{game.platforms[0]}</span>
+                          ) : (
+                            <>
+                              <label className="text-sm text-gray-400">Platform:</label>
+                              <select
+                                value={selectedPlatforms[game.igdbId] || game.platforms[0]}
+                                onChange={(e) => setSelectedPlatforms(prev => ({
+                                  ...prev,
+                                  [game.igdbId]: e.target.value
+                                }))}
+                                className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+                              >
+                                {game.platforms.map((platform) => (
+                                  <option key={platform} value={platform}>
+                                    {platform}
+                                  </option>
+                                ))}
+                              </select>
+                            </>
+                          )}
+                        </div>
                       )}
                       {game.developer && (
                         <p className="text-sm text-gray-500 mt-1">
