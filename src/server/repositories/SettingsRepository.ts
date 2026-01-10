@@ -39,23 +39,19 @@ export class SettingsRepository {
   }
 
   /**
-   * Set setting
+   * Set setting (upsert - insert or update if exists)
    */
   async set(key: string, value: string): Promise<void> {
     logger.info(`Setting ${key}`);
 
-    const existing = await this.get(key);
-
-    if (existing) {
-      // Update existing
-      await db
-        .update(settings)
-        .set({ value })
-        .where(eq(settings.key, key));
-    } else {
-      // Create new
-      await db.insert(settings).values({ key, value });
-    }
+    // Use upsert pattern to avoid race conditions
+    await db
+      .insert(settings)
+      .values({ key, value })
+      .onConflictDoUpdate({
+        target: settings.key,
+        set: { value },
+      });
   }
 
   /**
