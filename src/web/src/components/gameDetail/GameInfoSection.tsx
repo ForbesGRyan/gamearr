@@ -101,6 +101,9 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
               onChange={setStore}
               label="Digital Store"
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Where you purchased or own this game
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -118,6 +121,9 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
                 </option>
               ))}
             </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Folder where downloads will be saved
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -130,6 +136,9 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
               className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white focus:border-blue-500 focus:outline-none"
               placeholder="e.g., PC (Windows)"
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Gaming platform (PC, PlayStation, etc.)
+            </p>
           </div>
         </div>
       </div>
@@ -151,6 +160,9 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
               <option value="downloading">Downloading</option>
               <option value="downloaded">Downloaded</option>
             </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Wanted: looking for releases. Downloaded: already have it.
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -166,6 +178,9 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
             >
               {monitored ? 'Monitored' : 'Unmonitored'}
             </button>
+            <p className="text-xs text-gray-500 mt-1">
+              Monitored games are automatically searched for new releases
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -180,6 +195,9 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
               <option value="auto">Auto-grab</option>
               <option value="ignore">Ignore</option>
             </select>
+            <p className="text-xs text-gray-500 mt-1">
+              What to do when updates or better releases are found
+            </p>
           </div>
         </div>
       </div>

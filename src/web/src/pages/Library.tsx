@@ -1580,7 +1580,12 @@ function Library() {
                                   </div>
                                 )}
                               </div>
-                              <span className="font-medium">{game.title}</span>
+                              <button
+                                onClick={() => navigate(getGameDetailPath(game.platform, game.title))}
+                                className="font-medium text-left hover:text-blue-400 transition"
+                              >
+                                {game.title}
+                              </button>
                               {game.updateAvailable && (
                                 <span className="text-xs bg-orange-500 px-1.5 py-0.5 rounded flex items-center gap-1">
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

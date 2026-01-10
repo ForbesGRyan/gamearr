@@ -211,7 +211,11 @@ function GameDetail() {
           <GameMetadataSection game={game} />
         )}
         {activeTab === 'releases' && (
-          <GameReleasesSection releases={releases} />
+          <GameReleasesSection
+            gameId={game.id}
+            releases={releases}
+            onReleaseGrabbed={() => loadAdditionalData(game.id)}
+          />
         )}
         {activeTab === 'updates' && (
           <GameUpdatesSection
