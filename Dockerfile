@@ -37,8 +37,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create non-root user
 RUN useradd -m -u 1000 gamearr
 
-# Copy compiled binary from builder
+# Copy compiled binary and frontend assets from builder
 COPY --from=builder /app/gamearr /app/gamearr
+COPY --from=builder /app/dist /app/dist
 
 # Create directories for volumes
 RUN mkdir -p /config /library /downloads && \
