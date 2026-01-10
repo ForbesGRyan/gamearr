@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { updateService } from '../services/UpdateService';
 import { updateCheckJob } from '../jobs/UpdateCheckJob';
 import { gameService } from '../services/GameService';
+import { gameRepository } from '../repositories/GameRepository';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
 
@@ -38,17 +39,19 @@ updates.get('/', async (c) => {
     if (limit !== undefined || offset !== undefined) {
       const result = await updateService.getPendingUpdatesPaginated({ limit, offset });
 
+      // Batch fetch all games in a single query to avoid N+1
+      const gameIds = [...new Set(result.items.map((update) => update.gameId))];
+      const gamesMap = await gameRepository.findByIds(gameIds);
+
       // Join with game info for better display
-      const updatesWithGames = await Promise.all(
-        result.items.map(async (update) => {
-          const game = await gameService.getGameById(update.gameId);
-          return {
-            ...update,
-            gameTitle: game?.title || 'Unknown',
-            gameCoverUrl: game?.coverUrl,
-          };
-        })
-      );
+      const updatesWithGames = result.items.map((update) => {
+        const game = gamesMap.get(update.gameId);
+        return {
+          ...update,
+          gameTitle: game?.title || 'Unknown',
+          gameCoverUrl: game?.coverUrl,
+        };
+      });
 
       return c.json({
         success: true,
@@ -64,17 +67,19 @@ updates.get('/', async (c) => {
     // Otherwise return all updates (backwards compatible)
     const pendingUpdates = await updateService.getPendingUpdates();
 
+    // Batch fetch all games in a single query to avoid N+1
+    const gameIds = [...new Set(pendingUpdates.map((update) => update.gameId))];
+    const gamesMap = await gameRepository.findByIds(gameIds);
+
     // Join with game info for better display
-    const updatesWithGames = await Promise.all(
-      pendingUpdates.map(async (update) => {
-        const game = await gameService.getGameById(update.gameId);
-        return {
-          ...update,
-          gameTitle: game?.title || 'Unknown',
-          gameCoverUrl: game?.coverUrl,
-        };
-      })
-    );
+    const updatesWithGames = pendingUpdates.map((update) => {
+      const game = gamesMap.get(update.gameId);
+      return {
+        ...update,
+        gameTitle: game?.title || 'Unknown',
+        gameCoverUrl: game?.coverUrl,
+      };
+    });
 
     return c.json({ success: true, data: updatesWithGames });
   } catch (error) {

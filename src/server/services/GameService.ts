@@ -226,6 +226,65 @@ export class GameService {
   }
 
   /**
+   * Batch update multiple games
+   * Returns count of updated games
+   */
+  async batchUpdate(
+    gameIds: number[],
+    updates: Partial<Pick<NewGame, 'monitored' | 'status'>>
+  ): Promise<{ updated: number }> {
+    if (gameIds.length === 0) {
+      return { updated: 0 };
+    }
+
+    logger.info(`Batch updating ${gameIds.length} games`, { updates });
+
+    // Use batch update for status if provided
+    if (updates.status !== undefined) {
+      await gameRepository.batchUpdateStatus(gameIds, updates.status);
+    }
+
+    // For monitored updates, we need to update individually (no batch method exists)
+    // But we can use a single SQL statement via the repository
+    if (updates.monitored !== undefined) {
+      // Import inArray for batch update
+      const { db } = await import('../db');
+      const { games } = await import('../db/schema');
+      const { inArray } = await import('drizzle-orm');
+
+      await db
+        .update(games)
+        .set({ monitored: updates.monitored })
+        .where(inArray(games.id, gameIds));
+    }
+
+    return { updated: gameIds.length };
+  }
+
+  /**
+   * Batch delete multiple games
+   * Returns count of deleted games
+   */
+  async batchDelete(gameIds: number[]): Promise<{ deleted: number }> {
+    if (gameIds.length === 0) {
+      return { deleted: 0 };
+    }
+
+    logger.info(`Batch deleting ${gameIds.length} games`);
+
+    // Import for batch delete
+    const { db } = await import('../db');
+    const { games } = await import('../db/schema');
+    const { inArray } = await import('drizzle-orm');
+
+    const result = await db
+      .delete(games)
+      .where(inArray(games.id, gameIds));
+
+    return { deleted: result.changes || gameIds.length };
+  }
+
+  /**
    * Update game status
    */
   async updateGameStatus(

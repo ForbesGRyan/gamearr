@@ -36,13 +36,26 @@ type Tab = 'games' | 'scan' | 'health';
 
 function Library() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<Tab>(() => {
+
+  // Derive activeTab directly from URL - single source of truth
+  const activeTab: Tab = useMemo(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'scan' || tabParam === 'health') {
       return tabParam;
     }
     return 'games';
-  });
+  }, [searchParams]);
+
+  // Handler to change tab - updates URL which updates activeTab
+  const setActiveTab = useCallback((tab: Tab) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (tab === 'games') {
+      newParams.delete('tab');
+    } else {
+      newParams.set('tab', tab);
+    }
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   // Use custom hook for games state and handlers
   const {
@@ -139,29 +152,6 @@ function Library() {
   const [steamSearchQuery, setSteamSearchQuery] = useState('');
   const [steamMinPlaytime, setSteamMinPlaytime] = useState<number>(0);
   const [steamShowOwned, setSteamShowOwned] = useState(true);
-
-  // Sync URL <-> state when URL changes externally
-  useEffect(() => {
-    const tabParam = searchParams.get('tab');
-    const newTab: Tab = (tabParam === 'scan' || tabParam === 'health') ? tabParam : 'games';
-    if (newTab !== activeTab) {
-      setActiveTab(newTab);
-    }
-  }, [searchParams, activeTab]);
-
-  // Update URL when tab changes via internal clicks
-  useEffect(() => {
-    const currentTab = searchParams.get('tab');
-    const expectedTab = activeTab === 'games' ? null : activeTab;
-    if (expectedTab !== currentTab) {
-      if (activeTab === 'games') {
-        searchParams.delete('tab');
-      } else {
-        searchParams.set('tab', activeTab);
-      }
-      setSearchParams(searchParams, { replace: true });
-    }
-  }, [activeTab, searchParams, setSearchParams]);
 
   // Computed values
   const visibleDuplicates = useMemo(() => {

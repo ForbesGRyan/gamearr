@@ -27,6 +27,19 @@ const updateGameSchema = z.object({
   platform: z.string().optional(),
 });
 
+// Batch operation schemas
+const batchUpdateSchema = z.object({
+  gameIds: z.array(z.number().int().positive()).min(1).max(1000),
+  updates: z.object({
+    monitored: z.boolean().optional(),
+    status: z.enum(['wanted', 'downloading', 'downloaded']).optional(),
+  }),
+});
+
+const batchDeleteSchema = z.object({
+  gameIds: z.array(z.number().int().positive()).min(1).max(1000),
+});
+
 // GET /api/v1/games - List all games (supports pagination via ?limit=20&offset=0)
 games.get('/', async (c) => {
   const limitParam = c.req.query('limit');
@@ -85,6 +98,43 @@ games.post('/', zValidator('json', addGameSchema), async (c) => {
     if (errorMessage.toLowerCase().includes('already') || errorMessage.toLowerCase().includes('duplicate')) {
       return c.json({ success: false, error: errorMessage, code: ErrorCode.CONFLICT }, 409);
     }
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// PUT /api/v1/games/batch - Batch update multiple games
+games.put('/batch', zValidator('json', batchUpdateSchema), async (c) => {
+  logger.info('PUT /api/v1/games/batch');
+
+  try {
+    const { gameIds, updates } = c.req.valid('json');
+
+    if (Object.keys(updates).length === 0) {
+      return c.json({
+        success: false,
+        error: 'No updates provided',
+        code: ErrorCode.VALIDATION_ERROR
+      }, 400);
+    }
+
+    const result = await gameService.batchUpdate(gameIds, updates);
+    return c.json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Failed to batch update games:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// DELETE /api/v1/games/batch - Batch delete multiple games
+games.delete('/batch', zValidator('json', batchDeleteSchema), async (c) => {
+  logger.info('DELETE /api/v1/games/batch');
+
+  try {
+    const { gameIds } = c.req.valid('json');
+    const result = await gameService.batchDelete(gameIds);
+    return c.json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Failed to batch delete games:', error);
     return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });

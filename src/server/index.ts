@@ -16,6 +16,9 @@ import {
   searchRateLimiter,
 } from './middleware/rateLimit';
 
+// Import CSRF protection middleware
+import { csrfProtection } from './middleware/csrf';
+
 // Import routes
 import gamesRouter from './routes/games';
 import searchRouter from './routes/search';
@@ -73,6 +76,9 @@ app.use('/api/*', cors({
   allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
   maxAge: 86400, // 24 hours
 }));
+
+// CSRF protection - validates Origin header for state-changing requests
+app.use('/api/*', csrfProtection());
 
 // Auth middleware - protects API routes when authentication is enabled
 // Skip auth for setup-related endpoints (needed before user is authenticated)

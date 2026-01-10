@@ -300,14 +300,15 @@ export function useLibraryGames() {
   const isAllSelected = filteredAndSortedGames.length > 0 && filteredAndSortedGames.every((g) => selectedGameIds.has(g.id));
   const isSomeSelected = filteredAndSortedGames.some((g) => selectedGameIds.has(g.id)) && !isAllSelected;
 
-  // Bulk action handlers
+  // Bulk action handlers - use batch API for efficiency
   const handleBulkMonitor = useCallback(async (monitor: boolean) => {
     setBulkActionLoading(true);
     try {
-      const promises = Array.from(selectedGameIds).map((id) =>
-        api.updateGame(id, { monitored: monitor })
-      );
-      await Promise.all(promises);
+      const gameIds = Array.from(selectedGameIds);
+      const result = await api.batchUpdateGames(gameIds, { monitored: monitor });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update games');
+      }
       await loadGames();
       clearSelection();
     } catch (err) {
@@ -320,8 +321,11 @@ export function useLibraryGames() {
   const handleBulkDelete = useCallback(async () => {
     setBulkActionLoading(true);
     try {
-      const promises = Array.from(selectedGameIds).map((id) => api.deleteGame(id));
-      await Promise.all(promises);
+      const gameIds = Array.from(selectedGameIds);
+      const result = await api.batchDeleteGames(gameIds);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete games');
+      }
       await loadGames();
       clearSelection();
     } catch (err) {

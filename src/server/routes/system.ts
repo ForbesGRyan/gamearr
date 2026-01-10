@@ -162,10 +162,55 @@ system.get('/setup-status', async (c) => {
 });
 
 // POST /api/v1/system/skip-setup - Mark setup as skipped
+// Security: Only allow skipping if setup hasn't been completed yet
 system.post('/skip-setup', async (c) => {
   logger.info('POST /api/v1/system/skip-setup');
 
   try {
+    // Security check: Don't allow skip if setup is already complete
+    // This prevents unauthenticated users from modifying settings after initial setup
+    const setupSkipped = await settingsService.getSetting('setup_skipped');
+    const authEnabled = await settingsService.getSetting('auth_enabled');
+
+    // If auth is enabled, this endpoint should have been blocked by auth middleware
+    // But as defense-in-depth, reject here too
+    if (authEnabled === 'true') {
+      logger.warn('Attempted to skip setup after auth was enabled');
+      return c.json({
+        success: false,
+        error: 'Cannot skip setup after authentication is enabled'
+      }, 403);
+    }
+
+    // If setup was already skipped or completed, don't allow re-skipping
+    if (setupSkipped === 'true') {
+      logger.warn('Attempted to skip setup when already skipped');
+      return c.json({
+        success: false,
+        error: 'Setup has already been skipped'
+      }, 400);
+    }
+
+    // Check if setup is already complete (all required services configured)
+    const hasLibrary = await libraryService.hasLibraries();
+    const igdbClientId = await settingsService.getSetting('igdb_client_id');
+    const igdbClientSecret = await settingsService.getSetting('igdb_client_secret');
+    const hasIGDB = !!(igdbClientId && igdbClientSecret);
+    const prowlarrUrl = await settingsService.getSetting('prowlarr_url');
+    const prowlarrApiKey = await settingsService.getSetting('prowlarr_api_key');
+    const hasProwlarr = !!(prowlarrUrl && prowlarrApiKey);
+    const qbHost = await settingsService.getSetting('qbittorrent_host');
+    const qbUsername = await settingsService.getSetting('qbittorrent_username');
+    const hasQBittorrent = !!(qbHost && qbUsername);
+
+    if (hasLibrary && hasIGDB && hasProwlarr && hasQBittorrent) {
+      logger.warn('Attempted to skip setup when already complete');
+      return c.json({
+        success: false,
+        error: 'Setup is already complete'
+      }, 400);
+    }
+
     await settingsService.setSetting('setup_skipped', 'true');
     return c.json({ success: true });
   } catch (error) {

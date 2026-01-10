@@ -413,6 +413,24 @@ class ApiClient {
     });
   }
 
+  // Batch operations
+  async batchUpdateGames(
+    gameIds: number[],
+    updates: { monitored?: boolean; status?: 'wanted' | 'downloading' | 'downloaded' }
+  ): Promise<ApiResponse<{ updated: number }>> {
+    return this.request<{ updated: number }>('/games/batch', {
+      method: 'PUT',
+      body: JSON.stringify({ gameIds, updates }),
+    });
+  }
+
+  async batchDeleteGames(gameIds: number[]): Promise<ApiResponse<{ deleted: number }>> {
+    return this.request<{ deleted: number }>('/games/batch', {
+      method: 'DELETE',
+      body: JSON.stringify({ gameIds }),
+    });
+  }
+
   async rematchGame(id: number, igdbId: number): Promise<ApiResponse<Game>> {
     return this.request<Game>(`/games/${id}/rematch`, {
       method: 'PATCH',
