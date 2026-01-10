@@ -4,8 +4,8 @@ FROM oven/bun:1 AS builder
 WORKDIR /app
 
 # Copy package files
-COPY package.json bun.lockb ./
-COPY src/web/package.json src/web/bun.lockb ./src/web/
+COPY package.json bun.lock ./
+COPY src/web/package.json src/web/bun.lock ./src/web/
 
 # Install dependencies
 RUN bun install --frozen-lockfile
@@ -25,6 +25,7 @@ WORKDIR /app
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
