@@ -63,6 +63,7 @@ const folderPathSchema = z.object({
 
 const organizeFileSchema = z.object({
   filePath: z.string().min(1),
+  folderName: z.string().min(1),
 });
 
 const library = new Hono();
@@ -430,9 +431,9 @@ library.post('/health/organize-file', zValidator('json', organizeFileSchema), as
   logger.info('POST /api/v1/library/health/organize-file');
 
   try {
-    const { filePath } = c.req.valid('json');
+    const { filePath, folderName } = c.req.valid('json');
 
-    const result = await fileService.organizeLooseFile(filePath);
+    const result = await fileService.organizeLooseFile(filePath, folderName);
 
     if (!result.success) {
       return c.json({ success: false, error: result.error, code: ErrorCode.FILE_ERROR }, 400);

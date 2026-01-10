@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { formatBytes, formatTimestamp } from '../../utils/formatters';
 import { FolderIcon } from '../Icons';
 import { api } from '../../api/client';
@@ -9,8 +10,20 @@ interface LibraryHealthTabProps {
   duplicates: DuplicateGroup[];
   looseFiles: LooseFile[];
   organizingFile: string | null;
-  onOrganizeFile: (filePath: string) => void;
+  onOrganizeFile: (filePath: string, folderName: string) => void;
   onDismissDuplicate: (group: DuplicateGroup) => void;
+}
+
+// Get the target folder name from a file (name without extension)
+function getTargetFolderName(fileName: string, extension: string): string {
+  return fileName.replace(new RegExp(`${extension.replace('.', '\\.')}$`, 'i'), '');
+}
+
+// Get the target folder path from a file path
+function getTargetFolderPath(filePath: string, fileName: string, extension: string): string {
+  const folderName = getTargetFolderName(fileName, extension);
+  const parentDir = filePath.substring(0, filePath.lastIndexOf(fileName));
+  return `${parentDir}${folderName}`;
 }
 
 export function LibraryHealthTab({
@@ -22,6 +35,27 @@ export function LibraryHealthTab({
   onOrganizeFile,
   onDismissDuplicate,
 }: LibraryHealthTabProps) {
+  const [confirmingFile, setConfirmingFile] = useState<LooseFile | null>(null);
+  const [customFolderName, setCustomFolderName] = useState<string>('');
+
+  const handleOrganizeClick = (file: LooseFile) => {
+    setConfirmingFile(file);
+    // Set default folder name (filename without extension)
+    setCustomFolderName(getTargetFolderName(file.name, file.extension));
+  };
+
+  const handleConfirmOrganize = () => {
+    if (confirmingFile && customFolderName.trim()) {
+      onOrganizeFile(confirmingFile.path, customFolderName.trim());
+      setConfirmingFile(null);
+      setCustomFolderName('');
+    }
+  };
+
+  const handleCancelOrganize = () => {
+    setConfirmingFile(null);
+    setCustomFolderName('');
+  };
   if (isLoading && !isLoaded) {
     return (
       <div className="text-center py-12">
@@ -164,7 +198,7 @@ export function LibraryHealthTab({
                     </td>
                     <td className="py-3">
                       <button
-                        onClick={() => onOrganizeFile(file.path)}
+                        onClick={() => handleOrganizeClick(file)}
                         disabled={organizingFile === file.path}
                         className="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm transition disabled:opacity-50"
                       >
@@ -178,6 +212,68 @@ export function LibraryHealthTab({
           </div>
         )}
       </div>
+
+      {/* Organize Confirmation Modal */}
+      {confirmingFile && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl">
+            <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              Organize File
+            </h3>
+
+            <div className="space-y-4">
+              <div className="bg-gray-700 rounded-lg p-4">
+                <p className="text-sm text-gray-400 mb-1">File to organize:</p>
+                <p className="font-medium text-white break-all">{confirmingFile.name}</p>
+                <p className="text-xs text-gray-500 mt-1 break-all">{confirmingFile.path}</p>
+              </div>
+
+              <div className="flex items-center gap-2 text-gray-400">
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+                <span className="text-sm">Will be moved to:</span>
+              </div>
+
+              <div className="bg-gray-700 rounded-lg p-4">
+                <label className="text-sm text-gray-400 mb-2 block">Target folder name:</label>
+                <input
+                  type="text"
+                  value={customFolderName}
+                  onChange={(e) => setCustomFolderName(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  placeholder="Enter folder name"
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  Full path: <span className="text-gray-400">{confirmingFile.path.substring(0, confirmingFile.path.lastIndexOf(confirmingFile.name))}<span className="text-green-400">{customFolderName || '...'}</span>/</span>
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  The file will be moved into this folder. If the folder doesn't exist, it will be created.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={handleCancelOrganize}
+                className="px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmOrganize}
+                disabled={!customFolderName.trim()}
+                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Organize File
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

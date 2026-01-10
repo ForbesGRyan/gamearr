@@ -670,10 +670,10 @@ class ApiClient {
     return this.request<LooseFile[]>('/library/health/loose-files');
   }
 
-  async organizeLooseFile(filePath: string): Promise<ApiResponse<void>> {
+  async organizeLooseFile(filePath: string, folderName: string): Promise<ApiResponse<void>> {
     return this.request<void>('/library/health/organize-file', {
       method: 'POST',
-      body: JSON.stringify({ filePath }),
+      body: JSON.stringify({ filePath, folderName }),
     });
   }
 

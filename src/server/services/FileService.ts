@@ -1060,12 +1060,19 @@ export class FileService {
 
   /**
    * Organize a loose file by creating a folder and moving the file into it
+   * @param filePath - Path to the loose file
+   * @param folderName - Custom folder name to create (user-specified)
    */
-  async organizeLooseFile(filePath: string): Promise<MoveResult> {
+  async organizeLooseFile(filePath: string, folderName: string): Promise<MoveResult> {
     try {
       // Security: Validate that the file path is within the library
       const libraryPath = await this.getLibraryPath();
       validatePathWithinBase(filePath, libraryPath, 'organizeLooseFile');
+
+      // Validate folder name doesn't contain path separators or invalid characters
+      if (folderName.includes('/') || folderName.includes('\\') || folderName.includes('..')) {
+        return { success: false, error: 'Invalid folder name' };
+      }
 
       const fileExists = await this.pathExists(filePath);
       if (!fileExists) {
@@ -1078,11 +1085,10 @@ export class FileService {
       }
 
       const fileName = path.basename(filePath);
-      const fileNameWithoutExt = path.basename(filePath, path.extname(filePath));
       const parentDir = path.dirname(filePath);
 
-      // Create folder with the file name (without extension)
-      const newFolderPath = path.join(parentDir, fileNameWithoutExt);
+      // Create folder with the user-specified name
+      const newFolderPath = path.join(parentDir, folderName);
 
       const folderExists = await this.pathExists(newFolderPath);
       if (folderExists) {
@@ -1093,13 +1099,13 @@ export class FileService {
           return { success: false, error: 'File already exists in target folder' };
         }
         await fsPromises.rename(filePath, targetPath);
-        logger.info(`Moved ${fileName} into existing folder ${fileNameWithoutExt}`);
+        logger.info(`Moved ${fileName} into existing folder ${folderName}`);
       } else {
         // Create the folder and move the file
         await fsPromises.mkdir(newFolderPath, { recursive: true });
         const targetPath = path.join(newFolderPath, fileName);
         await fsPromises.rename(filePath, targetPath);
-        logger.info(`Created folder ${fileNameWithoutExt} and moved ${fileName} into it`);
+        logger.info(`Created folder ${folderName} and moved ${fileName} into it`);
       }
 
       return { success: true, newPath: newFolderPath };
