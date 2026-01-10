@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import * as schema from './schema';
+import { logger } from '../utils/logger';
 
 // Get data path from environment or use default
 const dataPath = process.env.DATA_PATH || './data';
@@ -27,7 +28,7 @@ function initializeSchema() {
   ).get();
 
   if (!tablesExist) {
-    console.log('[DB] Initializing database schema...');
+    logger.info('Initializing database schema...');
 
     // Create libraries table first (referenced by games)
     sqlite.run(`
@@ -163,7 +164,7 @@ function initializeSchema() {
     sqlite.run('CREATE INDEX IF NOT EXISTS game_updates_game_id_idx ON game_updates(game_id)');
     sqlite.run('CREATE INDEX IF NOT EXISTS game_updates_status_idx ON game_updates(status)');
 
-    console.log('[DB] Schema initialized successfully');
+    logger.info('Schema initialized successfully');
   }
 }
 

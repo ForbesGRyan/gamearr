@@ -83,38 +83,43 @@ export function SteamImportModal({
               </div>
             </div>
           ) : error ? (
-            <div className="bg-red-900/30 border border-red-600 rounded-lg p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-red-400 font-medium">{error.split('\n')[0]}</p>
-                  {error.includes('\n') && (
-                    <div className="mt-2 max-h-32 overflow-y-auto">
-                      <ul className="text-sm text-red-300 space-y-1">
-                        {error.split('\n').slice(1).map((err, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span className="text-red-500 mt-0.5">-</span>
-                            <span>{err}</span>
-                          </li>
-                        ))}
-                      </ul>
+            (() => {
+              const isSuccess = error.startsWith('Imported');
+              return (
+                <div className={`${isSuccess ? 'bg-green-900/30 border-green-600' : 'bg-red-900/30 border-red-600'} border rounded-lg p-4`}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className={`${isSuccess ? 'text-green-400' : 'text-red-400'} font-medium`}>{error.split('\n')[0]}</p>
+                      {error.includes('\n') && (
+                        <div className="mt-2 max-h-32 overflow-y-auto">
+                          <ul className={`text-sm ${isSuccess ? 'text-green-300' : 'text-red-300'} space-y-1`}>
+                            {error.split('\n').slice(1).map((err, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className={`${isSuccess ? 'text-green-500' : 'text-red-500'} mt-0.5`}>-</span>
+                                <span>{err}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {!isSuccess && (
+                        <p className="text-sm text-gray-400 mt-2">
+                          Make sure you have configured your Steam API key and Steam ID in Settings.
+                        </p>
+                      )}
                     </div>
-                  )}
-                  {!error.includes('Imported') && (
-                    <p className="text-sm text-gray-400 mt-2">
-                      Make sure you have configured your Steam API key and Steam ID in Settings.
-                    </p>
-                  )}
+                    <button
+                      onClick={onErrorDismiss}
+                      className="text-gray-400 hover:text-white ml-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={onErrorDismiss}
-                  className="text-gray-400 hover:text-white ml-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
+              );
+            })()
           ) : games.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-400">No games found in your Steam library.</p>

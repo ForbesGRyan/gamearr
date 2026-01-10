@@ -12,6 +12,10 @@ import { logger } from '../../utils/logger';
 import { IGDBError, ErrorCode } from '../../utils/errors';
 import { fetchWithRetry, RateLimiter } from '../../utils/http';
 
+// IGDB API constraints
+const IGDB_MULTIQUERY_BATCH_SIZE = 10; // Max queries per multiquery request
+const IGDB_PARALLEL_BATCH_LIMIT = 4; // Max parallel requests (matches rate limit)
+
 export class IGDBClient {
   private clientId: string;
   private clientSecret: string;
@@ -171,28 +175,24 @@ export class IGDBClient {
       return new Map();
     }
 
-    // IGDB multiquery supports max 10 queries per request
-    // IGDB rate limit is 4 requests per second, so we'll run up to 4 in parallel
-    const batchSize = 10;
-    const parallelLimit = 4;
-    const totalBatches = Math.ceil(names.length / batchSize);
+    const totalBatches = Math.ceil(names.length / IGDB_MULTIQUERY_BATCH_SIZE);
     const results = new Map<string, GameSearchResult[]>();
 
     // Create all batch definitions
     const batches: { names: string[]; batchNum: number }[] = [];
-    for (let i = 0; i < names.length; i += batchSize) {
+    for (let i = 0; i < names.length; i += IGDB_MULTIQUERY_BATCH_SIZE) {
       batches.push({
-        names: names.slice(i, i + batchSize),
-        batchNum: Math.floor(i / batchSize) + 1,
+        names: names.slice(i, i + IGDB_MULTIQUERY_BATCH_SIZE),
+        batchNum: Math.floor(i / IGDB_MULTIQUERY_BATCH_SIZE) + 1,
       });
     }
 
     // Process batches in parallel groups
     let completedBatches = 0;
-    for (let i = 0; i < batches.length; i += parallelLimit) {
-      const parallelBatches = batches.slice(i, i + parallelLimit);
+    for (let i = 0; i < batches.length; i += IGDB_PARALLEL_BATCH_LIMIT) {
+      const parallelBatches = batches.slice(i, i + IGDB_PARALLEL_BATCH_LIMIT);
 
-      logger.info(`Processing ${parallelBatches.length} batches in parallel (${i + 1}-${Math.min(i + parallelLimit, batches.length)} of ${totalBatches})`);
+      logger.info(`Processing ${parallelBatches.length} batches in parallel (${i + 1}-${Math.min(i + IGDB_PARALLEL_BATCH_LIMIT, batches.length)} of ${totalBatches})`);
 
       // Report progress
       if (onProgress) {

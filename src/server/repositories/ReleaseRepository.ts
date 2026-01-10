@@ -177,6 +177,19 @@ export class ReleaseRepository {
 
     return results[0];
   }
+
+  /**
+   * Find release by torrent hash
+   */
+  async findByTorrentHash(hash: string): Promise<Release | undefined> {
+    const results = await db
+      .select(releaseFields)
+      .from(releases)
+      .where(eq(releases.torrentHash, hash))
+      .limit(1);
+
+    return results[0];
+  }
 }
 
 // Singleton instance

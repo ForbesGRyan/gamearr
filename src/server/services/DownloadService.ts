@@ -30,6 +30,14 @@ interface TorrentMatchResult {
  */
 const SIZE_TOLERANCE_PERCENT = 0.10;
 
+/**
+ * Progressive retry delays (ms) for torrent hash discovery
+ * Increases delay with each retry to allow qBittorrent processing time
+ */
+const TORRENT_DISCOVERY_DELAYS_MS = [2000, 3000, 5000, 8000, 10000] as const;
+const TORRENT_DISCOVERY_MAX_RETRIES = TORRENT_DISCOVERY_DELAYS_MS.length;
+const TORRENT_DISCOVERY_LOOKBACK_MS = 60000; // Look for torrents added in last minute
+
 export class DownloadService {
   /**
    * Normalize a string for comparison by removing special characters,
@@ -313,13 +321,11 @@ export class DownloadService {
       }
 
       // Strategy 2: Poll qBittorrent with retries for .torrent file URLs
-      const maxRetries = 5;
-      const delays = [2000, 3000, 5000, 8000, 10000]; // Progressive delays
       const category = await settingsService.getQBittorrentCategory();
-      const addedAfter = new Date(Date.now() - 60000); // Look for torrents added in last minute
+      const addedAfter = new Date(Date.now() - TORRENT_DISCOVERY_LOOKBACK_MS);
 
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
-        await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+      for (let attempt = 0; attempt < TORRENT_DISCOVERY_MAX_RETRIES; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, TORRENT_DISCOVERY_DELAYS_MS[attempt]));
 
         const torrents = await qbittorrentClient.getTorrents();
 
@@ -560,8 +566,12 @@ export class DownloadService {
     try {
       await qbittorrentClient.deleteTorrents([hash], deleteFiles);
 
-      // TODO: Update release status in database
-      // This would require storing the hash with the release
+      // Update release status in database if we have a matching release
+      const release = await releaseRepository.findByTorrentHash(hash);
+      if (release) {
+        await releaseRepository.updateStatus(release.id, 'failed');
+        logger.info(`Updated release ${release.id} status to failed`);
+      }
 
       logger.info('Download cancelled successfully');
     } catch (error) {
