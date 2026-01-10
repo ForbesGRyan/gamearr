@@ -235,7 +235,7 @@ settings.get('/:key', async (c) => {
         const parsed = JSON.parse(value);
         return c.json({ success: true, data: parsed });
       } catch {
-        // Not JSON, return as-is
+        // Value is not valid JSON, return as plain string (expected for string settings)
         return c.json({ success: true, data: value });
       }
     }

@@ -3,8 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { updateService } from '../services/UpdateService';
 import { updateCheckJob } from '../jobs/UpdateCheckJob';
-import { gameRepository } from '../repositories/GameRepository';
-import { gameUpdateRepository } from '../repositories/GameUpdateRepository';
+import { gameService } from '../services/GameService';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
 
@@ -42,7 +41,7 @@ updates.get('/', async (c) => {
       // Join with game info for better display
       const updatesWithGames = await Promise.all(
         result.items.map(async (update) => {
-          const game = await gameRepository.findById(update.gameId);
+          const game = await gameService.getGameById(update.gameId);
           return {
             ...update,
             gameTitle: game?.title || 'Unknown',
@@ -68,7 +67,7 @@ updates.get('/', async (c) => {
     // Join with game info for better display
     const updatesWithGames = await Promise.all(
       pendingUpdates.map(async (update) => {
-        const game = await gameRepository.findById(update.gameId);
+        const game = await gameService.getGameById(update.gameId);
         return {
           ...update,
           gameTitle: game?.title || 'Unknown',
@@ -140,7 +139,7 @@ updates.get('/games/:id', async (c) => {
   logger.info(`GET /api/v1/updates/games/${id}`);
 
   try {
-    const gameUpdates = await gameUpdateRepository.findByGameId(id);
+    const gameUpdates = await updateService.getGameUpdates(id);
     return c.json({ success: true, data: gameUpdates });
   } catch (error) {
     logger.error('Failed to get game updates:', error);
@@ -182,12 +181,12 @@ updates.put('/games/:id/policy', zValidator('json', updatePolicySchema), async (
   try {
     const { policy } = c.req.valid('json');
 
-    const game = await gameRepository.findById(id);
+    const game = await gameService.getGameById(id);
     if (!game) {
       return c.json({ success: false, error: 'Game not found', code: ErrorCode.NOT_FOUND }, 404);
     }
 
-    const updatedGame = await gameRepository.update(id, { updatePolicy: policy });
+    const updatedGame = await gameService.updateGame(id, { updatePolicy: policy });
     return c.json({ success: true, data: updatedGame });
   } catch (error) {
     logger.error('Failed to set update policy:', error);

@@ -39,7 +39,9 @@ async function verifyApiKey(providedKey: string): Promise<boolean> {
       Buffer.from(providedHash, 'hex'),
       Buffer.from(storedHash, 'hex')
     );
-  } catch {
+  } catch (error) {
+    // Buffer comparison failed (e.g., invalid hex encoding or length mismatch)
+    logger.debug('API key verification failed:', error instanceof Error ? error.message : 'Unknown error');
     return false;
   }
 }

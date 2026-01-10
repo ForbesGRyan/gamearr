@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { igdbClient } from '../integrations/igdb/IGDBClient';
-import { gameRepository } from '../repositories/GameRepository';
+import { gameService } from '../services/GameService';
 import { logger } from '../utils/logger';
 import { routeHandler } from '../utils/errors';
 
@@ -36,8 +36,7 @@ discover.get('/popular', routeHandler(async (c) => {
   const popularGames = await igdbClient.getPopularGames(type, limit);
 
   // Get all games in library to check which popular games are already added
-  const libraryGames = await gameRepository.findAll();
-  const libraryIgdbIds = new Set(libraryGames.map(g => g.igdbId));
+  const libraryIgdbIds = await gameService.getAllIgdbIds();
 
   // Add inLibrary flag to each result
   const results = popularGames.map(pg => ({

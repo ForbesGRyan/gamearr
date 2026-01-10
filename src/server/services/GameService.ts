@@ -104,6 +104,7 @@ export class GameService {
     const newGame: NewGame = {
       igdbId: igdbGame.igdbId,
       title: igdbGame.title,
+      slug: this.generateSlug(igdbGame.title),
       year: igdbGame.year,
       platform: platform || igdbGame.platforms?.[0] || 'PC',
       store: store || null,
@@ -256,6 +257,7 @@ export class GameService {
     const updates: Partial<NewGame> = {
       igdbId: igdbGame.igdbId,
       title: igdbGame.title,
+      slug: this.generateSlug(igdbGame.title),
       year: igdbGame.year,
       coverUrl: igdbGame.coverUrl,
       summary: igdbGame.summary || null,
@@ -300,19 +302,22 @@ export class GameService {
 
   /**
    * Find a game by platform and title slug
+   * Uses indexed slug column for efficient lookup
    */
   async findByPlatformAndSlug(platform: string, slug: string): Promise<Game | undefined> {
-    const allGames = await gameRepository.findAll();
+    // Query by slug using the indexed column
+    const gamesWithSlug = await gameRepository.findBySlug(slug);
+
+    if (gamesWithSlug.length === 0) {
+      return undefined;
+    }
 
     // Normalize platform for comparison
     const normalizedPlatform = platform.toLowerCase().replace(/-/g, ' ');
     const isSearchingForPc = normalizedPlatform === 'pc' || this.isPcPlatform(normalizedPlatform);
 
-    // Find game where platform matches and slug matches
-    return allGames.find(game => {
-      const gameSlug = this.generateSlug(game.title);
-      if (gameSlug !== slug) return false;
-
+    // Find game where platform matches from the slug-matched results
+    return gamesWithSlug.find(game => {
       // If searching for PC, match any PC variant
       if (isSearchingForPc) {
         return this.isPcPlatform(game.platform);
@@ -346,6 +351,62 @@ export class GameService {
       throw new NotFoundError('Game', gameId);
     }
     return downloadHistoryRepository.findByGameId(gameId);
+  }
+
+  /**
+   * Find game by IGDB ID
+   */
+  async findByIgdbId(igdbId: number): Promise<Game | undefined> {
+    return gameRepository.findByIgdbId(igdbId);
+  }
+
+  /**
+   * Get all IGDB IDs in the library
+   * Returns a Set for efficient lookups
+   */
+  async getAllIgdbIds(): Promise<Set<number>> {
+    const games = await gameRepository.findAll();
+    return new Set(games.map(g => g.igdbId));
+  }
+
+  /**
+   * Get normalized titles for duplicate detection
+   * Returns a Set of normalized titles for efficient lookups
+   */
+  async getNormalizedTitles(): Promise<Set<string>> {
+    const games = await gameRepository.findAll();
+    return new Set(games.map(g => this.normalizeSearchQuery(g.title).toLowerCase()));
+  }
+
+  /**
+   * Create game directly (for Steam import and similar use cases)
+   * Automatically generates slug if not provided
+   */
+  async createGame(gameData: NewGame): Promise<Game> {
+    // Ensure slug is generated if not provided
+    if (!gameData.slug && gameData.title) {
+      gameData.slug = this.generateSlug(gameData.title);
+    }
+    return gameRepository.create(gameData);
+  }
+
+  /**
+   * Get game count (for health check)
+   */
+  async getGameCount(): Promise<number> {
+    return gameRepository.count();
+  }
+
+  /**
+   * Get game statistics
+   */
+  async getGameStats(): Promise<{
+    totalGames: number;
+    wantedGames: number;
+    downloadingGames: number;
+    downloadedGames: number;
+  }> {
+    return gameRepository.getStats();
   }
 }
 

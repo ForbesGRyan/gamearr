@@ -20,6 +20,7 @@ export const games = sqliteTable('games', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   igdbId: integer('igdb_id').notNull().unique(),
   title: text('title').notNull(),
+  slug: text('slug'), // URL-safe slug for lookups (generated from title)
   year: integer('year'),
   platform: text('platform').notNull(),
   store: text('store'), // Steam, Epic Games, GOG, etc.
@@ -55,6 +56,7 @@ export const games = sqliteTable('games', {
   statusIdx: index('games_status_idx').on(table.status),
   monitoredIdx: index('games_monitored_idx').on(table.monitored),
   libraryIdIdx: index('games_library_id_idx').on(table.libraryId),
+  slugIdx: index('games_slug_idx').on(table.slug),
 }));
 
 export const releases = sqliteTable('releases', {

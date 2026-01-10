@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { fileService } from '../services/FileService';
-import { gameRepository } from '../repositories/GameRepository';
 import { gameService } from '../services/GameService';
 import { downloadService } from '../services/DownloadService';
 import { logger } from '../utils/logger';
@@ -174,7 +173,7 @@ library.post('/match', zValidator('json', matchSchema), async (c) => {
     const gamePlatform = igdbGame.platforms?.[0]?.name || igdbGame.platforms?.[0] || 'PC';
 
     // Check if game already exists
-    const existingGame = await gameRepository.findByIgdbId(gameIgdbId);
+    const existingGame = await gameService.findByIgdbId(gameIgdbId);
 
     let game;
     let wasExisting = false;
@@ -183,14 +182,13 @@ library.post('/match', zValidator('json', matchSchema), async (c) => {
       // Game already exists - link folder to it and update status
       logger.info(`Game "${existingGame.title}" already exists, linking folder to it`);
 
-      await gameRepository.update(existingGame.id, {
+      game = await gameService.updateGame(existingGame.id, {
         status: 'downloaded',
         folderPath: folderPath || existingGame.folderPath,
         store: store || existingGame.store,
         libraryId: libraryId || existingGame.libraryId,
       });
 
-      game = { ...existingGame, status: 'downloaded', folderPath: folderPath || existingGame.folderPath, libraryId: libraryId || existingGame.libraryId };
       wasExisting = true;
     } else {
       // Get the default update policy from settings
@@ -198,7 +196,7 @@ library.post('/match', zValidator('json', matchSchema), async (c) => {
 
       // Create new game with downloaded status (since it's already in library)
       // Include metadata if available from GameSearchResult format
-      game = await gameRepository.create({
+      game = await gameService.createGame({
         igdbId: gameIgdbId,
         title: gameTitle,
         year: gameYear,
@@ -258,7 +256,7 @@ library.post('/match-existing', zValidator('json', matchExistingSchema), async (
     const { folderPath, gameId } = c.req.valid('json');
 
     // Check if game exists
-    const game = await gameRepository.findById(gameId);
+    const game = await gameService.getGameById(gameId);
 
     if (!game) {
       return c.json({ success: false, error: 'Game not found', code: ErrorCode.NOT_FOUND }, 404);
@@ -305,9 +303,7 @@ library.post('/ignore', zValidator('json', folderPathSchema), async (c) => {
       validatePathWithinBase(folderPath, libraryPath, 'ignore folder');
     }
 
-    // Import libraryFileRepository
-    const { libraryFileRepository } = await import('../repositories/LibraryFileRepository');
-    const result = await libraryFileRepository.ignore(folderPath);
+    const result = await fileService.ignoreFolder(folderPath);
 
     if (!result) {
       return c.json({ success: false, error: 'Folder not found in library scan', code: ErrorCode.NOT_FOUND }, 404);
@@ -341,8 +337,7 @@ library.post('/unignore', zValidator('json', folderPathSchema), async (c) => {
       validatePathWithinBase(folderPath, libraryPath, 'unignore folder');
     }
 
-    const { libraryFileRepository } = await import('../repositories/LibraryFileRepository');
-    const result = await libraryFileRepository.unignore(folderPath);
+    const result = await fileService.unignoreFolder(folderPath);
 
     if (!result) {
       return c.json({ success: false, error: 'Folder not found in library scan', code: ErrorCode.NOT_FOUND }, 404);
@@ -368,17 +363,11 @@ library.get('/ignored', async (c) => {
   logger.info('GET /api/v1/library/ignored');
 
   try {
-    const { libraryFileRepository } = await import('../repositories/LibraryFileRepository');
-    const ignoredFiles = await libraryFileRepository.findIgnored();
+    const ignoredFolders = await fileService.getIgnoredFolders();
 
     return c.json({
       success: true,
-      data: ignoredFiles.map((file) => ({
-        folderName: file.folderPath.split(/[/\\]/).pop(),
-        parsedTitle: file.parsedTitle,
-        parsedYear: file.parsedYear,
-        path: file.folderPath,
-      })),
+      data: ignoredFolders,
     });
   } catch (error) {
     logger.error('Failed to get ignored folders:', error);

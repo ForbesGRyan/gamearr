@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
 import { SteamClient, SteamGame } from '../integrations/steam/SteamClient';
 import { settingsService } from '../services/SettingsService';
+import { gameService } from '../services/GameService';
 import { IGDBClient } from '../integrations/igdb/IGDBClient';
-import { gameRepository } from '../repositories/GameRepository';
 import type { NewGame } from '../db/schema';
 import type { SteamImportSSEEvent } from '../../shared/types';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
+import { logger } from '../utils/logger';
 
 const router = new Hono();
 
@@ -103,7 +104,7 @@ router.get('/owned-games', async (c) => {
     const games = await client.getOwnedGames();
 
     // Get existing games to mark which ones are already in library
-    const existingGames = await gameRepository.findAll();
+    const existingGames = await gameService.getAllGames();
     const existingNormalizedTitles = new Set(existingGames.map((g) => normalizeTitle(g.title)));
 
     // Enrich with import status (using normalized title matching)
@@ -177,7 +178,7 @@ router.post('/import', async (c) => {
     const selectedGames = ownedGames.filter((g) => appIds.includes(g.appId));
 
     // Get existing games to check for duplicates
-    const existingGames = await gameRepository.findAll();
+    const existingGames = await gameService.getAllGames();
     const existingNormalizedTitles = new Set(existingGames.map((g) => normalizeTitle(g.title)));
     const existingIgdbIds = new Set(existingGames.map((g) => g.igdbId));
 
@@ -204,9 +205,9 @@ router.post('/import', async (c) => {
     );
 
     const gameNames = gamesToImport.map((g) => g.name);
-    console.log(`Batch searching ${gameNames.length} games on IGDB...`);
+    logger.info(`Batch searching ${gameNames.length} games on IGDB...`);
     const igdbResults = await igdbClient.searchGamesBatch(gameNames, 5);
-    console.log(`IGDB batch search complete, got results for ${igdbResults.size} games`);
+    logger.info(`IGDB batch search complete, got results for ${igdbResults.size} games`);
 
     let imported = 0;
     let skipped = selectedGames.length - gamesToImport.length; // Already skipped by title
@@ -263,7 +264,7 @@ router.post('/import', async (c) => {
           gameModes: igdbData.gameModes ? JSON.stringify(igdbData.gameModes) : null,
         };
 
-        await gameRepository.create(gameData);
+        await gameService.createGame(gameData);
         imported++;
       } catch (gameError) {
         errors.push(`Failed to import ${steamGame.name}: ${gameError instanceof Error ? gameError.message : 'Unknown error'}`);
@@ -327,7 +328,7 @@ router.post('/import-stream', async (c) => {
           const selectedGames = ownedGames.filter((g) => appIds.includes(g.appId));
 
           // Get existing games to check for duplicates
-          const existingGames = await gameRepository.findAll();
+          const existingGames = await gameService.getAllGames();
           const existingNormalizedTitles = new Set(existingGames.map((g) => normalizeTitle(g.title)));
           const existingIgdbIds = new Set(existingGames.map((g) => g.igdbId));
 
@@ -407,7 +408,7 @@ router.post('/import-stream', async (c) => {
                 gameModes: igdbData.gameModes ? JSON.stringify(igdbData.gameModes) : null,
               };
 
-              await gameRepository.create(gameData);
+              await gameService.createGame(gameData);
               imported++;
               send({ type: 'progress', current, total, game: igdbData.title, status: 'imported' });
             } catch (gameError) {

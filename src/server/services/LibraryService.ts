@@ -329,6 +329,14 @@ export class LibraryService {
     // Fall back to default download library
     return this.getDefaultDownloadLibrary();
   }
+
+  /**
+   * Check if any libraries are configured
+   */
+  async hasLibraries(): Promise<boolean> {
+    const libraries = await libraryRepository.findAll();
+    return libraries.length > 0;
+  }
 }
 
 // Singleton instance

@@ -718,15 +718,21 @@ export class DownloadService {
       }
 
       // Update releases (status and/or hash)
-      for (const update of releaseStatusUpdates) {
-        if (update.torrentHash) {
-          await releaseRepository.update(update.id, {
-            status: update.status,
-            torrentHash: update.torrentHash
-          });
-        } else {
-          await releaseRepository.updateStatus(update.id, update.status);
-        }
+      // Separate updates that need torrentHash from status-only updates
+      const hashUpdates = releaseStatusUpdates.filter(u => u.torrentHash);
+      const statusOnlyUpdates = releaseStatusUpdates.filter(u => !u.torrentHash);
+
+      // Updates with torrentHash must be done individually (different data per record)
+      for (const update of hashUpdates) {
+        await releaseRepository.update(update.id, {
+          status: update.status,
+          torrentHash: update.torrentHash
+        });
+      }
+
+      // Status-only updates can be batched efficiently
+      if (statusOnlyUpdates.length > 0) {
+        await releaseRepository.batchUpdateStatus(statusOnlyUpdates);
       }
 
       // Batch update all game statuses in a single query

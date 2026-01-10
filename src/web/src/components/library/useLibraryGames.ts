@@ -4,11 +4,27 @@ import { api } from '../../api/client';
 import { getGameDetailPath } from '../../utils/slug';
 import type { Game, ViewMode, SortColumn, SortDirection, Filters, LibraryInfo } from './types';
 
+// Extended game type with pre-parsed JSON fields
+interface GameWithParsedFields extends Game {
+  parsedGenres: string[];
+  parsedGameModes: string[];
+}
+
+// Helper to safely parse JSON array
+function safeParseJsonArray(json: string | null | undefined): string[] {
+  if (!json) return [];
+  try {
+    return JSON.parse(json) as string[];
+  } catch {
+    return [];
+  }
+}
+
 export function useLibraryGames() {
   const navigate = useNavigate();
 
-  // Core state
-  const [games, setGames] = useState<Game[]>([]);
+  // Core state - games with pre-parsed JSON fields for performance
+  const [games, setGames] = useState<GameWithParsedFields[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -60,16 +76,11 @@ export function useLibraryGames() {
     }
   }, [sortColumn]);
 
-  // Computed values
+  // Computed values - uses pre-parsed fields for performance
   const allGenres = useMemo((): string[] => {
     const genreSet = new Set<string>();
     games.forEach((game) => {
-      if (game.genres) {
-        try {
-          const parsed = JSON.parse(game.genres) as string[];
-          parsed.forEach((g) => genreSet.add(g));
-        } catch {}
-      }
+      game.parsedGenres.forEach((g) => genreSet.add(g));
     });
     return Array.from(genreSet).sort();
   }, [games]);
@@ -77,17 +88,12 @@ export function useLibraryGames() {
   const allGameModes = useMemo((): string[] => {
     const modeSet = new Set<string>();
     games.forEach((game) => {
-      if (game.gameModes) {
-        try {
-          const parsed = JSON.parse(game.gameModes) as string[];
-          parsed.forEach((m) => modeSet.add(m));
-        } catch {}
-      }
+      game.parsedGameModes.forEach((m) => modeSet.add(m));
     });
     return Array.from(modeSet).sort();
   }, [games]);
 
-  const filteredAndSortedGames = useMemo((): Game[] => {
+  const filteredAndSortedGames = useMemo((): GameWithParsedFields[] => {
     let filtered = games;
 
     if (searchQuery.trim()) {
@@ -96,12 +102,8 @@ export function useLibraryGames() {
         if (game.title.toLowerCase().includes(query)) return true;
         if (game.developer?.toLowerCase().includes(query)) return true;
         if (game.publisher?.toLowerCase().includes(query)) return true;
-        if (game.genres) {
-          try {
-            const genres = JSON.parse(game.genres) as string[];
-            if (genres.some(g => g.toLowerCase().includes(query))) return true;
-          } catch {}
-        }
+        // Use pre-parsed genres for search
+        if (game.parsedGenres.some(g => g.toLowerCase().includes(query))) return true;
         return false;
       });
     }
@@ -118,25 +120,15 @@ export function useLibraryGames() {
 
     if (filters.genres.length > 0) {
       filtered = filtered.filter((game) => {
-        if (!game.genres) return false;
-        try {
-          const gameGenres = JSON.parse(game.genres) as string[];
-          return filters.genres.some((g) => gameGenres.includes(g));
-        } catch {
-          return false;
-        }
+        // Use pre-parsed genres for filtering
+        return filters.genres.some((g) => game.parsedGenres.includes(g));
       });
     }
 
     if (filters.gameModes.length > 0) {
       filtered = filtered.filter((game) => {
-        if (!game.gameModes) return false;
-        try {
-          const modes = JSON.parse(game.gameModes) as string[];
-          return filters.gameModes.some((m) => modes.includes(m));
-        } catch {
-          return false;
-        }
+        // Use pre-parsed game modes for filtering
+        return filters.gameModes.some((m) => game.parsedGameModes.includes(m));
       });
     }
 
@@ -171,7 +163,7 @@ export function useLibraryGames() {
     });
   }, [games, searchQuery, filters, sortColumn, sortDirection]);
 
-  const paginatedGames = useMemo((): Game[] => {
+  const paginatedGames = useMemo((): GameWithParsedFields[] => {
     const startIndex = (currentPage - 1) * pageSize;
     return filteredAndSortedGames.slice(startIndex, startIndex + pageSize);
   }, [filteredAndSortedGames, currentPage, pageSize]);
@@ -198,7 +190,13 @@ export function useLibraryGames() {
     try {
       const response = await api.getGames();
       if (response.success && response.data) {
-        const sortedGames = (response.data as Game[]).sort((a, b) =>
+        // Parse JSON fields once when loading to avoid repeated parsing in memos
+        const gamesWithParsedFields: GameWithParsedFields[] = (response.data as Game[]).map((game) => ({
+          ...game,
+          parsedGenres: safeParseJsonArray(game.genres),
+          parsedGameModes: safeParseJsonArray(game.gameModes),
+        }));
+        const sortedGames = gamesWithParsedFields.sort((a, b) =>
           a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
         );
         setGames(sortedGames);

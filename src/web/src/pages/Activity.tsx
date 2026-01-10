@@ -99,7 +99,7 @@ function Activity() {
     isMountedRef.current = true;
     loadDownloads(showCompleted, true);
 
-    intervalRef.current = setInterval(() => loadDownloads(showCompleted, false), 5000);
+    intervalRef.current = setInterval(() => loadDownloads(showCompleted, false), 15000);
 
     return () => {
       isMountedRef.current = false;

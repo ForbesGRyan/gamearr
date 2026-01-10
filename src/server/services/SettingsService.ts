@@ -5,6 +5,15 @@ import { logger } from '../utils/logger';
 // Type for setting values after parsing
 type SettingValue = string | number | boolean | null | number[];
 
+// Cache entry with TTL
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+}
+
+// Cache TTL in milliseconds (60 seconds)
+const CACHE_TTL_MS = 60 * 1000;
+
 // Settings keys
 const SETTINGS_KEYS = {
   PROWLARR_CATEGORIES: 'prowlarr_categories',
@@ -41,11 +50,65 @@ const ENV_VAR_FALLBACKS: Record<string, string> = {
 };
 
 export class SettingsService {
+  // In-memory cache for settings with TTL
+  private cache = new Map<string, CacheEntry<string | null>>();
+
+  /**
+   * Get a cached value or fetch from database
+   */
+  private async getCached(key: string): Promise<string | null> {
+    const now = Date.now();
+    const cached = this.cache.get(key);
+
+    // Return cached value if valid and not expired
+    if (cached && cached.expiresAt > now) {
+      return cached.value;
+    }
+
+    // Fetch from database and cache
+    const value = await settingsRepository.get(key);
+    this.cache.set(key, {
+      value,
+      expiresAt: now + CACHE_TTL_MS,
+    });
+
+    return value;
+  }
+
+  /**
+   * Get a cached JSON value or fetch from database
+   */
+  private async getCachedJSON<T>(key: string): Promise<T | null> {
+    const value = await this.getCached(key);
+    if (!value) return null;
+
+    try {
+      return JSON.parse(value) as T;
+    } catch (error) {
+      logger.error(`Failed to parse JSON for setting ${key}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Invalidate a cache entry (call after writes)
+   */
+  private invalidateCache(key: string): void {
+    this.cache.delete(key);
+  }
+
+  /**
+   * Clear entire cache (useful for testing or full refresh)
+   */
+  clearCache(): void {
+    this.cache.clear();
+  }
+
   /**
    * Get Prowlarr search categories
    */
   async getProwlarrCategories(): Promise<number[]> {
-    const categories = await settingsRepository.getJSON<number[]>(
+    const categories = await this.getCachedJSON<number[]>(
       SETTINGS_KEYS.PROWLARR_CATEGORIES
     );
 
@@ -59,13 +122,14 @@ export class SettingsService {
   async setProwlarrCategories(categories: number[]): Promise<void> {
     logger.info(`Setting Prowlarr categories: ${categories.join(', ')}`);
     await settingsRepository.setJSON(SETTINGS_KEYS.PROWLARR_CATEGORIES, categories);
+    this.invalidateCache(SETTINGS_KEYS.PROWLARR_CATEGORIES);
   }
 
   /**
    * Get qBittorrent category filter
    */
   async getQBittorrentCategory(): Promise<string> {
-    const category = await settingsRepository.get(SETTINGS_KEYS.QBITTORRENT_CATEGORY);
+    const category = await this.getCached(SETTINGS_KEYS.QBITTORRENT_CATEGORY);
     // Default to 'gamearr' if not set
     return category || 'gamearr';
   }
@@ -76,13 +140,14 @@ export class SettingsService {
   async setQBittorrentCategory(category: string): Promise<void> {
     logger.info(`Setting qBittorrent category filter: ${category}`);
     await settingsRepository.set(SETTINGS_KEYS.QBITTORRENT_CATEGORY, category);
+    this.invalidateCache(SETTINGS_KEYS.QBITTORRENT_CATEGORY);
   }
 
   /**
    * Get dry-run mode status
    */
   async getDryRun(): Promise<boolean> {
-    const dryRun = await settingsRepository.getJSON<boolean>(SETTINGS_KEYS.DRY_RUN);
+    const dryRun = await this.getCachedJSON<boolean>(SETTINGS_KEYS.DRY_RUN);
     // Default to true for safety - users should explicitly disable when ready
     return dryRun ?? true;
   }
@@ -93,13 +158,14 @@ export class SettingsService {
   async setDryRun(enabled: boolean): Promise<void> {
     logger.info(`Setting dry-run mode: ${enabled ? 'ENABLED' : 'DISABLED'}`);
     await settingsRepository.setJSON(SETTINGS_KEYS.DRY_RUN, enabled);
+    this.invalidateCache(SETTINGS_KEYS.DRY_RUN);
   }
 
   /**
    * Get RSS sync interval in minutes
    */
   async getRssSyncInterval(): Promise<number> {
-    const interval = await settingsRepository.getJSON<number>(SETTINGS_KEYS.RSS_SYNC_INTERVAL);
+    const interval = await this.getCachedJSON<number>(SETTINGS_KEYS.RSS_SYNC_INTERVAL);
     return interval ?? 15; // Default: 15 minutes
   }
 
@@ -110,13 +176,14 @@ export class SettingsService {
     const validMinutes = Math.max(5, Math.min(1440, minutes)); // 5 mins to 24 hours
     logger.info(`Setting RSS sync interval: ${validMinutes} minutes`);
     await settingsRepository.setJSON(SETTINGS_KEYS.RSS_SYNC_INTERVAL, validMinutes);
+    this.invalidateCache(SETTINGS_KEYS.RSS_SYNC_INTERVAL);
   }
 
   /**
    * Get search scheduler interval in minutes
    */
   async getSearchSchedulerInterval(): Promise<number> {
-    const interval = await settingsRepository.getJSON<number>(SETTINGS_KEYS.SEARCH_SCHEDULER_INTERVAL);
+    const interval = await this.getCachedJSON<number>(SETTINGS_KEYS.SEARCH_SCHEDULER_INTERVAL);
     return interval ?? 15; // Default: 15 minutes
   }
 
@@ -127,13 +194,14 @@ export class SettingsService {
     const validMinutes = Math.max(5, Math.min(1440, minutes)); // 5 mins to 24 hours
     logger.info(`Setting search scheduler interval: ${validMinutes} minutes`);
     await settingsRepository.setJSON(SETTINGS_KEYS.SEARCH_SCHEDULER_INTERVAL, validMinutes);
+    this.invalidateCache(SETTINGS_KEYS.SEARCH_SCHEDULER_INTERVAL);
   }
 
   /**
    * Get minimum quality score for auto-grab
    */
   async getAutoGrabMinScore(): Promise<number> {
-    const score = await settingsRepository.getJSON<number>(SETTINGS_KEYS.AUTO_GRAB_MIN_SCORE);
+    const score = await this.getCachedJSON<number>(SETTINGS_KEYS.AUTO_GRAB_MIN_SCORE);
     return score ?? 100; // Default: 100
   }
 
@@ -144,13 +212,14 @@ export class SettingsService {
     const validScore = Math.max(0, Math.min(500, score)); // 0 to 500
     logger.info(`Setting auto-grab minimum score: ${validScore}`);
     await settingsRepository.setJSON(SETTINGS_KEYS.AUTO_GRAB_MIN_SCORE, validScore);
+    this.invalidateCache(SETTINGS_KEYS.AUTO_GRAB_MIN_SCORE);
   }
 
   /**
    * Get minimum seeders for auto-grab
    */
   async getAutoGrabMinSeeders(): Promise<number> {
-    const seeders = await settingsRepository.getJSON<number>(SETTINGS_KEYS.AUTO_GRAB_MIN_SEEDERS);
+    const seeders = await this.getCachedJSON<number>(SETTINGS_KEYS.AUTO_GRAB_MIN_SEEDERS);
     return seeders ?? 5; // Default: 5
   }
 
@@ -161,13 +230,14 @@ export class SettingsService {
     const validSeeders = Math.max(0, Math.min(100, seeders)); // 0 to 100
     logger.info(`Setting auto-grab minimum seeders: ${validSeeders}`);
     await settingsRepository.setJSON(SETTINGS_KEYS.AUTO_GRAB_MIN_SEEDERS, validSeeders);
+    this.invalidateCache(SETTINGS_KEYS.AUTO_GRAB_MIN_SEEDERS);
   }
 
   /**
-   * Get a setting value (with env var fallback)
+   * Get a setting value (with env var fallback and caching)
    */
   async getSetting(key: string): Promise<string | null> {
-    const dbValue = await settingsRepository.get(key);
+    const dbValue = await this.getCached(key);
     if (dbValue !== null) {
       return dbValue;
     }
@@ -186,6 +256,7 @@ export class SettingsService {
    */
   async setSetting(key: string, value: string): Promise<void> {
     await settingsRepository.set(key, value);
+    this.invalidateCache(key);
   }
 
   /**
@@ -207,6 +278,7 @@ export class SettingsService {
         try {
           settingsMap[setting.key] = JSON.parse(setting.value) as SettingValue;
         } catch {
+          // Value is not valid JSON, use as plain string (this is expected for string settings)
           settingsMap[setting.key] = setting.value;
         }
       }

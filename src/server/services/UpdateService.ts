@@ -311,6 +311,13 @@ export class UpdateService {
   }
 
   /**
+   * Get all updates for a specific game
+   */
+  async getGameUpdates(gameId: number): Promise<GameUpdate[]> {
+    return gameUpdateRepository.findByGameId(gameId);
+  }
+
+  /**
    * Get pending updates with pagination
    */
   async getPendingUpdatesPaginated(params: PaginationParams = {}): Promise<PaginatedResult<GameUpdate>> {

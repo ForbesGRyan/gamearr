@@ -152,6 +152,7 @@ export class FileService {
       await fsPromises.access(filePath);
       return true;
     } catch {
+      // File does not exist or is not accessible - this is the expected negative case
       return false;
     }
   }
@@ -634,6 +635,7 @@ export class FileService {
       // A category folder only has subdirectories
       return entries.some((entry) => entry.isFile());
     } catch {
+      // Cannot read directory (permissions, not a directory, etc.) - assume no game content
       return false;
     }
   }
@@ -1056,6 +1058,44 @@ export class FileService {
       logger.error('Failed to find duplicate games:', error);
       return [];
     }
+  }
+
+  /**
+   * Ignore a library folder
+   * @param folderPath - Path to the folder to ignore
+   * @returns The updated library file or undefined if not found
+   */
+  async ignoreFolder(folderPath: string): Promise<boolean> {
+    const result = await libraryFileRepository.ignore(folderPath);
+    return !!result;
+  }
+
+  /**
+   * Unignore a library folder
+   * @param folderPath - Path to the folder to unignore
+   * @returns The updated library file or undefined if not found
+   */
+  async unignoreFolder(folderPath: string): Promise<boolean> {
+    const result = await libraryFileRepository.unignore(folderPath);
+    return !!result;
+  }
+
+  /**
+   * Get all ignored library folders
+   */
+  async getIgnoredFolders(): Promise<Array<{
+    folderName: string | undefined;
+    parsedTitle: string | null;
+    parsedYear: number | null;
+    path: string;
+  }>> {
+    const ignoredFiles = await libraryFileRepository.findIgnored();
+    return ignoredFiles.map((file) => ({
+      folderName: file.folderPath.split(/[/\\]/).pop(),
+      parsedTitle: file.parsedTitle,
+      parsedYear: file.parsedYear,
+      path: file.folderPath,
+    }));
   }
 
   /**

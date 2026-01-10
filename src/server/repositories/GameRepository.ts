@@ -8,6 +8,7 @@ const gameFields = {
   id: games.id,
   igdbId: games.igdbId,
   title: games.title,
+  slug: games.slug,
   year: games.year,
   platform: games.platform,
   store: games.store,
@@ -38,6 +39,7 @@ const gameMinimalFields = {
   id: games.id,
   igdbId: games.igdbId,
   title: games.title,
+  slug: games.slug,
   year: games.year,
   status: games.status,
   monitored: games.monitored,
@@ -109,6 +111,16 @@ export class GameRepository {
       .from(games)
       .where(eq(games.igdbId, igdbId));
     return results[0];
+  }
+
+  /**
+   * Get games by slug (may return multiple if same title exists for different platforms)
+   */
+  async findBySlug(slug: string): Promise<Game[]> {
+    return db
+      .select(gameFields)
+      .from(games)
+      .where(eq(games.slug, slug));
   }
 
   /**
@@ -217,16 +229,38 @@ export class GameRepository {
 
   /**
    * Get game statistics by status
+   * Uses SQL GROUP BY for efficient aggregation at database level
    */
   async getStats(): Promise<GameStats> {
-    const allGames = await this.findAll();
+    // Use SQL aggregation instead of loading all games into memory
+    const statusCounts = await db
+      .select({
+        status: games.status,
+        count: count(),
+      })
+      .from(games)
+      .groupBy(games.status);
 
-    return {
-      totalGames: allGames.length,
-      wantedGames: allGames.filter((g) => g.status === 'wanted').length,
-      downloadingGames: allGames.filter((g) => g.status === 'downloading').length,
-      downloadedGames: allGames.filter((g) => g.status === 'downloaded').length,
+    // Build stats from aggregated results
+    const stats: GameStats = {
+      totalGames: 0,
+      wantedGames: 0,
+      downloadingGames: 0,
+      downloadedGames: 0,
     };
+
+    for (const row of statusCounts) {
+      stats.totalGames += row.count;
+      if (row.status === 'wanted') {
+        stats.wantedGames = row.count;
+      } else if (row.status === 'downloading') {
+        stats.downloadingGames = row.count;
+      } else if (row.status === 'downloaded') {
+        stats.downloadedGames = row.count;
+      }
+    }
+
+    return stats;
   }
 }
 

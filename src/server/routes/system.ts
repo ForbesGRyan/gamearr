@@ -8,7 +8,9 @@ import { APP_VERSION } from '../utils/version';
 import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
 import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
 import { settingsService } from '../services/SettingsService';
-import { gameRepository } from '../repositories/GameRepository';
+import { gameService } from '../services/GameService';
+import { libraryService } from '../services/LibraryService';
+import { isPathWithinBase } from '../utils/pathSecurity';
 import { ErrorCode } from '../utils/errors';
 
 const system = new Hono();
@@ -109,12 +111,8 @@ system.get('/setup-status', async (c) => {
   logger.info('GET /api/v1/system/setup-status');
 
   try {
-    // Import libraries repository
-    const { libraryRepository } = await import('../repositories/LibraryRepository');
-
     // Check each required component
-    const libraries = await libraryRepository.findAll();
-    const hasLibrary = libraries.length > 0;
+    const hasLibrary = await libraryService.hasLibraries();
 
     const igdbClientId = await settingsService.getSetting('igdb_client_id');
     const igdbClientSecret = await settingsService.getSetting('igdb_client_secret');
@@ -182,7 +180,7 @@ system.post('/skip-setup', async (c) => {
 async function checkDatabase(): Promise<ServiceStatus> {
   const start = Date.now();
   try {
-    await gameRepository.count();
+    await gameService.getGameCount();
     return {
       name: 'Database',
       status: 'healthy',
@@ -297,7 +295,7 @@ async function checkQBittorrent(): Promise<ServiceStatus> {
  */
 async function getGameStats() {
   try {
-    return await gameRepository.getStats();
+    return await gameService.getGameStats();
   } catch (error) {
     logger.error('Failed to get game stats:', error);
     return undefined;
@@ -324,6 +322,19 @@ system.post('/open-folder', zValidator('json', openFolderSchema), async (c) => {
       }, 404);
     }
 
+    // Security: Validate path is within a configured library directory
+    const libraries = await libraryService.getAllLibraries();
+    const isWithinLibrary = libraries.some(library => isPathWithinBase(path, library.path));
+
+    if (!isWithinLibrary) {
+      logger.warn(`Path traversal attempt blocked in open-folder: ${path}`);
+      return c.json({
+        success: false,
+        error: 'Access denied: path is outside configured library directories',
+        code: ErrorCode.PATH_TRAVERSAL,
+      }, 403);
+    }
+
     // Check if it's a directory (if not, open parent directory)
     let folderPath = path;
     try {
@@ -332,8 +343,9 @@ system.post('/open-folder', zValidator('json', openFolderSchema), async (c) => {
         // It's a file, get the parent directory
         folderPath = path.substring(0, Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')));
       }
-    } catch {
-      // If stat fails, try to open anyway
+    } catch (error) {
+      // If stat fails, try to open anyway - the path may still be accessible
+      logger.debug(`Could not stat path ${path}, attempting to open anyway:`, error instanceof Error ? error.message : 'Unknown error');
     }
 
     // Determine the command based on OS
