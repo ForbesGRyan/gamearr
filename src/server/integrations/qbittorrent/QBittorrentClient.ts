@@ -325,7 +325,10 @@ export class QBittorrentClient {
 
       return torrents.map((torrent) => this.mapToTorrentInfo(torrent));
     } catch (error) {
-      logger.error('Failed to get torrents:', error);
+      // Don't log "not configured" errors - they're expected during setup
+      if (!(error instanceof QBittorrentError && error.code === ErrorCode.QBITTORRENT_NOT_CONFIGURED)) {
+        logger.error('Failed to get torrents:', error);
+      }
       throw error;
     }
   }
