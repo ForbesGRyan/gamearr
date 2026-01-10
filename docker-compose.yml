@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  gamearr:
+    build: .
+    # Or use the pre-built image:
+    # image: ghcr.io/yourusername/gamearr:latest
+    container_name: gamearr
+    ports:
+      - "7878:7878"
+    volumes:
+      # Configuration and database
+      - ./config:/config
+      # Your game library (where completed games are organized)
+      - /path/to/library:/library
+      # Download client's completed downloads folder
+      - /path/to/downloads:/downloads
+    environment:
+      - TZ=America/New_York
+      - PORT=7878
+      - DATA_PATH=/config
+    restart: unless-stopped
+    # Uncomment if your download client is on another Docker network
+    # networks:
+    #   - arr-network
+
+# Uncomment to join an existing network with your other *arr apps
+# networks:
+#   arr-network:
+#     external: true

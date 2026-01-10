@@ -1,29 +1,79 @@
 # Gamearr
 
-Automated game library management following the *arr ecosystem pattern. Built with Bun, TypeScript, Hono, and React.
+Automated game library management for self-hosters. Part of the *arr ecosystem.
+
+Gamearr monitors your wanted games, automatically searches for releases via Prowlarr, downloads them through qBittorrent, and organizes your library - just like Radarr does for movies.
 
 ## Features
 
-- **IGDB Integration** - Search and add games with full metadata (cover art, year, platforms)
+- **IGDB Integration** - Search and add games with full metadata (cover art, year, platforms, descriptions)
 - **Prowlarr Integration** - Search multiple torrent indexers for game releases
-- **qBittorrent Integration** - Automated download management
+- **qBittorrent Integration** - Automated download management with progress tracking
 - **Library Scanning** - Scan existing game folders and match to database
 - **Library Health** - Detect duplicate games and organize loose files
 - **RSS Automation** - Automatically grab new releases matching your wanted games
 - **Quality Scoring** - Intelligent release selection (prefers GOG, DRM-Free, repacks)
+- **Update Monitoring** - Track game updates and new versions
+- **Multi-Library Support** - Organize games across multiple library paths
 - **Multiple View Modes** - Posters, table, or detailed overview
-- **Dry-Run Mode** - Test your configuration without downloading
 
-## Quick Start
+## Installation
 
-### Prerequisites
+### Docker (Recommended)
 
-- [Bun](https://bun.sh) 1.0+
+```bash
+docker run -d \
+  --name gamearr \
+  -p 7878:7878 \
+  -v /path/to/config:/config \
+  -v /path/to/library:/library \
+  -v /path/to/downloads:/downloads \
+  --restart unless-stopped \
+  ghcr.io/yourusername/gamearr:latest
+```
+
+Or with docker-compose:
+
+```yaml
+version: "3"
+services:
+  gamearr:
+    image: ghcr.io/yourusername/gamearr:latest
+    container_name: gamearr
+    ports:
+      - 7878:7878
+    volumes:
+      - ./config:/config
+      - /path/to/library:/library
+      - /path/to/downloads:/downloads
+    environment:
+      - TZ=America/New_York
+    restart: unless-stopped
+```
+
+### Pre-built Binary
+
+Download the latest release from the [Releases](https://github.com/yourusername/gamearr/releases) page.
+
+```bash
+# Linux/macOS
+chmod +x gamearr
+./gamearr
+
+# Windows
+gamearr.exe
+```
+
+The server starts on port `7878` by default.
+
+### From Source
+
+Requires [Bun](https://bun.sh) 1.0+.
+
+**Prerequisites:**
 - [Prowlarr](https://prowlarr.com/) (for indexer management)
 - [qBittorrent](https://www.qbittorrent.org/) with Web UI enabled
 - [IGDB API credentials](https://dev.twitch.tv/console) (free via Twitch Developer Console)
-
-### Installation
 
 ```bash
 # Clone and install
@@ -43,7 +93,7 @@ bun run db:push
 bun run dev:all
 ```
 
-Open http://localhost:3000 in your browser.
+Open http://localhost:3000 (dev) or http://localhost:7878 (production) in your browser.
 
 ## Configuration
 
@@ -226,8 +276,9 @@ Use the **Test Connection** buttons in Settings to verify:
 
 ## License
 
-MIT
+This project is licensed under the GPL-3.0 License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
-Inspired by [Radarr](https://github.com/Radarr/Radarr), [Sonarr](https://github.com/Sonarr/Sonarr), and the *arr ecosystem.
+- [IGDB](https://www.igdb.com/) for game metadata
+- Inspired by [Radarr](https://github.com/Radarr/Radarr), [Sonarr](https://github.com/Sonarr/Sonarr), and the *arr ecosystem

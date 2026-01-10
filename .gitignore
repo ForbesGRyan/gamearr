@@ -43,6 +43,7 @@ bun.lockb
 # Build artifacts
 gamearr
 gamearr.exe
+build-test/
 
 # Claude Code local files
 .claude/*.local.md

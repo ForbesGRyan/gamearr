@@ -1,0 +1,54 @@
+# Dependencies (will be installed in container)
+node_modules/
+src/web/node_modules/
+
+# Database and data
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Build outputs (will be built in container)
+dist/
+gamearr
+gamearr.exe
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test files
+tests/
+coverage/
+
+# Beads issue tracker
+.beads/
+
+# OS files
+.DS_Store
+Thumbs.db
