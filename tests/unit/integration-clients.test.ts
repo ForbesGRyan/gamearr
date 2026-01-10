@@ -190,7 +190,7 @@ describe('IGDBClient', () => {
   });
 
   describe('searchGames', () => {
-    test('should search games and filter for PC platform', async () => {
+    test('should search games and return all platforms', async () => {
       const authResponse = {
         access_token: 'test-token',
         expires_in: 3600,
@@ -225,10 +225,13 @@ describe('IGDBClient', () => {
 
       const results = await client.searchGames({ search: 'Witcher' });
 
-      expect(results.length).toBe(1);
+      // Returns all games regardless of platform (no longer filtering to PC-only)
+      expect(results.length).toBe(2);
       expect(results[0].igdbId).toBe(1942);
       expect(results[0].title).toBe('The Witcher 3: Wild Hunt');
       expect(results[0].platforms).toContain('PC');
+      expect(results[1].igdbId).toBe(999);
+      expect(results[1].title).toBe('Console Only Game');
     });
 
     test('should extract year from release date', async () => {
