@@ -47,12 +47,12 @@ function IndexerStatus() {
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg p-6">
+    <div className="bg-gray-800 rounded-lg p-4 md:p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-xl font-semibold">Indexers</h3>
+        <h3 className="text-lg md:text-xl font-semibold">Indexers</h3>
         <button
           onClick={loadIndexers}
-          className="text-sm text-blue-400 hover:text-blue-300 transition"
+          className="text-sm text-blue-400 hover:text-blue-300 transition px-3 py-2 -mr-2 min-h-[44px] flex items-center"
         >
           Refresh
         </button>
@@ -69,7 +69,7 @@ function IndexerStatus() {
           <p className="text-gray-400">Loading indexers...</p>
         </div>
       ) : indexers.length === 0 ? (
-        <div className="bg-gray-700 rounded-lg p-6 text-center">
+        <div className="bg-gray-700 rounded-lg p-4 md:p-6 text-center">
           <p className="text-gray-400 mb-2">No indexers configured</p>
           <p className="text-gray-500 text-sm">
             Configure Prowlarr in Settings to enable indexers
@@ -80,16 +80,16 @@ function IndexerStatus() {
           {indexers.map((indexer) => (
             <div
               key={indexer.id}
-              className="bg-gray-700 rounded-lg p-3 flex items-center justify-between"
+              className="bg-gray-700 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
             >
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${indexer.enable ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${indexer.enable ? 'bg-green-500' : 'bg-gray-500'}`}></div>
                   <span className="font-medium">{indexer.name}</span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 ml-4 sm:ml-0">
                 <span className={`${getProtocolBadgeColor(indexer.protocol)} px-2 py-1 rounded text-xs`}>
                   {indexer.protocol}
                 </span>

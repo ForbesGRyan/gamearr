@@ -75,7 +75,7 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
 
         {/* Selection Checkbox - z-20 to stay above hover overlay */}
         {onToggleSelect && (
-          <div className={`absolute top-2 left-2 z-20 transition ${selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+          <label className={`absolute top-1 left-1 z-20 transition min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer ${selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
             <input
               type="checkbox"
               checked={selected || false}
@@ -84,7 +84,7 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
               className="w-5 h-5 rounded bg-gray-800/80 border-gray-500 text-blue-600 focus:ring-blue-500 cursor-pointer"
               aria-label={`Select ${game.title}`}
             />
-          </div>
+          </label>
         )}
 
         {/* Badges - all on right side */}
@@ -118,7 +118,7 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
             <div className="flex gap-2">
               <button
                 onClick={() => onToggleMonitor(game.id)}
-                className="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded transition text-sm"
+                className="bg-blue-600 hover:bg-blue-700 min-h-[44px] min-w-[44px] flex items-center justify-center rounded transition text-sm"
                 title={game.monitored ? 'Unmonitor' : 'Monitor'}
                 aria-label={game.monitored ? `Unmonitor ${game.title}` : `Monitor ${game.title}`}
               >
@@ -126,7 +126,7 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
               </button>
               <button
                 onClick={handleNavigateToDetail}
-                className="bg-purple-600 hover:bg-purple-700 px-3 py-2 rounded transition text-sm"
+                className="bg-purple-600 hover:bg-purple-700 min-h-[44px] min-w-[44px] flex items-center justify-center rounded transition text-sm"
                 title="View Details"
                 aria-label={`View details for ${game.title}`}
               >
@@ -134,7 +134,7 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="bg-red-600 hover:bg-red-700 px-3 py-2 rounded transition text-sm"
+                className="bg-red-600 hover:bg-red-700 min-h-[44px] min-w-[44px] flex items-center justify-center rounded transition text-sm"
                 title="Delete"
                 aria-label={`Delete ${game.title}`}
               >
@@ -144,7 +144,7 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
             {onSearch && (
               <button
                 onClick={() => onSearch(game)}
-                className="bg-green-600 hover:bg-green-700 px-3 py-2 rounded transition text-sm w-full flex items-center justify-center gap-1"
+                className="bg-green-600 hover:bg-green-700 px-4 min-h-[44px] rounded transition text-sm w-full flex items-center justify-center gap-1"
                 title="Search for releases"
                 aria-label={`Search releases for ${game.title}`}
               >

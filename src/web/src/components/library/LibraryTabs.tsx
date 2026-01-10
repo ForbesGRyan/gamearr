@@ -15,10 +15,10 @@ export function LibraryTabs({
 }: LibraryTabsProps) {
   return (
     <div className="mb-6 border-b border-gray-700">
-      <div className="flex gap-4">
+      <div className="flex gap-1 md:gap-4">
         <button
           onClick={() => onTabChange('games')}
-          className={`px-4 py-2 border-b-2 transition ${
+          className={`px-4 py-3 min-h-[44px] border-b-2 transition ${
             activeTab === 'games'
               ? 'border-blue-500 text-blue-500'
               : 'border-transparent text-gray-400 hover:text-gray-300'
@@ -28,7 +28,7 @@ export function LibraryTabs({
         </button>
         <button
           onClick={() => onTabChange('scan')}
-          className={`px-4 py-2 border-b-2 transition ${
+          className={`px-4 py-3 min-h-[44px] border-b-2 transition ${
             activeTab === 'scan'
               ? 'border-blue-500 text-blue-500'
               : 'border-transparent text-gray-400 hover:text-gray-300'
@@ -43,7 +43,7 @@ export function LibraryTabs({
         </button>
         <button
           onClick={() => onTabChange('health')}
-          className={`px-4 py-2 border-b-2 transition ${
+          className={`px-4 py-3 min-h-[44px] border-b-2 transition ${
             activeTab === 'health'
               ? 'border-blue-500 text-blue-500'
               : 'border-transparent text-gray-400 hover:text-gray-300'

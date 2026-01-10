@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api, GrabbedRelease, Release } from '../../api/client';
 import { formatBytes } from '../../utils/formatters';
+import { MobileCard, MobileCardButton } from '../MobileCard';
 
 type SortField = 'title' | 'indexer' | 'size' | 'seeders' | 'publishedAt';
 type SortDirection = 'asc' | 'desc';
@@ -82,6 +83,22 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
     );
   };
 
+  const getStatusInfo = (status: GrabbedRelease['status']) => {
+    const statusMap: Record<GrabbedRelease['status'], { label: string; color: 'green' | 'blue' | 'yellow' | 'red' | 'gray' }> = {
+      pending: { label: 'Pending', color: 'yellow' },
+      downloading: { label: 'Downloading', color: 'blue' },
+      completed: { label: 'Completed', color: 'green' },
+      failed: { label: 'Failed', color: 'red' },
+    };
+    return statusMap[status];
+  };
+
+  const getSeederColor = (seeders: number) => {
+    if (seeders >= 20) return 'text-green-400';
+    if (seeders >= 5) return 'text-yellow-400';
+    return 'text-red-400';
+  };
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -128,7 +145,7 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
           <button
             onClick={searchReleases}
             disabled={isSearching}
-            className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded transition disabled:opacity-50"
+            className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-2 min-h-[44px] md:min-h-0 md:py-1.5 rounded transition disabled:opacity-50"
           >
             {isSearching ? 'Searching...' : 'Refresh'}
           </button>
@@ -159,88 +176,117 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
             )}
           </div>
         ) : (
-          <div className="bg-gray-800 rounded-lg overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-700">
-                <tr>
-                  <th
-                    onClick={() => handleSort('title')}
-                    className="text-left px-4 py-3 text-sm font-medium text-gray-300 cursor-pointer hover:text-white transition select-none"
-                  >
-                    Title{getSortIcon('title')}
-                  </th>
-                  <th
-                    onClick={() => handleSort('indexer')}
-                    className="text-left px-4 py-3 text-sm font-medium text-gray-300 cursor-pointer hover:text-white transition select-none"
-                  >
-                    Indexer{getSortIcon('indexer')}
-                  </th>
-                  <th
-                    onClick={() => handleSort('size')}
-                    className="text-right px-4 py-3 text-sm font-medium text-gray-300 cursor-pointer hover:text-white transition select-none"
-                  >
-                    Size{getSortIcon('size')}
-                  </th>
-                  <th
-                    onClick={() => handleSort('seeders')}
-                    className="text-right px-4 py-3 text-sm font-medium text-gray-300 cursor-pointer hover:text-white transition select-none"
-                  >
-                    Seeders{getSortIcon('seeders')}
-                  </th>
-                  <th
-                    onClick={() => handleSort('publishedAt')}
-                    className="text-right px-4 py-3 text-sm font-medium text-gray-300 cursor-pointer hover:text-white transition select-none"
-                  >
-                    Date{getSortIcon('publishedAt')}
-                  </th>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-gray-300">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-700">
-                {sortedReleases.map((release) => (
-                  <tr key={release.guid} className="hover:bg-gray-700/50 transition">
-                    <td className="px-4 py-3">
-                      <span className="text-white truncate block max-w-md" title={release.title}>
-                        {release.title}
-                      </span>
-                      {release.quality && (
-                        <span className="bg-blue-900 text-blue-200 px-2 py-0.5 rounded text-xs mt-1 inline-block">
-                          {release.quality}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-300">{release.indexer}</td>
-                    <td className="px-4 py-3 text-right text-gray-300">{formatBytes(release.size)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <span
-                        className={`font-medium ${
-                          release.seeders >= 20
-                            ? 'text-green-400'
-                            : release.seeders >= 5
-                            ? 'text-yellow-400'
-                            : 'text-red-400'
-                        }`}
-                      >
-                        {release.seeders}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-400 text-sm">
-                      {formatDate(release.publishedAt)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => handleGrab(release)}
-                        disabled={grabbingId === release.guid}
-                        className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm transition disabled:opacity-50"
-                      >
-                        {grabbingId === release.guid ? 'Grabbing...' : 'Grab'}
-                      </button>
-                    </td>
+          <>
+            {/* Mobile view */}
+            <div className="md:hidden space-y-3">
+              {sortedReleases.map((release) => (
+                <MobileCard
+                  key={release.guid}
+                  title={release.title}
+                  subtitle={release.quality || undefined}
+                  fields={[
+                    { label: 'Size', value: formatBytes(release.size) },
+                    { label: 'Seeders', value: <span className={getSeederColor(release.seeders)}>{release.seeders}</span> },
+                    { label: 'Indexer', value: release.indexer },
+                    { label: 'Date', value: formatDate(release.publishedAt) },
+                  ]}
+                  actions={
+                    <MobileCardButton
+                      onClick={() => handleGrab(release)}
+                      variant="primary"
+                      disabled={grabbingId === release.guid}
+                    >
+                      {grabbingId === release.guid ? 'Grabbing...' : 'Grab'}
+                    </MobileCardButton>
+                  }
+                />
+              ))}
+            </div>
+
+            {/* Desktop view */}
+            <div className="hidden md:block bg-gray-800 rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th
+                      onClick={() => handleSort('title')}
+                      className="text-left px-4 py-3 text-sm font-medium text-gray-300 cursor-pointer hover:text-white transition select-none"
+                    >
+                      Title{getSortIcon('title')}
+                    </th>
+                    <th
+                      onClick={() => handleSort('indexer')}
+                      className="text-left px-4 py-3 text-sm font-medium text-gray-300 cursor-pointer hover:text-white transition select-none"
+                    >
+                      Indexer{getSortIcon('indexer')}
+                    </th>
+                    <th
+                      onClick={() => handleSort('size')}
+                      className="text-right px-4 py-3 text-sm font-medium text-gray-300 cursor-pointer hover:text-white transition select-none"
+                    >
+                      Size{getSortIcon('size')}
+                    </th>
+                    <th
+                      onClick={() => handleSort('seeders')}
+                      className="text-right px-4 py-3 text-sm font-medium text-gray-300 cursor-pointer hover:text-white transition select-none"
+                    >
+                      Seeders{getSortIcon('seeders')}
+                    </th>
+                    <th
+                      onClick={() => handleSort('publishedAt')}
+                      className="text-right px-4 py-3 text-sm font-medium text-gray-300 cursor-pointer hover:text-white transition select-none"
+                    >
+                      Date{getSortIcon('publishedAt')}
+                    </th>
+                    <th className="text-right px-4 py-3 text-sm font-medium text-gray-300">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {sortedReleases.map((release) => (
+                    <tr key={release.guid} className="hover:bg-gray-700/50 transition">
+                      <td className="px-4 py-3">
+                        <span className="text-white truncate block max-w-md" title={release.title}>
+                          {release.title}
+                        </span>
+                        {release.quality && (
+                          <span className="bg-blue-900 text-blue-200 px-2 py-0.5 rounded text-xs mt-1 inline-block">
+                            {release.quality}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-gray-300">{release.indexer}</td>
+                      <td className="px-4 py-3 text-right text-gray-300">{formatBytes(release.size)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <span
+                          className={`font-medium ${
+                            release.seeders >= 20
+                              ? 'text-green-400'
+                              : release.seeders >= 5
+                              ? 'text-yellow-400'
+                              : 'text-red-400'
+                          }`}
+                        >
+                          {release.seeders}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-400 text-sm">
+                        {formatDate(release.publishedAt)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => handleGrab(release)}
+                          disabled={grabbingId === release.guid}
+                          className="bg-green-600 hover:bg-green-700 px-4 py-2 min-h-[36px] rounded text-sm transition disabled:opacity-50"
+                        >
+                          {grabbingId === release.guid ? 'Grabbing...' : 'Grab'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
@@ -252,44 +298,64 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
             <p className="text-gray-400">No releases have been grabbed for this game yet.</p>
           </div>
         ) : (
-          <div className="bg-gray-800 rounded-lg overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-700">
-                <tr>
-                  <th className="text-left px-4 py-3 text-sm font-medium text-gray-300">Title</th>
-                  <th className="text-left px-4 py-3 text-sm font-medium text-gray-300">Indexer</th>
-                  <th className="text-left px-4 py-3 text-sm font-medium text-gray-300">Quality</th>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-gray-300">Size</th>
-                  <th className="text-center px-4 py-3 text-sm font-medium text-gray-300">Status</th>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-gray-300">Grabbed</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-700">
-                {releases.map((release) => (
-                  <tr key={release.id} className="hover:bg-gray-700/50 transition">
-                    <td className="px-4 py-3">
-                      <span className="text-white truncate block max-w-md" title={release.title}>
-                        {release.title}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-300">{release.indexer}</td>
-                    <td className="px-4 py-3">
-                      {release.quality ? (
-                        <span className="bg-gray-600 px-2 py-0.5 rounded text-xs">{release.quality}</span>
-                      ) : (
-                        <span className="text-gray-500">-</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-300">{formatBytes(release.size || 0)}</td>
-                    <td className="px-4 py-3 text-center">{getStatusBadge(release.status)}</td>
-                    <td className="px-4 py-3 text-right text-gray-400 text-sm">
-                      {formatDate(release.grabbedAt)}
-                    </td>
+          <>
+            {/* Mobile view */}
+            <div className="md:hidden space-y-3">
+              {releases.map((release) => (
+                <MobileCard
+                  key={release.id}
+                  title={release.title}
+                  subtitle={release.quality || undefined}
+                  status={getStatusInfo(release.status)}
+                  fields={[
+                    { label: 'Size', value: formatBytes(release.size || 0) },
+                    { label: 'Indexer', value: release.indexer },
+                    { label: 'Grabbed', value: formatDate(release.grabbedAt) },
+                  ]}
+                />
+              ))}
+            </div>
+
+            {/* Desktop view */}
+            <div className="hidden md:block bg-gray-800 rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-300">Title</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-300">Indexer</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-300">Quality</th>
+                    <th className="text-right px-4 py-3 text-sm font-medium text-gray-300">Size</th>
+                    <th className="text-center px-4 py-3 text-sm font-medium text-gray-300">Status</th>
+                    <th className="text-right px-4 py-3 text-sm font-medium text-gray-300">Grabbed</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {releases.map((release) => (
+                    <tr key={release.id} className="hover:bg-gray-700/50 transition">
+                      <td className="px-4 py-3">
+                        <span className="text-white truncate block max-w-md" title={release.title}>
+                          {release.title}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-300">{release.indexer}</td>
+                      <td className="px-4 py-3">
+                        {release.quality ? (
+                          <span className="bg-gray-600 px-2 py-0.5 rounded text-xs">{release.quality}</span>
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-300">{formatBytes(release.size || 0)}</td>
+                      <td className="px-4 py-3 text-center">{getStatusBadge(release.status)}</td>
+                      <td className="px-4 py-3 text-right text-gray-400 text-sm">
+                        {formatDate(release.grabbedAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>

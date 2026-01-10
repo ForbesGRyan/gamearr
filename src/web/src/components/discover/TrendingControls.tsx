@@ -18,10 +18,10 @@ export default function TrendingControls({
   onSelectedTypeChange,
 }: TrendingControlsProps) {
   return (
-    <div className="flex justify-end items-center gap-4 mb-4">
+    <div className="flex flex-wrap justify-end items-center gap-2 sm:gap-4 mb-4">
       <button
         onClick={onToggleFilters}
-        className={`flex items-center gap-2 px-3 py-2 rounded border transition ${
+        className={`flex items-center gap-2 px-3 py-2 min-h-[44px] rounded border transition ${
           activeFilterCount > 0
             ? 'bg-blue-600 border-blue-600 text-white'
             : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600'
@@ -41,7 +41,7 @@ export default function TrendingControls({
       <select
         value={selectedType}
         onChange={(e) => onSelectedTypeChange(parseInt(e.target.value))}
-        className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+        className="bg-gray-800 border border-gray-700 rounded px-3 py-2 min-h-[44px] text-white focus:outline-none focus:border-blue-500"
       >
         {popularityTypes.map((type) => (
           <option key={type.id} value={type.id}>

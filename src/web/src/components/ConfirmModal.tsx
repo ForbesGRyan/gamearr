@@ -61,37 +61,39 @@ function ConfirmModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 md:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-modal-title"
       aria-describedby="confirm-modal-description"
     >
-      <div className="bg-gray-900 rounded-lg max-w-md w-full shadow-2xl border border-gray-600">
-        {/* Header */}
-        <div className="bg-gray-700 flex items-center gap-4 p-6 border-b border-gray-600">
+      <div className="fixed inset-0 md:inset-auto md:relative md:max-w-md w-full h-full md:w-auto md:h-auto bg-gray-900 md:rounded-lg flex flex-col shadow-2xl border-0 md:border border-gray-600">
+        {/* Sticky Header */}
+        <div className="sticky top-0 bg-gray-700 flex items-center gap-4 p-4 md:p-6 border-b border-gray-600 md:rounded-t-lg flex-shrink-0 z-10">
           <div className={`p-2 rounded-full ${styles.iconBg}`} aria-hidden="true">
             {styles.icon}
           </div>
           <h2 id="confirm-modal-title" className="text-xl font-bold text-white">{title}</h2>
         </div>
 
-        {/* Content */}
-        <div className="p-6">
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
           <p id="confirm-modal-description" className="text-gray-300 whitespace-pre-line">{message}</p>
         </div>
 
-        {/* Footer */}
-        <div className="bg-gray-700 flex justify-end gap-3 p-6 border-t border-gray-600">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 rounded transition text-white bg-gray-600 hover:bg-gray-500"
-          >
-            {cancelText}
-          </button>
+        {/* Sticky Footer */}
+        <div className="sticky bottom-0 bg-gray-800 flex flex-col-reverse md:flex-row justify-end gap-3 p-4 md:p-6 border-t border-gray-700 flex-shrink-0">
+          {cancelText && (
+            <button
+              onClick={onCancel}
+              className="px-4 py-2 min-h-[44px] rounded transition text-white bg-gray-600 hover:bg-gray-500 w-full md:w-auto"
+            >
+              {cancelText}
+            </button>
+          )}
           <button
             onClick={onConfirm}
-            className={`px-4 py-2 rounded transition text-white ${styles.confirmButton}`}
+            className={`px-4 py-2 min-h-[44px] rounded transition text-white w-full md:w-auto ${styles.confirmButton}`}
           >
             {confirmText}
           </button>

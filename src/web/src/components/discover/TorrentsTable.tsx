@@ -31,14 +31,14 @@ export default function TorrentsTable({
 }: TorrentsTableProps) {
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="hidden md:flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
   return (
-    <>
+    <div className="hidden md:block">
       {/* Results count */}
       <div className="mb-4 text-gray-400">
         Showing {torrents.length} torrents from the {getMaxAgeLabel(maxAge)} sorted by seeders
@@ -116,6 +116,6 @@ export default function TorrentsTable({
           </p>
         </div>
       )}
-    </>
+    </div>
   );
 }

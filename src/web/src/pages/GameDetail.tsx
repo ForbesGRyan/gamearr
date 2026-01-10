@@ -145,7 +145,7 @@ function GameDetail() {
       <div>
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-1 text-gray-400 hover:text-white mb-6 transition"
+          className="flex items-center gap-1 text-gray-400 hover:text-white mb-6 transition min-h-[44px]"
         >
           <ChevronLeftIcon className="w-5 h-5" />
           Back to Library
@@ -162,7 +162,7 @@ function GameDetail() {
       {/* Back button */}
       <button
         onClick={() => navigate('/')}
-        className="flex items-center gap-1 text-gray-400 hover:text-white mb-6 transition"
+        className="flex items-center gap-1 text-gray-400 hover:text-white mb-6 transition min-h-[44px]"
       >
         <ChevronLeftIcon className="w-5 h-5" />
         Back to Library
@@ -181,7 +181,7 @@ function GameDetail() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 font-medium transition border-b-2 -mb-px ${
+              className={`px-4 py-3 min-h-[44px] font-medium transition border-b-2 -mb-px ${
                 activeTab === tab.id
                   ? 'text-blue-400 border-blue-500'
                   : 'text-gray-400 border-transparent hover:text-white hover:border-gray-500'

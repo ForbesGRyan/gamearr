@@ -161,11 +161,11 @@ function Updates() {
 
       {/* Error Message */}
       {error && (
-        <div className="mb-6 p-4 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg text-red-200">
-          {error}
+        <div className="mb-6 p-4 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg text-red-200 flex items-center justify-between">
+          <span>{error}</span>
           <button
             onClick={() => setError(null)}
-            className="ml-4 text-red-300 hover:text-red-100"
+            className="ml-4 text-red-300 hover:text-red-100 min-h-[44px] px-2 flex items-center"
           >
             Dismiss
           </button>
@@ -184,7 +184,7 @@ function Updates() {
             <button
               key={tab.id}
               onClick={() => setFilter(tab.id as UpdateTypeFilter)}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition ${
+              className={`px-4 py-2 min-h-[44px] text-sm font-medium rounded-md transition ${
                 filter === tab.id
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-400 hover:text-white hover:bg-gray-700'
@@ -203,7 +203,7 @@ function Updates() {
         <button
           onClick={loadUpdates}
           disabled={isLoading}
-          className="ml-auto flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition disabled:opacity-50"
+          className="ml-auto flex items-center gap-2 px-4 py-2 min-h-[44px] bg-gray-700 hover:bg-gray-600 rounded-lg transition disabled:opacity-50"
         >
           <svg className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -329,14 +329,14 @@ function Updates() {
                         <button
                           onClick={() => setUpdateToGrab(update)}
                           disabled={!update.downloadUrl}
-                          className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-4 py-2 min-h-[44px] md:min-h-0 md:px-3 md:py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
                           title={update.downloadUrl ? 'Download this update' : 'No download URL available'}
                         >
                           Grab
                         </button>
                         <button
                           onClick={() => setUpdateToDismiss(update)}
-                          className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded transition"
+                          className="px-4 py-2 min-h-[44px] md:min-h-0 md:px-3 md:py-1.5 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded transition"
                           title="Dismiss this update"
                         >
                           Dismiss

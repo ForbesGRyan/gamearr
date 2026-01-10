@@ -80,10 +80,10 @@ function GameDetailHeader({ game, onDelete }: GameDetailHeaderProps) {
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={handleSearchReleases}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 min-h-[44px] rounded transition"
           >
             <MagnifyingGlassIcon className="w-5 h-5" />
             Search Releases
@@ -97,13 +97,13 @@ function GameDetailHeader({ game, onDelete }: GameDetailHeaderProps) {
                   onDelete();
                   setShowDeleteConfirm(false);
                 }}
-                className="bg-red-600 hover:bg-red-700 px-3 py-2 rounded transition"
+                className="bg-red-600 hover:bg-red-700 px-3 py-2 min-h-[44px] rounded transition"
               >
                 Yes, Delete
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="bg-gray-600 hover:bg-gray-500 px-3 py-2 rounded transition"
+                className="bg-gray-600 hover:bg-gray-500 px-3 py-2 min-h-[44px] rounded transition"
               >
                 Cancel
               </button>
@@ -111,7 +111,7 @@ function GameDetailHeader({ game, onDelete }: GameDetailHeaderProps) {
           ) : (
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center gap-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 px-4 py-2 rounded transition"
+              className="flex items-center gap-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 px-4 py-2 min-h-[44px] rounded transition"
             >
               <TrashIcon className="w-5 h-5" />
               Delete

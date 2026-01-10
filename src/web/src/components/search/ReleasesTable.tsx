@@ -94,7 +94,7 @@ function ReleasesTable({
   const sortedReleases = getSortedReleases();
 
   return (
-    <div>
+    <div className="hidden md:block">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-xl font-semibold">
           {releases.length} release{releases.length !== 1 ? 's' : ''} found
@@ -204,7 +204,7 @@ function ReleasesTable({
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => onGrab(release)}
-                      className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded transition text-sm text-white"
+                      className="bg-green-600 hover:bg-green-700 px-4 py-2 min-h-[36px] rounded transition text-sm text-white"
                     >
                       Grab
                     </button>

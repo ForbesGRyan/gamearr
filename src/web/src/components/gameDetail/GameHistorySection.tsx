@@ -1,5 +1,6 @@
 import { DownloadHistoryEntry, GrabbedRelease } from '../../api/client';
 import { DownloadIcon } from '../Icons';
+import { MobileCard } from '../MobileCard';
 
 interface GameHistorySectionProps {
   history: DownloadHistoryEntry[];
@@ -37,6 +38,21 @@ function GameHistorySection({ history, releases }: GameHistorySectionProps) {
     }
   };
 
+  const getStatusInfo = (status: string): { label: string; color: 'green' | 'blue' | 'yellow' | 'red' | 'gray' } => {
+    switch (status.toLowerCase()) {
+      case 'completed':
+      case 'complete':
+        return { label: 'Completed', color: 'green' };
+      case 'downloading':
+        return { label: 'Downloading', color: 'blue' };
+      case 'failed':
+      case 'error':
+        return { label: 'Failed', color: 'red' };
+      default:
+        return { label: status.charAt(0).toUpperCase() + status.slice(1), color: 'gray' };
+    }
+  };
+
   if (history.length === 0) {
     return (
       <div className="bg-gray-800 rounded-lg p-8 text-center">
@@ -52,7 +68,31 @@ function GameHistorySection({ history, releases }: GameHistorySectionProps) {
     <div className="bg-gray-800 rounded-lg p-4">
       <h3 className="text-lg font-semibold mb-4">Download History</h3>
 
-      <div className="relative">
+      {/* Mobile view */}
+      <div className="md:hidden space-y-3">
+        {history.map((entry) => {
+          const release = releaseMap.get(entry.releaseId);
+          return (
+            <MobileCard
+              key={entry.id}
+              title={release?.title || `Release #${entry.releaseId}`}
+              subtitle={release?.indexer}
+              status={getStatusInfo(entry.status)}
+              progress={entry.status === 'downloading' && entry.progress < 100 ? entry.progress : undefined}
+              fields={[
+                { label: 'Status', value: <span className="capitalize">{entry.status}</span> },
+                {
+                  label: 'Date',
+                  value: entry.completedAt ? formatDate(entry.completedAt) : 'In Progress'
+                },
+              ]}
+            />
+          );
+        })}
+      </div>
+
+      {/* Desktop view */}
+      <div className="hidden md:block relative">
         {/* Timeline line */}
         <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-700" />
 

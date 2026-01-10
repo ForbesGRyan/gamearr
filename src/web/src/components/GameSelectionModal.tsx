@@ -89,12 +89,12 @@ function GameSelectionModal({ isOpen, onClose, onSelect, releaseName }: GameSele
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-lg max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl">
-        {/* Header */}
-        <div className="p-6 border-b border-gray-700">
+    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 md:p-4">
+      <div className="fixed inset-0 md:inset-auto md:relative md:max-w-2xl md:max-h-[80vh] w-full h-full md:w-auto md:h-auto bg-gray-800 md:rounded-lg flex flex-col shadow-2xl border-0 md:border border-gray-600">
+        {/* Sticky Header */}
+        <div className="sticky top-0 bg-gray-800 p-4 md:p-6 border-b border-gray-700 md:rounded-t-lg flex-shrink-0 z-10">
           <div className="flex items-start justify-between mb-4">
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <h3 className="text-xl font-semibold mb-2">Select Game</h3>
               <p className="text-sm text-gray-400">
                 Choose which game this release is for:
@@ -105,7 +105,7 @@ function GameSelectionModal({ isOpen, onClose, onSelect, releaseName }: GameSele
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white transition ml-4"
+              className="text-gray-400 hover:text-white transition ml-4 min-h-[44px] min-w-[44px] flex items-center justify-center"
             >
               <CloseIcon className="w-5 h-5" />
             </button>
@@ -117,12 +117,12 @@ function GameSelectionModal({ isOpen, onClose, onSelect, releaseName }: GameSele
             placeholder="Search games..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+            className="w-full px-4 py-2 min-h-[44px] bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
           />
         </div>
 
-        {/* Game List */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Scrollable Game List */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
           {error && (
             <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded text-red-200 text-sm">
               {error}
@@ -145,7 +145,7 @@ function GameSelectionModal({ isOpen, onClose, onSelect, releaseName }: GameSele
                 <button
                   key={game.id}
                   onClick={() => handleSelect(game.id)}
-                  className="w-full flex items-center gap-4 p-3 bg-gray-700 hover:bg-gray-650 rounded transition text-left"
+                  className="w-full flex items-center gap-4 p-3 min-h-[44px] bg-gray-700 hover:bg-gray-650 rounded transition text-left"
                 >
                   {game.coverUrl ? (
                     <img
@@ -187,11 +187,11 @@ function GameSelectionModal({ isOpen, onClose, onSelect, releaseName }: GameSele
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-6 border-t border-gray-700">
+        {/* Sticky Footer */}
+        <div className="sticky bottom-0 bg-gray-800 p-4 md:p-6 border-t border-gray-700 flex-shrink-0">
           <button
             onClick={onClose}
-            className="w-full bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded transition"
+            className="w-full bg-gray-700 hover:bg-gray-600 px-4 py-2 min-h-[44px] rounded transition"
           >
             Cancel
           </button>

@@ -155,36 +155,40 @@ function ActivityTable({
                     {isPaused(download.state) ? (
                       <button
                         onClick={() => onResume(download.hash)}
-                        className="bg-green-600 hover:bg-green-700 p-1.5 rounded transition"
+                        className="bg-green-600 hover:bg-green-700 p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded transition"
                         title="Resume"
+                        aria-label="Resume download"
                       >
                         <PlayIcon />
                       </button>
                     ) : (
                       <button
                         onClick={() => onPause(download.hash)}
-                        className="bg-yellow-600 hover:bg-yellow-700 p-1.5 rounded transition"
+                        className="bg-yellow-600 hover:bg-yellow-700 p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded transition"
                         title="Pause"
+                        aria-label="Pause download"
                       >
                         <PauseIcon />
                       </button>
                     )}
                     <button
                       onClick={() => onImport(download)}
-                      className={`p-1.5 rounded transition ${
+                      className={`p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded transition ${
                         download.gameId
                           ? 'bg-gray-600 cursor-not-allowed opacity-50'
                           : 'bg-blue-600 hover:bg-blue-700'
                       }`}
                       title={download.gameId ? 'Already linked to library' : 'Import to Library'}
+                      aria-label={download.gameId ? 'Already linked to library' : 'Import to Library'}
                       disabled={!!download.gameId}
                     >
                       <DownloadIcon />
                     </button>
                     <button
                       onClick={() => onDelete(download)}
-                      className="bg-red-600 hover:bg-red-700 p-1.5 rounded transition"
+                      className="bg-red-600 hover:bg-red-700 p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded transition"
                       title="Delete"
+                      aria-label="Delete download"
                     >
                       <TrashIcon />
                     </button>

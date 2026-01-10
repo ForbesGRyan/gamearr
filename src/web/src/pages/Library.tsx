@@ -13,6 +13,7 @@ import {
   LibraryScanTab,
   LibraryHealthTab,
   LibraryTableView,
+  LibraryMobileView,
   LibraryPosterGrid,
   LibraryOverviewGrid,
   LibraryEmptyState,
@@ -659,22 +660,31 @@ function Library() {
               )}
 
               {viewMode === 'table' && (
-                <LibraryTableView
-                  games={paginatedGames}
-                  selectedGameIds={selectedGameIds}
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={handleSort}
-                  onToggleSelect={toggleGameSelection}
-                  onSelectAll={selectAllGames}
-                  onClearSelection={clearSelection}
-                  isAllSelected={isAllSelected}
-                  isSomeSelected={isSomeSelected}
-                  onToggleMonitor={handleToggleMonitor}
-                  onSearch={handleSearch}
-                  onEdit={handleEdit}
-                  onDelete={(game) => setGameToDelete(game)}
-                />
+                <>
+                  <LibraryMobileView
+                    games={paginatedGames}
+                    onToggleMonitor={handleToggleMonitor}
+                    onSearch={handleSearch}
+                    onEdit={handleEdit}
+                    onDelete={(game) => setGameToDelete(game)}
+                  />
+                  <LibraryTableView
+                    games={paginatedGames}
+                    selectedGameIds={selectedGameIds}
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                    onToggleSelect={toggleGameSelection}
+                    onSelectAll={selectAllGames}
+                    onClearSelection={clearSelection}
+                    isAllSelected={isAllSelected}
+                    isSomeSelected={isSomeSelected}
+                    onToggleMonitor={handleToggleMonitor}
+                    onSearch={handleSearch}
+                    onEdit={handleEdit}
+                    onDelete={(game) => setGameToDelete(game)}
+                  />
+                </>
               )}
 
               {viewMode === 'overview' && (

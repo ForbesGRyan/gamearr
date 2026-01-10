@@ -168,16 +168,16 @@ function CategorySelector() {
 
   if (isLoading) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6">
-        <h3 className="text-xl font-semibold mb-4">Search Categories</h3>
+      <div className="bg-gray-800 rounded-lg p-4 md:p-6">
+        <h3 className="text-lg md:text-xl font-semibold mb-4">Search Categories</h3>
         <p className="text-gray-400">Loading categories...</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-800 rounded-lg p-6">
-      <h3 className="text-xl font-semibold mb-2">Search Categories</h3>
+    <div className="bg-gray-800 rounded-lg p-4 md:p-6">
+      <h3 className="text-lg md:text-xl font-semibold mb-2">Search Categories</h3>
       <p className="text-gray-400 mb-4 text-sm">
         Select which categories to include when searching for game releases. By default, only PC Games (4050) is selected.
       </p>
@@ -196,7 +196,7 @@ function CategorySelector() {
 
       {categoryGroups.map((group) => (
         <div key={group.name} className="mb-6">
-          <h4 className="text-lg font-semibold mb-3 text-blue-400">{group.name}</h4>
+          <h4 className="text-base md:text-lg font-semibold mb-3 text-blue-400">{group.name}</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {group.categories.map((category) => {
               const isSelected = isCategoryEffectivelySelected(category.id);
@@ -205,7 +205,7 @@ function CategorySelector() {
               return (
                 <label
                   key={category.id}
-                  className={`flex items-start p-3 rounded cursor-pointer transition ${
+                  className={`flex items-start p-3 rounded cursor-pointer transition min-h-[44px] ${
                     isSelected
                       ? 'bg-blue-900 bg-opacity-30 border border-blue-700'
                       : 'bg-gray-700 hover:bg-gray-650'
@@ -215,17 +215,17 @@ function CategorySelector() {
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => toggleCategory(category.id)}
-                    className="mt-1 mr-3"
+                    className="mt-1 mr-3 w-5 h-5 flex-shrink-0"
                   />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-1 md:gap-2">
                       <span className={`font-medium ${isSelected ? 'text-blue-300' : 'text-white'}`}>
                         {category.name}
                       </span>
                       <span className="text-xs text-gray-500">({category.id})</span>
                       {isParent && (
-                        <span className="text-xs bg-purple-700 px-2 py-0.5 rounded">
-                          Includes all subcategories
+                        <span className="text-xs bg-purple-700 px-2 py-0.5 rounded whitespace-nowrap">
+                          Includes all
                         </span>
                       )}
                     </div>
@@ -238,22 +238,22 @@ function CategorySelector() {
         </div>
       ))}
 
-      <div className="flex gap-3 pt-4 border-t border-gray-700">
+      <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-700">
         <button
           onClick={handleSave}
           disabled={isSaving || selectedCategories.length === 0}
-          className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-6 py-3 md:py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
         >
           {isSaving ? 'Saving...' : 'Save Categories'}
         </button>
         <button
           onClick={handleReset}
           disabled={isSaving}
-          className="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded transition disabled:opacity-50"
+          className="w-full sm:w-auto bg-gray-700 hover:bg-gray-600 px-6 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
         >
           Reset
         </button>
-        <div className="flex-1 text-right text-sm text-gray-400 self-center">
+        <div className="text-center sm:text-right sm:flex-1 text-sm text-gray-400 self-center py-2 sm:py-0">
           {selectedCategories.length} categor{selectedCategories.length === 1 ? 'y' : 'ies'} selected
         </div>
       </div>

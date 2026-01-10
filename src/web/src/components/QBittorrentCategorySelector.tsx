@@ -84,18 +84,18 @@ function QBittorrentCategorySelector() {
 
   if (isLoading) {
     return (
-      <div className="bg-gray-700 rounded-lg p-6">
-        <h3 className="text-xl font-semibold mb-4 text-white">Activity Page Filter</h3>
+      <div className="bg-gray-700 rounded-lg p-4 md:p-6">
+        <h3 className="text-lg md:text-xl font-semibold mb-4 text-white">Activity Page Filter</h3>
         <p className="text-gray-300">Loading categories...</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-700 rounded-lg p-6">
-      <h3 className="text-xl font-semibold mb-2 text-white">Activity Page Filter</h3>
+    <div className="bg-gray-700 rounded-lg p-4 md:p-6">
+      <h3 className="text-lg md:text-xl font-semibold mb-2 text-white">Activity Page Filter</h3>
       <p className="text-gray-300 mb-4 text-sm">
-        Filter which torrents appear in the Activity page. This does not affect downloads - configure download categories per-library in Settings → Libraries.
+        Filter which torrents appear in the Activity page. This does not affect downloads - configure download categories per-library in Settings {'>'} Libraries.
       </p>
 
       {error && (
@@ -112,7 +112,7 @@ function QBittorrentCategorySelector() {
 
       {categories.length === 0 ? (
         <div className="bg-gray-600 p-4 rounded text-center">
-          <p className="text-gray-300">
+          <p className="text-gray-300 text-sm">
             No categories found in qBittorrent. Categories will be created automatically when you download releases.
           </p>
         </div>
@@ -122,7 +122,7 @@ function QBittorrentCategorySelector() {
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="bg-gray-600 w-full px-4 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-white mb-4"
+            className="bg-gray-600 w-full px-4 py-3 md:py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-white mb-4 text-base"
           >
             <option value="">Select a category...</option>
             {categories.map((category) => (
@@ -132,25 +132,25 @@ function QBittorrentCategorySelector() {
             ))}
           </select>
 
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <button
               onClick={handleSave}
               disabled={isSaving || !selectedCategory}
-              className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-6 py-3 md:py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white min-h-[44px]"
             >
               {isSaving ? 'Saving...' : 'Save Category'}
             </button>
             <button
               onClick={handleReset}
               disabled={isSaving}
-              className="bg-gray-500 hover:bg-gray-400 px-6 py-2 rounded transition disabled:opacity-50 text-white"
+              className="w-full sm:w-auto bg-gray-500 hover:bg-gray-400 px-6 py-3 md:py-2 rounded transition disabled:opacity-50 text-white min-h-[44px]"
             >
               Reset
             </button>
           </div>
 
           <p className="text-xs text-gray-400 mt-3">
-            This only filters what's shown in Activity. Download categories are set per-library in Settings → Libraries.
+            This only filters what's shown in Activity. Download categories are set per-library in Settings {'>'} Libraries.
           </p>
         </div>
       )}

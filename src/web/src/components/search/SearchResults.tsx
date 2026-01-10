@@ -3,6 +3,7 @@ import { SearchMode } from './SearchTabs';
 import { SortField, SortDirection } from './ReleasesTable';
 import GameResultsList from './GameResultsList';
 import ReleasesTable from './ReleasesTable';
+import ReleasesMobileView from './ReleasesMobileView';
 import { SearchLoading, NoResults, EmptySearchState } from './SearchEmptyStates';
 
 interface SearchResultsProps {
@@ -70,13 +71,24 @@ function SearchResults({
     return <NoResults query={query} searchMode="releases" />;
   }
   return (
-    <ReleasesTable
-      releases={releases}
-      sortField={sortField}
-      sortDirection={sortDirection}
-      onSort={onSort}
-      onGrab={onGrab}
-    />
+    <>
+      {/* Mobile view header */}
+      <div className="md:hidden mb-4">
+        <h3 className="text-xl font-semibold">
+          {releases.length} release{releases.length !== 1 ? 's' : ''} found
+        </h3>
+      </div>
+      {/* Mobile view */}
+      <ReleasesMobileView releases={releases} onGrab={onGrab} />
+      {/* Desktop view */}
+      <ReleasesTable
+        releases={releases}
+        sortField={sortField}
+        sortDirection={sortDirection}
+        onSort={onSort}
+        onGrab={onGrab}
+      />
+    </>
   );
 }
 

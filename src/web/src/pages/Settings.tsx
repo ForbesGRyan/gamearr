@@ -294,8 +294,24 @@ function Settings() {
         </div>
       )}
 
-      {/* Tab Navigation - Horizontally scrollable on mobile */}
-      <div className="border-b border-gray-700 mb-6 -mx-4 px-4 md:mx-0 md:px-0">
+      {/* Mobile dropdown selector - visible only on small screens */}
+      <div className="md:hidden mb-6">
+        <label className="block text-sm text-gray-400 mb-2">Settings Section</label>
+        <select
+          value={activeTab}
+          onChange={(e) => setActiveTab(e.target.value as SettingsTab)}
+          className="w-full px-4 py-3 bg-gray-800 rounded-lg border border-gray-700 focus:border-blue-500 focus:outline-none text-white min-h-[44px]"
+        >
+          {tabs.map((tab) => (
+            <option key={tab.id} value={tab.id}>
+              {tab.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Tab Navigation - Hidden on mobile, visible on md+ */}
+      <div className="hidden md:block border-b border-gray-700 mb-6">
         <nav className="flex gap-1 overflow-x-auto scrollbar-hide pb-px">
           {tabs.map((tab) => (
             <button
@@ -308,8 +324,7 @@ function Settings() {
               }`}
             >
               {tab.icon}
-              <span className="hidden sm:inline">{tab.label}</span>
-              <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
+              {tab.label}
             </button>
           ))}
         </nav>

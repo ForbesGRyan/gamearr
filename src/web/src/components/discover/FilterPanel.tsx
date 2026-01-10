@@ -24,29 +24,29 @@ export default function FilterPanel({
   onClearFilters,
 }: FilterPanelProps) {
   return (
-    <div className="bg-gray-800 rounded-lg p-4 mb-4 border border-gray-700">
+    <div className="bg-gray-800 rounded-lg p-3 sm:p-4 mb-4 border border-gray-700">
       <div className="flex justify-between items-center mb-3">
         <h3 className="font-medium">Filters</h3>
         {activeFilterCount > 0 && (
           <button
             onClick={onClearFilters}
-            className="text-sm text-blue-400 hover:text-blue-300"
+            className="text-sm text-blue-400 hover:text-blue-300 min-h-[44px] px-2 flex items-center"
           >
             Clear all
           </button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4">
         {/* Genres */}
-        <div>
+        <div className="w-full sm:w-auto sm:flex-1 sm:min-w-[200px]">
           <label className="block text-sm text-gray-400 mb-2">Genres</label>
           <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
             {availableGenres.map(genre => (
               <button
                 key={genre}
                 onClick={() => onToggleGenre(genre)}
-                className={`text-xs px-2 py-1 rounded transition ${
+                className={`text-xs px-3 py-2 min-h-[44px] sm:min-h-0 sm:px-2 sm:py-1 rounded transition ${
                   selectedGenres.includes(genre)
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -62,14 +62,14 @@ export default function FilterPanel({
         </div>
 
         {/* Themes */}
-        <div>
+        <div className="w-full sm:w-auto sm:flex-1 sm:min-w-[200px]">
           <label className="block text-sm text-gray-400 mb-2">Themes</label>
           <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
             {availableThemes.map(theme => (
               <button
                 key={theme}
                 onClick={() => onToggleTheme(theme)}
-                className={`text-xs px-2 py-1 rounded transition ${
+                className={`text-xs px-3 py-2 min-h-[44px] sm:min-h-0 sm:px-2 sm:py-1 rounded transition ${
                   selectedThemes.includes(theme)
                     ? 'bg-purple-600 text-white'
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -85,11 +85,11 @@ export default function FilterPanel({
         </div>
 
         {/* Multiplayer */}
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="block text-sm text-gray-400 mb-2">Features</label>
           <button
             onClick={onToggleMultiplayer}
-            className={`text-xs px-2 py-1 rounded transition ${
+            className={`text-xs px-3 py-2 min-h-[44px] sm:min-h-0 sm:px-2 sm:py-1 rounded transition ${
               multiplayerOnly
                 ? 'bg-green-600 text-white'
                 : 'bg-gray-700 text-gray-300 hover:bg-gray-600'

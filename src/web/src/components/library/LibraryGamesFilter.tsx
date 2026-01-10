@@ -53,17 +53,17 @@ export function LibraryGamesFilter({
   };
 
   return (
-    <div className="mb-6 bg-gray-800 rounded-lg p-4">
-      <div className="flex flex-wrap items-center gap-4">
+    <div className="mb-6 bg-gray-800 rounded-lg p-3 sm:p-4">
+      <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 sm:gap-4">
         {/* Search Input */}
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
             placeholder="Search games..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="bg-gray-700 border border-gray-600 rounded pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
+            className="bg-gray-700 border border-gray-600 rounded pl-9 pr-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto sm:min-w-[200px]"
           />
           {searchQuery && (
             <button
@@ -76,15 +76,15 @@ export function LibraryGamesFilter({
         </div>
 
         {/* Sort Dropdown */}
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-400">Sort:</label>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <label className="text-sm text-gray-400 shrink-0">Sort:</label>
           <select
             value={`${sortColumn}-${sortDirection}`}
             onChange={(e) => {
               const [col, dir] = e.target.value.split('-') as [SortColumn, SortDirection];
               onSortChange(col, dir);
             }}
-            className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
           >
             <option value="title-asc">Title (A-Z)</option>
             <option value="title-desc">Title (Z-A)</option>
@@ -102,12 +102,12 @@ export function LibraryGamesFilter({
         </div>
 
         {/* Status Filter */}
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-400">Status:</label>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <label className="text-sm text-gray-400 shrink-0">Status:</label>
           <select
             value={filters.status}
             onChange={(e) => onFiltersChange({ ...filters, status: e.target.value as StatusFilter })}
-            className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
           >
             <option value="all">All</option>
             <option value="wanted">Wanted</option>
@@ -117,12 +117,12 @@ export function LibraryGamesFilter({
         </div>
 
         {/* Monitored Filter */}
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-400">Monitored:</label>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <label className="text-sm text-gray-400 shrink-0">Monitored:</label>
           <select
             value={filters.monitored}
             onChange={(e) => onFiltersChange({ ...filters, monitored: e.target.value as MonitoredFilter })}
-            className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
           >
             <option value="all">All</option>
             <option value="monitored">Monitored</option>
@@ -132,8 +132,8 @@ export function LibraryGamesFilter({
 
         {/* Library Filter */}
         {libraries.length > 0 && (
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-400">Library:</label>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <label className="text-sm text-gray-400 shrink-0">Library:</label>
             <select
               value={filters.libraryId}
               onChange={(e) => {
@@ -143,7 +143,7 @@ export function LibraryGamesFilter({
                   libraryId: value === 'all' ? 'all' : parseInt(value, 10),
                 });
               }}
-              className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
             >
               <option value="all">All Libraries</option>
               {libraries.map((lib) => (
@@ -158,15 +158,15 @@ export function LibraryGamesFilter({
 
         {/* Genre Filter */}
         {allGenres.length > 0 && (
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-400">Genres:</label>
-            <div className="relative">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <label className="text-sm text-gray-400 shrink-0">Genres:</label>
+            <div className="relative flex-1 sm:flex-none">
               <select
                 value=""
                 onChange={(e) => {
                   if (e.target.value) toggleGenreFilter(e.target.value);
                 }}
-                className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
               >
                 <option value="">
                   {filters.genres.length > 0 ? `${filters.genres.length} selected` : 'Select...'}
@@ -183,15 +183,15 @@ export function LibraryGamesFilter({
 
         {/* Game Modes Filter */}
         {allGameModes.length > 0 && (
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-400">Modes:</label>
-            <div className="relative">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <label className="text-sm text-gray-400 shrink-0">Modes:</label>
+            <div className="relative flex-1 sm:flex-none">
               <select
                 value=""
                 onChange={(e) => {
                   if (e.target.value) toggleGameModeFilter(e.target.value);
                 }}
-                className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
               >
                 <option value="">
                   {filters.gameModes.length > 0 ? `${filters.gameModes.length} selected` : 'Select...'}
@@ -210,7 +210,7 @@ export function LibraryGamesFilter({
         {activeFilterCount > 0 && (
           <button
             onClick={onClearFilters}
-            className="ml-auto text-sm px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 transition flex items-center gap-1"
+            className="w-full sm:w-auto sm:ml-auto text-sm px-3 py-2 sm:py-1.5 rounded bg-gray-700 hover:bg-gray-600 transition flex items-center justify-center gap-1"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

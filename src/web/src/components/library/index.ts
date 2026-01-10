@@ -8,6 +8,7 @@ export { LibraryScanTab } from './LibraryScanTab';
 
 // New extracted components
 export { LibraryTableView } from './LibraryTableView';
+export { LibraryMobileView } from './LibraryMobileView';
 export { LibraryPosterGrid } from './LibraryPosterGrid';
 export { LibraryOverviewGrid } from './LibraryOverviewGrid';
 export { LibraryEmptyState } from './LibraryEmptyState';

@@ -14,15 +14,15 @@ function ActivityFilters({
   onStatusFilterChange,
 }: ActivityFiltersProps) {
   return (
-    <div className="mb-6 flex flex-col sm:flex-row gap-3">
+    <div className="mb-6 flex flex-col sm:flex-row gap-2 sm:gap-4">
       {/* Search */}
-      <div className="flex-1">
+      <div className="w-full sm:flex-1">
         <input
           type="text"
           placeholder="Search downloads..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full bg-gray-800 border border-gray-700 rounded px-4 py-3 md:py-2 text-base md:text-sm focus:outline-none focus:border-blue-500"
+          className="w-full sm:min-w-[200px] bg-gray-800 border border-gray-700 rounded px-4 py-3 sm:py-2 text-base sm:text-sm focus:outline-none focus:border-blue-500"
         />
       </div>
 
@@ -30,7 +30,7 @@ function ActivityFilters({
       <select
         value={statusFilter}
         onChange={(e) => onStatusFilterChange(e.target.value as StatusFilter)}
-        className="bg-gray-800 border border-gray-700 rounded px-3 py-3 md:py-2 text-base md:text-sm focus:outline-none focus:border-blue-500"
+        className="w-full sm:w-auto bg-gray-800 border border-gray-700 rounded px-3 py-3 sm:py-2 text-base sm:text-sm focus:outline-none focus:border-blue-500"
       >
         <option value="all">All Status</option>
         <option value="downloading">Downloading</option>

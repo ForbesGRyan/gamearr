@@ -128,26 +128,26 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
 
   return (
     <div
-      className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 md:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="search-releases-modal-title"
     >
-      <div className="bg-gray-900 rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl border border-gray-600">
-        {/* Header */}
-        <div className="bg-gray-700 p-6 border-b border-gray-600">
+      <div className="fixed inset-0 md:inset-auto md:relative md:max-w-4xl md:max-h-[90vh] w-full h-full md:w-auto md:h-auto bg-gray-900 md:rounded-lg flex flex-col shadow-2xl border-0 md:border border-gray-600">
+        {/* Sticky Header */}
+        <div className="sticky top-0 bg-gray-700 p-4 md:p-6 border-b border-gray-600 md:rounded-t-lg flex-shrink-0 z-10">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 id="search-releases-modal-title" className="text-2xl font-bold text-white">Search Releases</h2>
+            <div className="min-w-0 flex-1">
+              <h2 id="search-releases-modal-title" className="text-xl md:text-2xl font-bold text-white">Search Releases</h2>
               {game && (
-                <p className="text-gray-300 mt-1">
+                <p className="text-gray-300 mt-1 truncate">
                   {game.title} {game.year && `(${game.year})`}
                 </p>
               )}
             </div>
             <button
               onClick={onClose}
-              className="text-gray-300 hover:text-white"
+              className="text-gray-300 hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center ml-4"
               aria-label="Close modal"
             >
               <CloseIcon className="w-6 h-6" aria-hidden="true" />
@@ -155,8 +155,8 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
           </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
           {error && (
             <div className="mb-4 p-4 bg-red-900 bg-opacity-50 border border-red-700 rounded text-red-200">
               {error}
@@ -225,7 +225,7 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
 
                     <button
                       onClick={() => setReleaseToGrab(release)}
-                      className="ml-4 bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition text-sm"
+                      className="ml-4 bg-green-600 hover:bg-green-700 px-4 py-2 min-h-[44px] rounded transition text-sm"
                       aria-label={`Grab release: ${release.title}`}
                     >
                       Grab
@@ -237,14 +237,14 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
           )}
         </div>
 
-        {/* Footer */}
-        <div className="bg-gray-700 p-6 border-t border-gray-600 flex justify-between items-center">
-          <p className="text-sm text-gray-300">
+        {/* Sticky Footer */}
+        <div className="sticky bottom-0 bg-gray-800 p-4 md:p-6 border-t border-gray-700 flex flex-col md:flex-row justify-between items-center gap-3 flex-shrink-0">
+          <p className="text-sm text-gray-300 order-2 md:order-1">
             {releases.length} release{releases.length !== 1 ? 's' : ''} found
           </p>
           <button
             onClick={onClose}
-            className="bg-gray-500 hover:bg-gray-400 px-4 py-2 rounded transition text-white"
+            className="w-full md:w-auto bg-gray-600 hover:bg-gray-500 px-4 py-2 min-h-[44px] rounded transition text-white order-1 md:order-2"
           >
             Close
           </button>

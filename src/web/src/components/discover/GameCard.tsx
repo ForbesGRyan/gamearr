@@ -49,7 +49,7 @@ export default function GameCard({
             <button
               onClick={onAddToLibrary}
               disabled={isAdding}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white text-sm px-3 py-1.5 rounded w-full"
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white text-sm px-4 py-2 min-h-[44px] rounded w-full"
             >
               {isAdding ? 'Adding...' : 'Add to Library'}
             </button>

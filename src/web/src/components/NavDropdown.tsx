@@ -67,7 +67,7 @@ export function NavDropdown({ label, basePath, items, end }: NavDropdownProps) {
         to={basePath}
         end={end}
         viewTransition
-        className={`px-3 py-2 rounded transition flex items-center gap-1 ${
+        className={`px-3 py-2 min-h-[44px] rounded transition flex items-center gap-1 ${
           isActive
             ? 'bg-blue-600 text-white'
             : 'text-gray-300 hover:bg-gray-700'
@@ -102,7 +102,7 @@ export function NavDropdown({ label, basePath, items, end }: NavDropdownProps) {
               <button
                 key={item.to}
                 type="button"
-                className={`block w-full text-left px-4 py-2 text-sm transition ${
+                className={`block w-full text-left px-4 py-3 min-h-[44px] text-sm transition ${
                   isItemActive
                     ? 'bg-blue-600 text-white'
                     : 'text-gray-300 hover:bg-gray-700 hover:text-white'

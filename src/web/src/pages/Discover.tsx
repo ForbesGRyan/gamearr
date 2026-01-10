@@ -5,6 +5,7 @@ import {
   GamesGrid,
   TorrentSearch,
   TorrentsTable,
+  TorrentsMobileView,
   TorrentDetailsModal,
   useDiscoverState,
 } from '../components/discover';
@@ -166,6 +167,12 @@ function Discover() {
             onSearchInputChange={setTorrentSearchInput}
             onMaxAgeChange={setTorrentMaxAge}
             onSubmit={handleTorrentSearch}
+          />
+          <TorrentsMobileView
+            torrents={torrents}
+            maxAge={torrentMaxAge}
+            isLoading={isLoadingTorrents}
+            onSelectTorrent={setSelectedTorrent}
           />
           <TorrentsTable
             torrents={torrents}

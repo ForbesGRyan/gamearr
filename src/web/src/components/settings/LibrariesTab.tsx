@@ -215,18 +215,18 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
   return (
     <>
       {/* Header */}
-      <div className="bg-gray-800 rounded-lg p-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-gray-800 rounded-lg p-4 md:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
-            <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 md:w-6 md:h-6 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
-            <h3 className="text-xl font-semibold">Libraries</h3>
+            <h3 className="text-lg md:text-xl font-semibold">Libraries</h3>
           </div>
           {!showForm && (
             <button
               onClick={() => setShowForm(true)}
-              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition flex items-center gap-2"
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded transition flex items-center justify-center gap-2 min-h-[44px]"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -235,7 +235,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
             </button>
           )}
         </div>
-        <p className="text-gray-400">
+        <p className="text-gray-400 text-sm md:text-base">
           Configure multiple game library folders for different platforms or collections.
           Each library can be independently monitored and used for downloads.
         </p>
@@ -243,7 +243,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
 
       {/* Add/Edit Form */}
       {showForm && (
-        <div className="bg-gray-800 rounded-lg p-6">
+        <div className="bg-gray-800 rounded-lg p-4 md:p-6">
           <h4 className="text-lg font-semibold mb-4">
             {editingId !== null ? 'Edit Library' : 'Add New Library'}
           </h4>
@@ -258,7 +258,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g., PC Games, PlayStation, Nintendo"
-                  className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
                 />
               </div>
               <div>
@@ -270,7 +270,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
                   value={formData.platform}
                   onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
                   placeholder="e.g., PC, PlayStation, Nintendo Switch"
-                  className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Optional tag for filtering games by platform
@@ -282,7 +282,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
               <label className="block text-sm text-gray-400 mb-1">
                 Path <span className="text-red-400">*</span>
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   value={formData.path}
@@ -291,13 +291,13 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
                     setPathTestResult(null);
                   }}
                   placeholder="e.g., D:\Games\PC or /mnt/games/pc"
-                  className="flex-1 px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  className="flex-1 px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
                 />
                 <button
                   type="button"
                   onClick={handleTestPath}
                   disabled={isTestingPath || !formData.path.trim()}
-                  className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50"
+                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
                 >
                   {isTestingPath ? 'Testing...' : 'Test Path'}
                 </button>
@@ -313,11 +313,11 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
               <label className="block text-sm text-gray-400 mb-1">
                 Download Category
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <select
                   value={formData.downloadCategory}
                   onChange={(e) => setFormData({ ...formData, downloadCategory: e.target.value })}
-                  className="flex-1 px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  className="w-full sm:flex-1 px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
                 >
                   <option value="gamearr">gamearr (default)</option>
                   {qbCategories.filter(c => c !== 'gamearr').map((category) => (
@@ -331,7 +331,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
                   value={formData.downloadCategory}
                   onChange={(e) => setFormData({ ...formData, downloadCategory: e.target.value })}
                   placeholder="Or type a new category..."
-                  className="flex-1 px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  className="w-full sm:flex-1 px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
                 />
               </div>
               <p className="text-xs text-gray-500 mt-1">
@@ -339,7 +339,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-1">
                   Priority
@@ -350,14 +350,14 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
                   max={100}
                   value={formData.priority}
                   onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Higher priority libraries are checked first
                 </p>
               </div>
-              <div className="flex items-center">
-                <label className="flex items-center gap-2 cursor-pointer">
+              <div className="flex items-center py-2 md:py-0">
+                <label className="flex items-center gap-3 cursor-pointer min-h-[44px]">
                   <input
                     type="checkbox"
                     checked={formData.monitored}
@@ -367,8 +367,8 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
                   <span className="text-sm text-gray-300">Monitored</span>
                 </label>
               </div>
-              <div className="flex items-center">
-                <label className="flex items-center gap-2 cursor-pointer">
+              <div className="flex items-center py-2 md:py-0">
+                <label className="flex items-center gap-3 cursor-pointer min-h-[44px]">
                   <input
                     type="checkbox"
                     checked={formData.downloadEnabled}
@@ -380,18 +380,18 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
               </div>
             </div>
 
-            <div className="flex gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <button
                 type="submit"
                 disabled={isSaving}
-                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50"
+                className="w-full sm:w-auto bg-green-600 hover:bg-green-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
               >
                 {isSaving ? 'Saving...' : editingId !== null ? 'Update Library' : 'Add Library'}
               </button>
               <button
                 type="button"
                 onClick={resetForm}
-                className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded transition"
+                className="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 px-4 py-3 md:py-2 rounded transition min-h-[44px]"
               >
                 Cancel
               </button>
@@ -402,7 +402,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
 
       {/* Libraries List */}
       {libraries.length === 0 ? (
-        <div className="bg-gray-800 rounded-lg p-6 text-center">
+        <div className="bg-gray-800 rounded-lg p-4 md:p-6 text-center">
           <svg className="w-12 h-12 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
           </svg>
@@ -410,7 +410,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
           {!showForm && (
             <button
               onClick={() => setShowForm(true)}
-              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition"
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded transition min-h-[44px]"
             >
               Add Your First Library
             </button>
@@ -421,12 +421,12 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
           {libraries.map((library) => (
             <div
               key={library.id}
-              className="bg-gray-800 rounded-lg p-4 flex items-center justify-between"
+              className="bg-gray-800 rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
             >
-              <div className="flex-1">
-                <h4 className="font-semibold text-lg mb-1">{library.name}</h4>
-                <p className="text-gray-400 text-sm font-mono mb-2">{library.path}</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 text-sm">
+              <div className="flex-1 min-w-0">
+                <h4 className="font-semibold text-base md:text-lg mb-1">{library.name}</h4>
+                <p className="text-gray-400 text-sm font-mono mb-2 break-all">{library.path}</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                   <div>
                     <span className="text-gray-500">Platform: </span>
                     <span className="text-gray-300">{library.platform || 'None'}</span>
@@ -443,15 +443,15 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
                     <span className="text-gray-500">Status: </span>
                     <span className="text-gray-300">
                       {library.monitored ? 'Monitored' : 'Not monitored'}
-                      {library.downloadEnabled ? ', Downloads enabled' : ''}
+                      {library.downloadEnabled ? ', Downloads' : ''}
                     </span>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 self-end md:self-center">
                 <button
                   onClick={() => handleEdit(library)}
-                  className="p-2 text-gray-400 hover:text-blue-400 transition"
+                  className="p-3 md:p-2 text-gray-400 hover:text-blue-400 transition min-h-[44px] min-w-[44px] flex items-center justify-center"
                   title="Edit"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -463,7 +463,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
                     <button
                       onClick={() => handleDelete(library.id)}
                       disabled={isDeleting}
-                      className="p-2 text-red-400 hover:text-red-300 transition disabled:opacity-50"
+                      className="p-3 md:p-2 text-red-400 hover:text-red-300 transition disabled:opacity-50 min-h-[44px] min-w-[44px] flex items-center justify-center"
                       title="Confirm Delete"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -472,7 +472,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
                     </button>
                     <button
                       onClick={() => setDeletingId(null)}
-                      className="p-2 text-gray-400 hover:text-gray-300 transition"
+                      className="p-3 md:p-2 text-gray-400 hover:text-gray-300 transition min-h-[44px] min-w-[44px] flex items-center justify-center"
                       title="Cancel"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -483,7 +483,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
                 ) : (
                   <button
                     onClick={() => setDeletingId(library.id)}
-                    className="p-2 text-gray-400 hover:text-red-400 transition"
+                    className="p-3 md:p-2 text-gray-400 hover:text-red-400 transition min-h-[44px] min-w-[44px] flex items-center justify-center"
                     title="Delete"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -498,9 +498,9 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
       )}
 
       {/* Info Box */}
-      <div className="bg-gray-800 rounded-lg p-6 border-l-4 border-blue-500">
+      <div className="bg-gray-800 rounded-lg p-4 md:p-6 border-l-4 border-blue-500">
         <h4 className="font-semibold mb-2 flex items-center gap-2">
-          <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           About Libraries

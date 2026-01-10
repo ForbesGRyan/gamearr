@@ -27,7 +27,7 @@ export function BulkActionToolbar({
         </span>
         <button
           onClick={onClear}
-          className="text-sm text-gray-300 hover:text-white transition"
+          className="text-sm text-gray-300 hover:text-white transition min-h-[44px] px-2 flex items-center"
         >
           Clear selection
         </button>
@@ -36,7 +36,7 @@ export function BulkActionToolbar({
         <button
           onClick={onMonitor}
           disabled={isLoading}
-          className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded text-sm transition disabled:opacity-50"
+          className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 px-3 py-2 min-h-[44px] rounded text-sm transition disabled:opacity-50"
         >
           <EyeIcon className="w-4 h-4" />
           Monitor
@@ -44,7 +44,7 @@ export function BulkActionToolbar({
         <button
           onClick={onUnmonitor}
           disabled={isLoading}
-          className="flex items-center gap-1.5 bg-gray-600 hover:bg-gray-500 px-3 py-1.5 rounded text-sm transition disabled:opacity-50"
+          className="flex items-center gap-1.5 bg-gray-600 hover:bg-gray-500 px-3 py-2 min-h-[44px] rounded text-sm transition disabled:opacity-50"
         >
           <EyeSlashIcon className="w-4 h-4" />
           Unmonitor
@@ -52,7 +52,7 @@ export function BulkActionToolbar({
         <button
           onClick={onDelete}
           disabled={isLoading}
-          className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded text-sm transition disabled:opacity-50"
+          className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 px-3 py-2 min-h-[44px] rounded text-sm transition disabled:opacity-50"
         >
           <TrashIcon className="w-4 h-4" />
           Delete

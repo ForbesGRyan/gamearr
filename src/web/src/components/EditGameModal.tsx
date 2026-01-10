@@ -298,32 +298,32 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
 
   return (
     <div
-      className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 md:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="edit-game-modal-title"
     >
-      <div className="bg-gray-900 rounded-lg max-w-2xl w-full shadow-2xl border border-gray-600">
-        {/* Header */}
-        <div className="bg-gray-700 flex items-center justify-between p-6 border-b border-gray-600">
-          <div>
-            <h2 id="edit-game-modal-title" className="text-2xl font-bold text-white">Edit Game</h2>
-            <p className="text-sm text-gray-300 mt-1">
+      <div className="fixed inset-0 md:inset-auto md:relative md:max-w-2xl md:max-h-[90vh] w-full h-full md:w-auto md:h-auto bg-gray-900 md:rounded-lg flex flex-col shadow-2xl border-0 md:border border-gray-600">
+        {/* Sticky Header */}
+        <div className="sticky top-0 bg-gray-700 flex items-center justify-between p-4 md:p-6 border-b border-gray-600 md:rounded-t-lg flex-shrink-0 z-10">
+          <div className="min-w-0 flex-1">
+            <h2 id="edit-game-modal-title" className="text-xl md:text-2xl font-bold text-white">Edit Game</h2>
+            <p className="text-sm text-gray-300 mt-1 truncate">
               {game.title} {game.year && `(${game.year})`}
             </p>
             {game.steamName && (
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-gray-500 mt-0.5 truncate">
                 Steam name: {game.steamName}
               </p>
             )}
           </div>
-          <button onClick={onClose} className="text-gray-300 hover:text-white" aria-label="Close modal">
+          <button onClick={onClose} className="text-gray-300 hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center ml-4" aria-label="Close modal">
             <CloseIcon className="w-6 h-6" aria-hidden="true" />
           </button>
         </div>
 
-        {/* Form */}
-        <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+        {/* Scrollable Form */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
           {/* Change Match Section */}
           <div className="border border-gray-600 rounded-lg overflow-hidden">
             <button
@@ -663,18 +663,18 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
           )}
         </div>
 
-        {/* Footer */}
-        <div className="bg-gray-700 flex items-center justify-end gap-3 p-6 border-t border-gray-600">
+        {/* Sticky Footer */}
+        <div className="sticky bottom-0 bg-gray-800 flex flex-col-reverse md:flex-row items-center justify-end gap-3 p-4 md:p-6 border-t border-gray-700 flex-shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded transition text-white bg-gray-600 hover:bg-gray-500"
+            className="w-full md:w-auto px-4 py-2 min-h-[44px] rounded transition text-white bg-gray-600 hover:bg-gray-500"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white bg-blue-600 hover:bg-blue-700"
+            className="w-full md:w-auto px-4 py-2 min-h-[44px] rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white bg-blue-600 hover:bg-blue-700"
           >
             {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
