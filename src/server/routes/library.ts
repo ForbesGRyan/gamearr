@@ -28,7 +28,10 @@ const matchSchema = z.object({
     first_release_date: z.number().optional(),
     coverUrl: z.string().nullable().optional(),
     cover: z.object({ url: z.string() }).optional(),
-    platforms: z.array(z.any()).optional(),
+    platforms: z.array(z.union([
+      z.string(), // Platform name as string
+      z.object({ id: z.number().optional(), name: z.string() }), // Platform object
+    ])).optional(),
     summary: z.string().nullable().optional(),
     genres: z.array(z.string()).optional(),
     totalRating: z.number().nullable().optional(),

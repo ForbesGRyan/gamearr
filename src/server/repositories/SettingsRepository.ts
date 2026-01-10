@@ -57,7 +57,7 @@ export class SettingsRepository {
   /**
    * Set setting as JSON
    */
-  async setJSON(key: string, value: any): Promise<void> {
+  async setJSON<T extends Record<string, unknown> | unknown[]>(key: string, value: T): Promise<void> {
     const jsonString = JSON.stringify(value);
     await this.set(key, jsonString);
   }

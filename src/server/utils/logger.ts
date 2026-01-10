@@ -4,7 +4,7 @@ interface LogEntry {
   timestamp: string;
   level: LogLevel;
   message: string;
-  data?: any;
+  data?: unknown;
 }
 
 // Patterns that indicate sensitive data keys
@@ -41,7 +41,7 @@ class Logger {
   /**
    * Sanitize data to remove sensitive information before logging
    */
-  private sanitize(data: any, depth: number = 0): any {
+  private sanitize(data: unknown, depth: number = 0): unknown {
     // Prevent infinite recursion
     if (depth > 10) {
       return '[MAX_DEPTH]';
@@ -75,8 +75,8 @@ class Logger {
 
     // Handle objects
     if (typeof data === 'object') {
-      const sanitized: Record<string, any> = {};
-      for (const [key, value] of Object.entries(data)) {
+      const sanitized: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
         const lowerKey = key.toLowerCase();
         // Check if key suggests sensitive data
         if (SENSITIVE_KEYS.some((sensitive) => lowerKey.includes(sensitive))) {
@@ -103,7 +103,7 @@ class Logger {
     return sanitized;
   }
 
-  private log(level: LogLevel, message: string, data?: any) {
+  private log(level: LogLevel, message: string, data?: unknown) {
     const sanitizedMessage = this.sanitizeString(message);
     const sanitizedData = data !== undefined ? this.sanitize(data) : undefined;
 
@@ -130,19 +130,19 @@ class Logger {
     );
   }
 
-  info(message: string, data?: any) {
+  info(message: string, data?: unknown) {
     this.log('info', message, data);
   }
 
-  warn(message: string, data?: any) {
+  warn(message: string, data?: unknown) {
     this.log('warn', message, data);
   }
 
-  error(message: string, data?: any) {
+  error(message: string, data?: unknown) {
     this.log('error', message, data);
   }
 
-  debug(message: string, data?: any) {
+  debug(message: string, data?: unknown) {
     this.log('debug', message, data);
   }
 }

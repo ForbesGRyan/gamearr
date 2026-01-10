@@ -57,6 +57,9 @@ export const games = sqliteTable('games', {
   monitoredIdx: index('games_monitored_idx').on(table.monitored),
   libraryIdIdx: index('games_library_id_idx').on(table.libraryId),
   slugIdx: index('games_slug_idx').on(table.slug),
+  // Compound indexes for common query patterns
+  statusMonitoredIdx: index('games_status_monitored_idx').on(table.status, table.monitored),
+  libraryStatusIdx: index('games_library_status_idx').on(table.libraryId, table.status),
 }));
 
 export const releases = sqliteTable('releases', {

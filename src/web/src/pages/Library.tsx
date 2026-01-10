@@ -210,41 +210,34 @@ function Library() {
     }
   }, []);
 
-  // Effects
+  // Effects - lazy load tabs only when first visited
   useEffect(() => {
-    loadScanData();
-    loadHealthData();
-  }, [loadScanData, loadHealthData]);
-
-  useEffect(() => {
-    if (activeTab === 'scan') {
+    if (activeTab === 'scan' && !isScanLoaded) {
       loadScanData();
     }
-  }, [activeTab, loadScanData]);
+  }, [activeTab, isScanLoaded, loadScanData]);
 
   useEffect(() => {
-    if (activeTab === 'health') {
+    if (activeTab === 'health' && !isHealthLoaded) {
       loadHealthData();
     }
-  }, [activeTab, loadHealthData]);
+  }, [activeTab, isHealthLoaded, loadHealthData]);
 
-  // Scan handlers
+  // Scan handlers - parallel auto-matching with concurrency limit
   const runBackgroundAutoMatch = useCallback(async (folders: LibraryFolder[]) => {
-    const foldersToMatch = folders.filter(f => !f.matched);
+    const foldersToMatch = folders.filter(f => !f.matched && !autoMatchSuggestions[f.path]);
     if (foldersToMatch.length === 0) return;
 
     setIsBackgroundAutoMatching(true);
     setBackgroundAutoMatchProgress({ current: 0, total: foldersToMatch.length });
     backgroundAutoMatchAbortRef.current = false;
 
-    for (let i = 0; i < foldersToMatch.length; i++) {
-      if (backgroundAutoMatchAbortRef.current) break;
+    const CONCURRENCY_LIMIT = 5;
+    let completedCount = 0;
 
-      const folder = foldersToMatch[i];
-      if (autoMatchSuggestions[folder.path]) {
-        setBackgroundAutoMatchProgress({ current: i + 1, total: foldersToMatch.length });
-        continue;
-      }
+    // Process folders in batches with concurrency limit
+    const processFolder = async (folder: LibraryFolder) => {
+      if (backgroundAutoMatchAbortRef.current) return;
 
       setIsAutoMatching((prev) => ({ ...prev, [folder.path]: true }));
 
@@ -271,13 +264,17 @@ function Library() {
         // Silently continue on error
       } finally {
         setIsAutoMatching((prev) => ({ ...prev, [folder.path]: false }));
+        completedCount++;
+        setBackgroundAutoMatchProgress({ current: completedCount, total: foldersToMatch.length });
       }
+    };
 
-      setBackgroundAutoMatchProgress({ current: i + 1, total: foldersToMatch.length });
+    // Process in batches with concurrency limit
+    for (let i = 0; i < foldersToMatch.length; i += CONCURRENCY_LIMIT) {
+      if (backgroundAutoMatchAbortRef.current) break;
 
-      if (i < foldersToMatch.length - 1 && !backgroundAutoMatchAbortRef.current) {
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
+      const batch = foldersToMatch.slice(i, i + CONCURRENCY_LIMIT);
+      await Promise.all(batch.map(processFolder));
     }
 
     setIsBackgroundAutoMatching(false);
