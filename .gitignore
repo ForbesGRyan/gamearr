@@ -45,6 +45,9 @@ gamearr
 gamearr.exe
 build-test/
 
+# Generated files (recreated during build)
+src/server/generated/frontend-vfs.ts
+
 # Claude Code local files
 .claude/*.local.md
 

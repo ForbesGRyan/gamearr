@@ -5,6 +5,8 @@ import { serveStatic } from 'hono/bun';
 import { logger } from './utils/logger';
 import { APP_VERSION } from './utils/version';
 import { AppError, toAppError, formatErrorResponse } from './utils/errors';
+import { createEmbeddedStaticMiddleware } from './middleware/embeddedStatic';
+import { frontendVFS, VFS_FILE_COUNT } from './generated/frontend-vfs';
 
 // Import auth middleware
 import { createAuthMiddleware } from './middleware/auth';
@@ -113,8 +115,15 @@ app.route('/api/v1/updates', updatesRouter);
 app.route('/api/v1/discover', discoverRouter);
 app.route('/api/v1/steam', steamRouter);
 
-// Serve static frontend files (will add in Phase 1)
-app.use('/*', serveStatic({ root: './dist' }));
+// Serve static frontend files
+// Use embedded VFS in production (single binary), fall back to filesystem in development
+if (VFS_FILE_COUNT > 0) {
+  logger.info(`📦 Serving frontend from embedded VFS (${VFS_FILE_COUNT} files)`);
+  app.use('/*', createEmbeddedStaticMiddleware(frontendVFS));
+} else {
+  logger.info('📁 Serving frontend from ./dist (development mode)');
+  app.use('/*', serveStatic({ root: './dist' }));
+}
 
 // 404 handler
 app.notFound((c) => {
