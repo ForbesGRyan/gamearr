@@ -15,6 +15,8 @@ interface MetadataTabProps {
   setSteamApiKey: (key: string) => void;
   steamId: string;
   setSteamId: (id: string) => void;
+  gogRefreshToken: string;
+  setGogRefreshToken: (token: string) => void;
   showSaveMessage: (type: 'success' | 'error', text: string) => void;
 }
 
@@ -27,11 +29,15 @@ export default function MetadataTab({
   setSteamApiKey,
   steamId,
   setSteamId,
+  gogRefreshToken,
+  setGogRefreshToken,
   showSaveMessage,
 }: MetadataTabProps) {
   const [isSavingIgdb, setIsSavingIgdb] = useState(false);
   const [isSavingSteam, setIsSavingSteam] = useState(false);
+  const [isSavingGog, setIsSavingGog] = useState(false);
   const [steamTest, setSteamTest] = useState<ConnectionTestResult>({ status: 'idle' });
+  const [gogTest, setGogTest] = useState<ConnectionTestResult>({ status: 'idle' });
 
   const handleSaveIgdb = useCallback(async () => {
     if (!igdbClientId.trim() || !igdbClientSecret.trim()) {
@@ -79,6 +85,32 @@ export default function MetadataTab({
       }
     } catch {
       setSteamTest({ status: 'error', message: 'Connection test failed' });
+    }
+  }, []);
+
+  const handleSaveGog = useCallback(async () => {
+    setIsSavingGog(true);
+    try {
+      await api.updateSetting('gog_refresh_token', gogRefreshToken);
+      showSaveMessage('success', 'GOG settings saved!');
+    } catch {
+      showSaveMessage('error', 'Failed to save GOG settings');
+    } finally {
+      setIsSavingGog(false);
+    }
+  }, [gogRefreshToken, showSaveMessage]);
+
+  const testGogConnection = useCallback(async () => {
+    setGogTest({ status: 'testing' });
+    try {
+      const response = await api.testGogConnection();
+      if (response.success && response.data) {
+        setGogTest({ status: 'success', message: 'Connected successfully!' });
+      } else {
+        setGogTest({ status: 'error', message: response.error || 'Connection failed' });
+      }
+    } catch {
+      setGogTest({ status: 'error', message: 'Connection test failed' });
     }
   }, []);
 
@@ -215,6 +247,70 @@ export default function MetadataTab({
           {steamTest.status !== 'idle' && steamTest.status !== 'testing' && (
             <div className={`p-3 rounded ${steamTest.status === 'success' ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'}`}>
               {steamTest.message}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* GOG Settings */}
+      <div className="bg-gray-800 rounded-lg p-4 md:p-6">
+        <h3 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 flex items-center gap-2">
+          <svg className="w-5 h-5 md:w-6 md:h-6 text-purple-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+          </svg>
+          GOG Integration
+        </h3>
+        <p className="text-gray-400 mb-4 text-sm md:text-base">
+          Connect your GOG account to import your owned games.
+          Requires a refresh token from the GOG Galaxy client.
+        </p>
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">
+            To get your refresh token, use the{' '}
+            <a
+              href="https://github.com/Mixaill/awesome-gog-galaxy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:underline"
+            >
+              GOG Galaxy integration tools
+            </a>{' '}
+            or extract it from your GOG Galaxy client's local database.
+          </p>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              Refresh Token
+            </label>
+            <input
+              type="password"
+              placeholder="Your GOG Galaxy refresh token"
+              value={gogRefreshToken}
+              onChange={(e) => setGogRefreshToken(e.target.value)}
+              className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              The refresh token is used to authenticate with GOG's API and retrieve your game library
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={handleSaveGog}
+              disabled={isSavingGog}
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
+            >
+              {isSavingGog ? 'Saving...' : 'Save'}
+            </button>
+            <button
+              onClick={testGogConnection}
+              disabled={gogTest.status === 'testing' || !gogRefreshToken}
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
+            >
+              {gogTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
+            </button>
+          </div>
+          {gogTest.status !== 'idle' && gogTest.status !== 'testing' && (
+            <div className={`p-3 rounded ${gogTest.status === 'success' ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'}`}>
+              {gogTest.message}
             </div>
           )}
         </div>

@@ -31,6 +31,7 @@ interface LibraryScanTabProps {
   onStoreChange: (folderPath: string, store: string | undefined) => void;
   onLibraryChange: (folderPath: string, libraryId: number | undefined) => void;
   onOpenSteamImport: () => void;
+  onOpenGogImport: () => void;
 }
 
 export function LibraryScanTab({
@@ -55,6 +56,7 @@ export function LibraryScanTab({
   onStoreChange,
   onLibraryChange,
   onOpenSteamImport,
+  onOpenGogImport,
 }: LibraryScanTabProps) {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -201,20 +203,42 @@ export function LibraryScanTab({
     <>
       {/* Import Sources */}
       <div className="bg-gray-800 rounded-lg p-4 mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-medium">Import from Steam</h3>
-            <p className="text-sm text-gray-400">Import games from your Steam library</p>
+        <h3 className="font-medium mb-4">Import from Store</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Steam */}
+          <div className="flex items-center justify-between bg-gray-700/50 rounded-lg p-3">
+            <div>
+              <h4 className="font-medium">Steam</h4>
+              <p className="text-sm text-gray-400">Import from your Steam library</p>
+            </div>
+            <button
+              onClick={onOpenSteamImport}
+              className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded transition flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10c-4.6 0-8.45-3.08-9.64-7.27l3.83 1.58a2.84 2.84 0 0 0 2.78 2.27c1.56 0 2.83-1.27 2.83-2.83v-.13l3.4-2.43h.08c2.08 0 3.77-1.69 3.77-3.77s-1.69-3.77-3.77-3.77-3.77 1.69-3.77 3.77v.05l-2.37 3.46-.16-.01c-.55 0-1.07.16-1.5.44l-5.23-2.16C2.31 6.67 6.63 2 12 2m6.19 8.25c0-1.31-1.07-2.38-2.38-2.38s-2.38 1.07-2.38 2.38 1.07 2.38 2.38 2.38 2.38-1.07 2.38-2.38m-12.7 5.85c0 1.1.9 1.99 1.99 1.99.89 0 1.64-.58 1.9-1.38l-1.73-.71c-.41.13-.86.06-1.21-.21a1.35 1.35 0 0 1-.25-1.9l-1.33-.55c-.49.47-.77 1.11-.77 1.8l.4-.04z"/>
+              </svg>
+              Import
+            </button>
           </div>
-          <button
-            onClick={onOpenSteamImport}
-            className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded transition flex items-center gap-2"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10c-4.6 0-8.45-3.08-9.64-7.27l3.83 1.58a2.84 2.84 0 0 0 2.78 2.27c1.56 0 2.83-1.27 2.83-2.83v-.13l3.4-2.43h.08c2.08 0 3.77-1.69 3.77-3.77s-1.69-3.77-3.77-3.77-3.77 1.69-3.77 3.77v.05l-2.37 3.46-.16-.01c-.55 0-1.07.16-1.5.44l-5.23-2.16C2.31 6.67 6.63 2 12 2m6.19 8.25c0-1.31-1.07-2.38-2.38-2.38s-2.38 1.07-2.38 2.38 1.07 2.38 2.38 2.38 2.38-1.07 2.38-2.38m-12.7 5.85c0 1.1.9 1.99 1.99 1.99.89 0 1.64-.58 1.9-1.38l-1.73-.71c-.41.13-.86.06-1.21-.21a1.35 1.35 0 0 1-.25-1.9l-1.33-.55c-.49.47-.77 1.11-.77 1.8l.4-.04z"/>
-            </svg>
-            Import from Steam
-          </button>
+
+          {/* GOG */}
+          <div className="flex items-center justify-between bg-gray-700/50 rounded-lg p-3">
+            <div>
+              <h4 className="font-medium">GOG</h4>
+              <p className="text-sm text-gray-400">Import from your GOG library</p>
+            </div>
+            <button
+              onClick={onOpenGogImport}
+              className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded transition flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+                <text x="12" y="16" textAnchor="middle" fontSize="10" fontWeight="bold" fill="currentColor">G</text>
+              </svg>
+              Import
+            </button>
+          </div>
         </div>
       </div>
 

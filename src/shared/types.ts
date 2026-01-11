@@ -100,3 +100,43 @@ export type SteamImportSSEEvent =
   | SteamImportProgressEvent
   | SteamImportCompleteEvent
   | SteamImportErrorEvent;
+
+// GOG Import SSE Event Types
+// Used by both server (src/server/routes/gog.ts) and client (src/web/src/api/client.ts)
+
+/**
+ * Progress event sent during GOG import
+ */
+export interface GogImportProgressEvent {
+  type: 'progress';
+  current: number;
+  total: number;
+  game: string;
+  status: 'searching' | 'imported' | 'skipped' | 'error';
+}
+
+/**
+ * Completion event sent when GOG import finishes
+ */
+export interface GogImportCompleteEvent {
+  type: 'complete';
+  imported: number;
+  skipped: number;
+  errors?: string[];
+}
+
+/**
+ * Error event sent when GOG import encounters a fatal error
+ */
+export interface GogImportErrorEvent {
+  type: 'error';
+  message: string;
+}
+
+/**
+ * Union of all GOG import SSE event types
+ */
+export type GogImportSSEEvent =
+  | GogImportProgressEvent
+  | GogImportCompleteEvent
+  | GogImportErrorEvent;

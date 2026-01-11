@@ -96,6 +96,9 @@ function Settings() {
   const [steamApiKey, setSteamApiKey] = useState('');
   const [steamId, setSteamId] = useState('');
 
+  // GOG settings
+  const [gogRefreshToken, setGogRefreshToken] = useState('');
+
   // Global save message
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -133,6 +136,7 @@ function Settings() {
         defaultPolicyRes,
         steamApiKeyRes,
         steamIdRes,
+        gogRefreshTokenRes,
         rssSyncIntervalRes,
         searchIntervalRes,
         minScoreRes,
@@ -151,6 +155,7 @@ function Settings() {
         api.getSetting('default_update_policy'),
         api.getSetting('steam_api_key'),
         api.getSetting('steam_id'),
+        api.getSetting('gog_refresh_token'),
         api.getSetting('rss_sync_interval'),
         api.getSetting('search_scheduler_interval'),
         api.getSetting('auto_grab_min_score'),
@@ -170,6 +175,7 @@ function Settings() {
       if (defaultPolicyRes.success && defaultPolicyRes.data) setDefaultUpdatePolicy(defaultPolicyRes.data as 'notify' | 'auto' | 'ignore');
       if (steamApiKeyRes.success && steamApiKeyRes.data) setSteamApiKey(steamApiKeyRes.data as string);
       if (steamIdRes.success && steamIdRes.data) setSteamId(steamIdRes.data as string);
+      if (gogRefreshTokenRes.success && gogRefreshTokenRes.data) setGogRefreshToken(gogRefreshTokenRes.data as string);
       if (rssSyncIntervalRes.success && rssSyncIntervalRes.data !== undefined) setRssSyncInterval(rssSyncIntervalRes.data as number);
       if (searchIntervalRes.success && searchIntervalRes.data !== undefined) setSearchSchedulerInterval(searchIntervalRes.data as number);
       if (minScoreRes.success && minScoreRes.data !== undefined) setAutoGrabMinScore(minScoreRes.data as number);
@@ -385,6 +391,8 @@ function Settings() {
               setSteamApiKey={setSteamApiKey}
               steamId={steamId}
               setSteamId={setSteamId}
+              gogRefreshToken={gogRefreshToken}
+              setGogRefreshToken={setGogRefreshToken}
               showSaveMessage={showSaveMessage}
             />
           )}

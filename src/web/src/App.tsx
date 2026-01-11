@@ -1,5 +1,12 @@
 import { useEffect, useState, Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
+import {
+  createBrowserRouter,
+  RouterProvider,
+  NavLink,
+  Navigate,
+  useLocation,
+  Outlet,
+} from 'react-router-dom';
 import { GamepadIcon } from './components/Icons';
 import { NavDropdown } from './components/NavDropdown';
 import { MobileNav } from './components/MobileNav';
@@ -120,7 +127,7 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
 }
 
 // Main layout with header and navigation
-function MainLayout({ children }: { children: React.ReactNode }) {
+function MainLayout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
@@ -193,11 +200,70 @@ function MainLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6 md:py-8" role="main">
-        {children}
+        <Suspense fallback={<PageLoader />}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );
 }
+
+// Root layout that wraps everything with SetupGuard
+function RootLayout() {
+  return (
+    <SetupGuard>
+      <Outlet />
+    </SetupGuard>
+  );
+}
+
+// Create the router with data router API for View Transitions support
+const router = createBrowserRouter([
+  {
+    element: <RootLayout />,
+    children: [
+      // Setup page - no header/nav
+      {
+        path: '/setup',
+        element: <Setup />,
+      },
+      // Main app routes - with header/nav
+      {
+        element: <MainLayout />,
+        children: [
+          {
+            path: '/',
+            element: <Library />,
+          },
+          {
+            path: '/game/:platform/:slug',
+            element: <GameDetail />,
+          },
+          {
+            path: '/discover',
+            element: <Discover />,
+          },
+          {
+            path: '/search',
+            element: <Search />,
+          },
+          {
+            path: '/activity',
+            element: <Activity />,
+          },
+          {
+            path: '/updates',
+            element: <Updates />,
+          },
+          {
+            path: '/settings',
+            element: <Settings />,
+          },
+        ],
+      },
+    ],
+  },
+]);
 
 function App() {
   // Start background preloading of Discover page data
@@ -205,27 +271,7 @@ function App() {
     startBackgroundPreload();
   }, []);
 
-  return (
-    <Router>
-      <SetupGuard>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            {/* Setup page - no header/nav */}
-            <Route path="/setup" element={<Setup />} />
-
-            {/* Main app routes - with header/nav */}
-            <Route path="/" element={<MainLayout><Library /></MainLayout>} />
-            <Route path="/game/:platform/:slug" element={<MainLayout><GameDetail /></MainLayout>} />
-            <Route path="/discover" element={<MainLayout><Discover /></MainLayout>} />
-            <Route path="/search" element={<MainLayout><Search /></MainLayout>} />
-            <Route path="/activity" element={<MainLayout><Activity /></MainLayout>} />
-            <Route path="/updates" element={<MainLayout><Updates /></MainLayout>} />
-            <Route path="/settings" element={<MainLayout><Settings /></MainLayout>} />
-          </Routes>
-        </Suspense>
-      </SetupGuard>
-    </Router>
-  );
+  return <RouterProvider router={router} />;
 }
 
 export default App;

@@ -29,7 +29,7 @@ docker run -d \
   -v /path/to/library:/library \
   -v /path/to/downloads:/downloads \
   --restart unless-stopped \
-  ghcr.io/yourusername/gamearr:latest
+  ghcr.io/forbesgryan/gamearr:latest
 ```
 
 Or with docker-compose:
@@ -38,7 +38,7 @@ Or with docker-compose:
 version: "3"
 services:
   gamearr:
-    image: ghcr.io/yourusername/gamearr:latest
+    image: ghcr.io/forbesgryan/gamearr:latest
     container_name: gamearr
     ports:
       - 7878:7878
@@ -53,7 +53,7 @@ services:
 
 ### Pre-built Binary
 
-Download the latest release from the [Releases](https://github.com/yourusername/gamearr/releases) page.
+Download the latest release from the [Releases](https://github.com/ForbesGRyan/gamearr/releases) page.
 
 The binary is fully self-contained - it embeds the web UI and requires no additional files to run.
 
@@ -79,7 +79,7 @@ Requires [Bun](https://bun.sh) 1.0+.
 
 ```bash
 # Clone and install
-git clone https://github.com/yourusername/gamearr.git
+git clone https://github.com/ForbesGRyan/gamearr.git
 cd gamearr
 bun install
 cd src/web && bun install && cd ../..

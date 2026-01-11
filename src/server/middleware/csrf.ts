@@ -19,6 +19,7 @@ const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
 const EXEMPT_PATHS = new Set([
   '/api/v1/auth/status',
   '/api/v1/system/setup-status',
+  '/api/v1/system/skip-setup',
 ]);
 
 /**

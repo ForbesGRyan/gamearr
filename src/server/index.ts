@@ -33,6 +33,7 @@ import librariesRouter from './routes/libraries';
 import updatesRouter from './routes/updates';
 import discoverRouter from './routes/discover';
 import steamRouter from './routes/steam';
+import gogRouter from './routes/gog';
 import authRouter from './routes/auth';
 
 // Initialize database
@@ -114,6 +115,7 @@ app.route('/api/v1/libraries', librariesRouter);
 app.route('/api/v1/updates', updatesRouter);
 app.route('/api/v1/discover', discoverRouter);
 app.route('/api/v1/steam', steamRouter);
+app.route('/api/v1/gog', gogRouter);
 
 // Serve static frontend files
 // Use embedded VFS in production (single binary), fall back to filesystem in development

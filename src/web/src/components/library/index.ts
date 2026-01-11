@@ -3,6 +3,7 @@ export { LibraryFilterBar } from './LibraryFilterBar';
 export { LibraryPagination } from './LibraryPagination';
 export { BulkActionToolbar } from './BulkActionToolbar';
 export { SteamImportModal } from './SteamImportModal';
+export { GogImportModal } from './GogImportModal';
 export { LibraryHealthTab } from './LibraryHealthTab';
 export { LibraryScanTab } from './LibraryScanTab';
 
@@ -37,5 +38,7 @@ export type {
   Filters,
   SteamGame,
   SteamImportProgress,
+  GogGame,
+  GogImportProgress,
   LibraryInfo,
 } from './types';

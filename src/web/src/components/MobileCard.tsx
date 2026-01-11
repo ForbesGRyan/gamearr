@@ -39,12 +39,19 @@ export function MobileCard({
   actions,
   onClick,
 }: MobileCardProps) {
-  const Wrapper = onClick ? 'button' : 'div';
-  const wrapperProps = onClick ? { onClick, type: 'button' as const } : {};
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      onClick();
+    }
+  };
 
   return (
-    <Wrapper
-      {...wrapperProps}
+    <div
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
       className={`bg-gray-800 rounded-lg overflow-hidden w-full text-left ${
         onClick ? 'hover:bg-gray-750 active:bg-gray-700 transition cursor-pointer' : ''
       }`}
@@ -111,7 +118,7 @@ export function MobileCard({
           </div>
         )}
       </div>
-    </Wrapper>
+    </div>
   );
 }
 

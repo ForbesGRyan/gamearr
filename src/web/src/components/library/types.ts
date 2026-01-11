@@ -114,6 +114,20 @@ export interface SteamImportProgress {
   currentGame: string;
 }
 
+export interface GogGame {
+  id: number;
+  title: string;
+  imageUrl: string;
+  slug: string;
+  alreadyInLibrary: boolean;
+}
+
+export interface GogImportProgress {
+  current: number;
+  total: number;
+  currentGame: string;
+}
+
 export interface LibraryInfo {
   id: number;
   name: string;

@@ -4,7 +4,7 @@ import AddGameModal from '../components/AddGameModal';
 import SearchReleasesModal from '../components/SearchReleasesModal';
 import MatchFolderModal from '../components/MatchFolderModal';
 import ConfirmModal from '../components/ConfirmModal';
-import { api, SteamGame } from '../api/client';
+import { api, SteamGame, GogGame } from '../api/client';
 import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
 
 // Import library-specific components and hooks
@@ -21,6 +21,7 @@ import {
   LibraryTabs,
   LibraryGamesFilter,
   SteamImportModal,
+  GogImportModal,
   BulkActionToolbar,
   LibraryToasts,
   useLibraryGames,
@@ -134,6 +135,10 @@ function Library() {
   const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
   const [isHealthLoading, setIsHealthLoading] = useState(false);
   const [isHealthLoaded, setIsHealthLoaded] = useState(false);
+
+  // Tab counts (loaded on mount for badges)
+  const [scanCount, setScanCount] = useState<number | null>(null);
+  const [healthCount, setHealthCount] = useState<number | null>(null);
   const [organizingFile, setOrganizingFile] = useState<string | null>(null);
   const [organizeError, setOrganizeError] = useState<string | null>(null);
   const [dismissedDuplicates, setDismissedDuplicates] = useState<Set<string>>(() => {
@@ -152,6 +157,17 @@ function Library() {
   const [steamSearchQuery, setSteamSearchQuery] = useState('');
   const [steamMinPlaytime, setSteamMinPlaytime] = useState<number>(0);
   const [steamShowOwned, setSteamShowOwned] = useState(true);
+
+  // GOG import state
+  const [isGogModalOpen, setIsGogModalOpen] = useState(false);
+  const [gogGames, setGogGames] = useState<GogGame[]>([]);
+  const [isLoadingGog, setIsLoadingGog] = useState(false);
+  const [gogError, setGogError] = useState<string | null>(null);
+  const [selectedGogGames, setSelectedGogGames] = useState<Set<number>>(new Set());
+  const [isImportingGog, setIsImportingGog] = useState(false);
+  const [gogImportProgress, setGogImportProgress] = useState({ current: 0, total: 0, currentGame: '' });
+  const [gogSearchQuery, setGogSearchQuery] = useState('');
+  const [gogShowOwned, setGogShowOwned] = useState(true);
 
   // Computed values
   const visibleDuplicates = useMemo(() => {
@@ -173,6 +189,17 @@ function Library() {
       return true;
     });
   }, [steamGames, steamSearchQuery, steamMinPlaytime, steamShowOwned]);
+
+  const filteredGogGames = useMemo(() => {
+    return gogGames.filter((game) => {
+      if (gogSearchQuery.trim()) {
+        const query = gogSearchQuery.toLowerCase();
+        if (!game.title.toLowerCase().includes(query)) return false;
+      }
+      if (!gogShowOwned && game.alreadyInLibrary) return false;
+      return true;
+    });
+  }, [gogGames, gogSearchQuery, gogShowOwned]);
 
   // Data loading
   const loadScanData = useCallback(async () => {
@@ -210,7 +237,24 @@ function Library() {
     }
   }, []);
 
-  // Effects - lazy load tabs only when first visited
+  // Load tab counts on mount (lightweight)
+  useEffect(() => {
+    const loadCounts = async () => {
+      const [scanRes, healthRes] = await Promise.all([
+        api.getLibraryScanCount(),
+        api.getLibraryHealthCount(),
+      ]);
+      if (scanRes.success && scanRes.data) {
+        setScanCount(scanRes.data.count);
+      }
+      if (healthRes.success && healthRes.data) {
+        setHealthCount(healthRes.data.count);
+      }
+    };
+    loadCounts();
+  }, []);
+
+  // Load full data only when tab is visited
   useEffect(() => {
     if (activeTab === 'scan' && !isScanLoaded) {
       loadScanData();
@@ -563,6 +607,90 @@ function Library() {
     }
   }, [selectedSteamGames, loadGames]);
 
+  // GOG import handlers
+  const handleOpenGogImport = useCallback(async () => {
+    setIsGogModalOpen(true);
+    setIsLoadingGog(true);
+    setGogError(null);
+    setSelectedGogGames(new Set());
+    try {
+      const response = await api.getGogOwnedGames();
+      if (response.success && response.data) {
+        setGogGames(response.data);
+      } else {
+        setGogError(response.error || 'Failed to load GOG games');
+      }
+    } catch {
+      setGogError('Failed to connect to GOG');
+    } finally {
+      setIsLoadingGog(false);
+    }
+  }, []);
+
+  const handleToggleGogGame = useCallback((id: number) => {
+    setSelectedGogGames((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectAllGogGames = useCallback(() => {
+    const importableGames = filteredGogGames.filter((g) => !g.alreadyInLibrary);
+    setSelectedGogGames(new Set(importableGames.map((g) => g.id)));
+  }, [filteredGogGames]);
+
+  const handleImportGogGames = useCallback(async () => {
+    if (selectedGogGames.size === 0) return;
+    setIsImportingGog(true);
+    const gameIds = Array.from(selectedGogGames);
+    const total = gameIds.length;
+    setGogImportProgress({ current: 0, total, currentGame: 'Starting import...' });
+
+    try {
+      await api.importGogGamesStream(
+        gameIds,
+        (data) => {
+          const statusText = data.status === 'searching' ? 'Searching...' :
+            data.status === 'imported' ? 'Imported' :
+            data.status === 'skipped' ? 'Skipped' : 'Error';
+          setGogImportProgress({
+            current: data.current,
+            total: data.total,
+            currentGame: `${data.game} (${statusText})`,
+          });
+        },
+        async (result) => {
+          setGogGames(prev => prev.map(g =>
+            gameIds.includes(g.id) ? { ...g, alreadyInLibrary: true } : g
+          ));
+          setSelectedGogGames(new Set());
+          await loadGames();
+          const summary = `Imported ${result.imported}, skipped ${result.skipped}.`;
+          const errorList = result.errors?.length ? `\n${result.errors.join('\n')}` : '';
+          if (result.imported > 0 || result.skipped > 0 || result.errors?.length) {
+            setGogError(summary + errorList);
+          }
+          setIsImportingGog(false);
+          setGogImportProgress({ current: 0, total: 0, currentGame: '' });
+        },
+        (message) => {
+          setGogError(message);
+          setIsImportingGog(false);
+          setGogImportProgress({ current: 0, total: 0, currentGame: '' });
+        }
+      );
+    } catch {
+      setGogError('Failed to import games');
+      setIsImportingGog(false);
+      setGogImportProgress({ current: 0, total: 0, currentGame: '' });
+    }
+  }, [selectedGogGames, loadGames]);
+
   return (
     <div>
       <LibraryHeader
@@ -583,8 +711,8 @@ function Library() {
       <LibraryTabs
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        libraryFoldersCount={libraryFolders.length}
-        healthIssuesCount={visibleDuplicates.length + looseFiles.length}
+        libraryFoldersCount={isScanLoaded ? libraryFolders.filter(f => !f.matched).length : scanCount}
+        healthIssuesCount={isHealthLoaded ? visibleDuplicates.length + looseFiles.length : healthCount}
       />
 
       {/* Bulk Action Toolbar */}
@@ -731,6 +859,7 @@ function Library() {
             setSelectedLibraryForMatch((prev) => ({ ...prev, [folderPath]: libraryId }))
           }
           onOpenSteamImport={handleOpenSteamImport}
+          onOpenGogImport={handleOpenGogImport}
         />
       )}
 
@@ -822,6 +951,28 @@ function Library() {
         onMinPlaytimeChange={setSteamMinPlaytime}
         showOwned={steamShowOwned}
         onShowOwnedChange={setSteamShowOwned}
+      />
+
+      {/* GOG Import Modal */}
+      <GogImportModal
+        isOpen={isGogModalOpen}
+        onClose={() => setIsGogModalOpen(false)}
+        isLoading={isLoadingGog}
+        error={gogError}
+        onErrorDismiss={() => setGogError(null)}
+        games={gogGames}
+        filteredGames={filteredGogGames}
+        selectedGames={selectedGogGames}
+        onToggleGame={handleToggleGogGame}
+        onSelectAll={handleSelectAllGogGames}
+        onClearSelection={() => setSelectedGogGames(new Set())}
+        onImport={handleImportGogGames}
+        isImporting={isImportingGog}
+        importProgress={gogImportProgress}
+        searchQuery={gogSearchQuery}
+        onSearchChange={setGogSearchQuery}
+        showOwned={gogShowOwned}
+        onShowOwnedChange={setGogShowOwned}
       />
     </div>
   );

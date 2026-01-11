@@ -32,6 +32,11 @@ export enum ErrorCode {
   STEAM_AUTH_FAILED = 3301,
   STEAM_NOT_CONFIGURED = 3302,
 
+  GOG_ERROR = 3400,
+  GOG_AUTH_FAILED = 3401,
+  GOG_NOT_CONFIGURED = 3402,
+  GOG_TOKEN_EXPIRED = 3403,
+
   // Database errors (4xxx)
   DATABASE_ERROR = 4000,
   DUPLICATE_ENTRY = 4001,
@@ -160,6 +165,15 @@ export class QBittorrentError extends IntegrationError {
 export class SteamError extends IntegrationError {
   constructor(message: string, code: ErrorCode = ErrorCode.STEAM_ERROR) {
     super('Steam', message, code);
+  }
+}
+
+/**
+ * GOG integration errors
+ */
+export class GogError extends IntegrationError {
+  constructor(message: string, code: ErrorCode = ErrorCode.GOG_ERROR) {
+    super('GOG', message, code);
   }
 }
 

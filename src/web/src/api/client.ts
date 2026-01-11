@@ -1,6 +1,8 @@
 import type {
   SteamImportProgressEvent,
   SteamImportCompleteEvent,
+  GogImportProgressEvent,
+  GogImportCompleteEvent,
 } from '../../../shared/types';
 
 const API_BASE = '/api/v1';
@@ -297,6 +299,14 @@ export interface SteamGame {
   name: string;
   playtimeMinutes: number;
   headerImageUrl: string;
+  alreadyInLibrary: boolean;
+}
+
+export interface GogGame {
+  id: number;
+  title: string;
+  imageUrl: string;
+  slug: string;
   alreadyInLibrary: boolean;
 }
 
@@ -676,7 +686,108 @@ class ApiClient {
     }
   }
 
+  // GOG Integration
+  async testGogConnection(): Promise<ApiResponse<boolean>> {
+    return this.request<boolean>('/gog/test');
+  }
+
+  async getGogOwnedGames(): Promise<ApiResponse<GogGame[]>> {
+    return this.request<GogGame[]>('/gog/owned-games');
+  }
+
+  async importGogGames(gameIds: number[]): Promise<ApiResponse<{ imported: number; skipped: number }>> {
+    return this.request<{ imported: number; skipped: number }>('/gog/import', {
+      method: 'POST',
+      body: JSON.stringify({ gameIds }),
+    });
+  }
+
+  /**
+   * Import GOG games with SSE progress streaming
+   * @param gameIds - Array of GOG game IDs to import
+   * @param onProgress - Callback for progress updates (current game being processed)
+   * @param onComplete - Callback when import completes
+   * @param onError - Callback for errors
+   */
+  async importGogGamesStream(
+    gameIds: number[],
+    onProgress: (data: Omit<GogImportProgressEvent, 'type'>) => void,
+    onComplete: (data: Omit<GogImportCompleteEvent, 'type'>) => void,
+    onError: (message: string) => void
+  ): Promise<void> {
+    try {
+      const authToken = getAuthToken();
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      const response = await fetch(`${API_BASE}/gog/import-stream`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ gameIds }),
+      });
+
+      if (response.status === 401) {
+        handleUnauthorized();
+        onError('Unauthorized - please log in again');
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json();
+        onError(data.error || 'Import failed');
+        return;
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        onError('No response stream');
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'progress') {
+                onProgress(data);
+              } else if (data.type === 'complete') {
+                onComplete(data);
+              } else if (data.type === 'error') {
+                onError(data.message);
+              }
+            } catch (e) {
+              // Ignore parse errors
+            }
+          }
+        }
+      }
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
   // Library
+  async getLibraryScanCount(): Promise<ApiResponse<{ count: number }>> {
+    return this.request<{ count: number }>('/library/scan/count');
+  }
+
+  async getLibraryHealthCount(): Promise<ApiResponse<{ count: number; duplicatesCount: number; looseFilesCount: number }>> {
+    return this.request<{ count: number; duplicatesCount: number; looseFilesCount: number }>('/library/health/count');
+  }
+
   async scanLibrary(): Promise<ApiResponse<LibraryFolder[]>> {
     return this.request<LibraryFolder[]>('/library/scan', {
       method: 'POST',

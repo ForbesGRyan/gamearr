@@ -22,6 +22,7 @@ const ALLOWED_SETTINGS = new Set([
   'igdb_client_secret',
   'steam_api_key',
   'steam_id',
+  'gog_refresh_token',
   // Library settings
   'library_path',
   // Automation settings

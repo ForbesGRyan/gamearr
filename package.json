@@ -20,7 +20,8 @@
     "test:watch": "bun test --watch",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "screenshots": "playwright test e2e/screenshots.spec.ts --headed"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.2.0",

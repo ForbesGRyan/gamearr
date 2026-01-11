@@ -58,20 +58,26 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
     <div className={`bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition group ${downloadingClass} ${selectedClass}`}>
       {/* Cover Image */}
       <div className="relative aspect-[2/3] bg-gray-700">
-        {game.coverUrl ? (
-          <img
-            src={game.coverUrl}
-            alt={game.title}
-            className="w-full h-full object-cover"
-            loading={priority ? 'eager' : 'lazy'}
-            decoding="async"
-            fetchPriority={priority ? 'high' : 'auto'}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-500 text-4xl">
-            <GamepadIcon className="w-12 h-12" />
-          </div>
-        )}
+        <button
+          onClick={handleNavigateToDetail}
+          className="w-full h-full cursor-pointer"
+          aria-label={`View ${game.title}`}
+        >
+          {game.coverUrl ? (
+            <img
+              src={game.coverUrl}
+              alt={game.title}
+              className="w-full h-full object-cover"
+              loading={priority ? 'eager' : 'lazy'}
+              decoding="async"
+              fetchPriority={priority ? 'high' : 'auto'}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-500 text-4xl">
+              <GamepadIcon className="w-12 h-12" />
+            </div>
+          )}
+        </button>
 
         {/* Selection Checkbox - z-20 to stay above hover overlay */}
         {onToggleSelect && (
@@ -158,7 +164,12 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
       {/* Game Info */}
       <div className="p-3">
         <h3 className="font-semibold text-sm truncate" title={game.title}>
-          {game.title}
+          <button
+            onClick={handleNavigateToDetail}
+            className="hover:text-blue-400 transition text-left w-full truncate"
+          >
+            {game.title}
+          </button>
         </h3>
         <div className="flex items-center justify-between mt-1 text-xs text-gray-400">
           <span>{game.year || 'Unknown'}</span>

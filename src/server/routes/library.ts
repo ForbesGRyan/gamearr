@@ -70,6 +70,22 @@ const organizeFileSchema = z.object({
 
 const library = new Hono();
 
+// GET /api/v1/library/scan/count - Get library scan count only (lightweight)
+library.get('/scan/count', async (c) => {
+  try {
+    const folders = await fileService.scanLibrary();
+    const unmatchedCount = folders.filter((f) => !f.matched).length;
+
+    return c.json({
+      success: true,
+      data: { count: unmatchedCount },
+    });
+  } catch (error) {
+    logger.error('Library scan count failed:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
 // GET /api/v1/library/scan - Get cached library scan
 library.get('/scan', async (c) => {
   logger.info('GET /api/v1/library/scan');
@@ -381,6 +397,28 @@ library.get('/ignored', async (c) => {
 // ========================================
 // Library Health Endpoints
 // ========================================
+
+// GET /api/v1/library/health/count - Get health issues count only (lightweight)
+library.get('/health/count', async (c) => {
+  try {
+    const [duplicates, looseFiles] = await Promise.all([
+      fileService.findDuplicateGames(),
+      fileService.findLooseFiles(),
+    ]);
+
+    return c.json({
+      success: true,
+      data: {
+        count: duplicates.length + looseFiles.length,
+        duplicatesCount: duplicates.length,
+        looseFilesCount: looseFiles.length,
+      },
+    });
+  } catch (error) {
+    logger.error('Health count failed:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
 
 // GET /api/v1/library/health/duplicates - Get potential duplicate games
 library.get('/health/duplicates', async (c) => {
