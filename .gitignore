@@ -45,6 +45,10 @@ gamearr
 gamearr.exe
 build-test/
 
+# Playwright
+playwright-report/
+test-results/
+
 # Generated files (recreated during build)
 src/server/generated/frontend-vfs.ts
 
