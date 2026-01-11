@@ -797,6 +797,59 @@ export class DownloadService {
   }
 
   /**
+   * Remove orphaned torrents - torrents with game-{id} tags where the game no longer exists
+   * @param deleteFiles - Whether to delete downloaded files (default: false)
+   * @returns Object with removed count and details
+   */
+  async removeOrphanedTorrents(deleteFiles: boolean = false): Promise<{ removed: number; orphans: Array<{ hash: string; name: string; gameId: number }> }> {
+    if (!qbittorrentClient.isConfigured()) {
+      logger.debug('qBittorrent not configured, skipping orphan cleanup');
+      return { removed: 0, orphans: [] };
+    }
+
+    try {
+      const torrents = await qbittorrentClient.getTorrents();
+
+      // Find all torrents with game tags
+      const torrentsWithGameTags: Array<{ hash: string; name: string; gameId: number }> = [];
+      for (const torrent of torrents) {
+        const gameId = this.parseGameIdFromTags(torrent.tags);
+        if (gameId !== null) {
+          torrentsWithGameTags.push({ hash: torrent.hash, name: torrent.name, gameId });
+        }
+      }
+
+      if (torrentsWithGameTags.length === 0) {
+        logger.debug('No torrents with game tags found');
+        return { removed: 0, orphans: [] };
+      }
+
+      // Check which game IDs still exist
+      const gameIds = [...new Set(torrentsWithGameTags.map(t => t.gameId))];
+      const existingGames = await gameRepository.findByIds(gameIds);
+      const existingGameIds = new Set(existingGames.keys());
+
+      // Find orphaned torrents (game ID no longer exists)
+      const orphanedTorrents = torrentsWithGameTags.filter(t => !existingGameIds.has(t.gameId));
+
+      if (orphanedTorrents.length === 0) {
+        logger.debug('No orphaned torrents found');
+        return { removed: 0, orphans: [] };
+      }
+
+      // Delete the orphaned torrents
+      const hashes = orphanedTorrents.map(t => t.hash);
+      logger.info(`Removing ${orphanedTorrents.length} orphaned torrent(s): ${orphanedTorrents.map(t => `${t.name} (game-${t.gameId})`).join(', ')}`);
+      await qbittorrentClient.deleteTorrents(hashes, deleteFiles);
+
+      return { removed: orphanedTorrents.length, orphans: orphanedTorrents };
+    } catch (error) {
+      logger.error('Failed to remove orphaned torrents:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Remove qBittorrent torrents associated with the given game IDs
    * This should be called before deleting games to clean up their downloads
    * @param gameIds - Array of game IDs to remove torrents for

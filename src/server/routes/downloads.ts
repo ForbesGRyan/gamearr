@@ -48,6 +48,30 @@ downloads.get('/test', async (c) => {
   }
 });
 
+// DELETE /api/v1/downloads/orphaned - Remove orphaned torrents (game tags where game no longer exists)
+// NOTE: Must be defined BEFORE /:hash route to avoid "orphaned" being treated as a hash
+downloads.delete('/orphaned', async (c) => {
+  const deleteFiles = c.req.query('deleteFiles') === 'true';
+  logger.info(`DELETE /api/v1/downloads/orphaned (deleteFiles: ${deleteFiles})`);
+
+  try {
+    const result = await downloadService.removeOrphanedTorrents(deleteFiles);
+    return c.json({
+      success: true,
+      data: {
+        removed: result.removed,
+        orphans: result.orphans,
+      },
+      message: result.removed > 0
+        ? `Removed ${result.removed} orphaned torrent(s)`
+        : 'No orphaned torrents found',
+    });
+  } catch (error) {
+    logger.error('Failed to remove orphaned torrents:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
 // GET /api/v1/downloads/:hash - Get download by hash
 downloads.get('/:hash', async (c) => {
   const hash = c.req.param('hash');
