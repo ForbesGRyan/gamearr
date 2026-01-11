@@ -190,6 +190,19 @@ export class ReleaseRepository {
 
     return results[0];
   }
+
+  /**
+   * Get releases for multiple games by their IDs
+   */
+  async findByGameIds(gameIds: number[]): Promise<Release[]> {
+    if (gameIds.length === 0) return [];
+
+    return db
+      .select(releaseFields)
+      .from(releases)
+      .where(inArray(releases.gameId, gameIds))
+      .orderBy(desc(releases.grabbedAt));
+  }
 }
 
 // Singleton instance

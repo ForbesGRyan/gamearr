@@ -795,6 +795,74 @@ export class DownloadService {
   async testConnection(): Promise<boolean> {
     return qbittorrentClient.testConnection();
   }
+
+  /**
+   * Remove qBittorrent torrents associated with the given game IDs
+   * This should be called before deleting games to clean up their downloads
+   * @param gameIds - Array of game IDs to remove torrents for
+   * @param deleteFiles - Whether to delete downloaded files (default: false)
+   * @returns Number of torrents removed
+   */
+  async removeTorrentsByGameIds(gameIds: number[], deleteFiles: boolean = false): Promise<number> {
+    if (gameIds.length === 0) return 0;
+
+    // Skip if qBittorrent is not configured
+    if (!qbittorrentClient.isConfigured()) {
+      logger.debug('qBittorrent not configured, skipping torrent cleanup');
+      return 0;
+    }
+
+    try {
+      // Get all releases for these games
+      const releases = await releaseRepository.findByGameIds(gameIds);
+      if (releases.length === 0) {
+        logger.debug(`No releases found for games: ${gameIds.join(', ')}`);
+        return 0;
+      }
+
+      // Collect torrent hashes to delete
+      const hashesToDelete: string[] = [];
+
+      // First, collect hashes from releases that have them stored
+      for (const release of releases) {
+        if (release.torrentHash) {
+          hashesToDelete.push(release.torrentHash);
+        }
+      }
+
+      // Also try to find torrents by game tag (in case hash wasn't stored)
+      try {
+        const torrents = await qbittorrentClient.getTorrents();
+        for (const torrent of torrents) {
+          const tagGameId = this.parseGameIdFromTags(torrent.tags);
+          if (tagGameId !== null && gameIds.includes(tagGameId)) {
+            // Check if we already have this hash
+            if (!hashesToDelete.includes(torrent.hash)) {
+              hashesToDelete.push(torrent.hash);
+            }
+          }
+        }
+      } catch (error) {
+        logger.warn('Failed to search for torrents by tag:', error);
+        // Continue with hashes we already have
+      }
+
+      if (hashesToDelete.length === 0) {
+        logger.debug(`No torrents to delete for games: ${gameIds.join(', ')}`);
+        return 0;
+      }
+
+      // Delete the torrents
+      logger.info(`Removing ${hashesToDelete.length} torrent(s) for games: ${gameIds.join(', ')}`);
+      await qbittorrentClient.deleteTorrents(hashesToDelete, deleteFiles);
+
+      return hashesToDelete.length;
+    } catch (error) {
+      logger.error('Failed to remove torrents by game IDs:', error);
+      // Don't throw - this is cleanup that shouldn't block game deletion
+      return 0;
+    }
+  }
 }
 
 // Singleton instance
