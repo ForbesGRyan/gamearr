@@ -55,6 +55,8 @@ services:
 
 Download the latest release from the [Releases](https://github.com/yourusername/gamearr/releases) page.
 
+The binary is fully self-contained - it embeds the web UI and requires no additional files to run.
+
 ```bash
 # Linux/macOS
 chmod +x gamearr
@@ -64,7 +66,7 @@ chmod +x gamearr
 gamearr.exe
 ```
 
-The server starts on port `7878` by default.
+The server starts on port `7878` by default. Open http://localhost:7878 in your browser.
 
 ### From Source
 
@@ -208,9 +210,23 @@ bun run db:push    # Push schema changes
 bun run db:studio  # Open Drizzle Studio
 
 # Production build
-bun run build      # Creates ./gamearr binary
+bun run build      # Creates ./gamearr binary (self-contained with embedded UI)
 ./gamearr          # Run on :7878
+
+# Testing
+bun test           # Run all tests
+bun test --watch   # Watch mode
 ```
+
+### Build Process
+
+The production build creates a single executable with the web UI embedded:
+
+1. `build:web` - Compiles React frontend to `dist/`
+2. `build:vfs` - Packs `dist/` into a Virtual File System module
+3. `bun build --compile` - Compiles server + embedded VFS into a single binary
+
+This means the `gamearr` binary can be deployed anywhere without additional files.
 
 ### Project Structure
 
@@ -221,17 +237,21 @@ gamearr/
 │   │   ├── routes/          # API endpoints
 │   │   ├── services/        # Business logic
 │   │   ├── repositories/    # Database access
-│   │   ├── integrations/    # IGDB, Prowlarr, qBittorrent clients
+│   │   ├── integrations/    # IGDB, Prowlarr, qBittorrent, Steam clients
 │   │   ├── jobs/            # RssSync, SearchScheduler, DownloadMonitor
+│   │   ├── middleware/      # Auth, CSRF, rate limiting, embedded static
+│   │   ├── generated/       # Auto-generated VFS for embedded frontend
 │   │   ├── db/              # Drizzle schema
-│   │   └── utils/           # Logger, errors
+│   │   └── utils/           # Logger, errors, HTTP helpers
 │   └── web/
 │       └── src/
-│           ├── pages/       # Library (Games/Import/Health), Activity, Settings
+│           ├── pages/       # Library, Activity, Settings, Discover, etc.
 │           ├── components/  # GameCard, AddGameModal, etc.
 │           └── api/         # API client
-├── data/                    # SQLite database
-└── dist/                    # Production build
+├── scripts/                 # Build scripts (VFS generator)
+├── tests/                   # Unit tests
+├── data/                    # SQLite database (runtime)
+└── dist/                    # Frontend build output
 ```
 
 ## Quality Scoring
