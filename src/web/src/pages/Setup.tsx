@@ -30,16 +30,8 @@ export function Setup() {
   const [qbUsername, setQbUsername] = useState('');
   const [qbPassword, setQbPassword] = useState('');
 
-  // Check if setup is already complete
-  useEffect(() => {
-    const checkSetup = async () => {
-      const response = await api.getSetupStatus();
-      if (response.success && response.data?.isComplete) {
-        navigate('/');
-      }
-    };
-    checkSetup();
-  }, [navigate]);
+  // NOTE: Redirect logic for completed setup is handled by SetupGuard in App.tsx
+  // The Setup component never redirects on its own - it always shows the wizard
 
   const currentStepIndex = STEPS.findIndex(s => s.id === currentStep);
 

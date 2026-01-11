@@ -260,6 +260,14 @@ export class SettingsService {
   }
 
   /**
+   * Delete a setting
+   */
+  async deleteSetting(key: string): Promise<void> {
+    await settingsRepository.delete(key);
+    this.invalidateCache(key);
+  }
+
+  /**
    * Get all settings (for display purposes, hide sensitive values)
    */
   async getAllSettings(): Promise<Record<string, SettingValue>> {

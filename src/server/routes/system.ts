@@ -161,6 +161,31 @@ system.get('/setup-status', async (c) => {
   }
 });
 
+// POST /api/v1/system/reset-setup - Reset setup state (development only)
+// Used by E2E tests to reset between test runs
+system.post('/reset-setup', async (c) => {
+  logger.info('POST /api/v1/system/reset-setup');
+
+  // Only allow in development mode
+  if (process.env.NODE_ENV === 'production') {
+    logger.warn('Attempted to reset setup in production mode');
+    return c.json({
+      success: false,
+      error: 'Reset setup is only available in development mode',
+    }, 403);
+  }
+
+  try {
+    // Clear the setup_skipped setting by setting it to null/empty
+    await settingsService.deleteSetting('setup_skipped');
+    logger.info('Setup state has been reset');
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error('Failed to reset setup:', error);
+    return c.json({ success: false, error: 'Failed to reset setup' }, 500);
+  }
+});
+
 // POST /api/v1/system/skip-setup - Mark setup as skipped
 // Security: Only allow skipping if setup hasn't been completed yet
 system.post('/skip-setup', async (c) => {

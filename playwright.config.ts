@@ -19,9 +19,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'bun run dev',
+    // Build frontend first, then start dev server
+    command: 'bun run build:web && bun run dev',
     url: 'http://localhost:7878',
     reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
+    timeout: 180 * 1000,
   },
 });

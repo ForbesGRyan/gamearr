@@ -1,0 +1,4 @@
+[test]
+# Only run unit tests from the tests/ folder
+# E2E tests in e2e/ are run separately via Playwright
+root = "./tests"
