@@ -40,10 +40,11 @@ const batchDeleteSchema = z.object({
   gameIds: z.array(z.number().int().positive()).min(1).max(1000),
 });
 
-// GET /api/v1/games - List all games (supports pagination via ?limit=20&offset=0)
+// GET /api/v1/games - List all games (supports pagination via ?limit=20&offset=0 and store filter via ?store=steam)
 games.get('/', async (c) => {
   const limitParam = c.req.query('limit');
   const offsetParam = c.req.query('offset');
+  const storeParam = c.req.query('store');
 
   // Parse pagination params (undefined means no pagination)
   const limit = limitParam ? parseInt(limitParam) : undefined;
@@ -57,9 +58,15 @@ games.get('/', async (c) => {
     return c.json({ success: false, error: 'Invalid offset parameter', code: ErrorCode.VALIDATION_ERROR }, 400);
   }
 
-  logger.info(`GET /api/v1/games${limitParam ? ` (limit=${limit}, offset=${offset})` : ''}`);
+  logger.info(`GET /api/v1/games${limitParam ? ` (limit=${limit}, offset=${offset})` : ''}${storeParam ? ` (store=${storeParam})` : ''}`);
 
   try {
+    // If store filter is provided, use store-filtered query
+    if (storeParam) {
+      const filteredGames = await gameService.getGamesByStore(storeParam);
+      return c.json({ success: true, data: filteredGames });
+    }
+
     // If pagination params provided, use paginated query
     if (limit !== undefined || offset !== undefined) {
       const result = await gameService.getGamesPaginated({ limit, offset });

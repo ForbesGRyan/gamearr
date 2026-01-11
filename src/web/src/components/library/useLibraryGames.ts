@@ -152,7 +152,10 @@ export function useLibraryGames() {
           comparison = (a.monitored === b.monitored) ? 0 : (a.monitored ? -1 : 1);
           break;
         case 'store':
-          comparison = (a.store || '').localeCompare(b.store || '', undefined, { sensitivity: 'base' });
+          // Use first store from stores array if available, fallback to legacy store field
+          const aStore = a.stores?.[0]?.name || a.store || '';
+          const bStore = b.stores?.[0]?.name || b.store || '';
+          comparison = aStore.localeCompare(bStore, undefined, { sensitivity: 'base' });
           break;
         case 'status':
           const statusOrder = { wanted: 0, downloading: 1, downloaded: 2 };

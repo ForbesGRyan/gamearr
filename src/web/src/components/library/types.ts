@@ -2,6 +2,12 @@
  * Shared types for Library components
  */
 
+export interface GameStoreInfo {
+  name: string;
+  slug: string;
+  storeGameId?: string | null;
+}
+
 export interface Game {
   id: number;
   title: string;
@@ -10,7 +16,8 @@ export interface Game {
   monitored: boolean;
   status: 'wanted' | 'downloading' | 'downloaded';
   platform: string;
-  store?: string | null;
+  store?: string | null; // Legacy field, kept for backwards compatibility
+  stores?: GameStoreInfo[]; // New stores array from junction table
   summary?: string | null;
   genres?: string | null;
   totalRating?: number | null;

@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, integer, text, index, unique } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 // Libraries table - must be defined before games for foreign key reference
@@ -11,6 +11,17 @@ export const libraries = sqliteTable('libraries', {
   downloadEnabled: integer('download_enabled', { mode: 'boolean' }).notNull().default(true),
   downloadCategory: text('download_category').default('gamearr'), // qBittorrent category for downloads
   priority: integer('priority').notNull().default(0), // For ordering in UI
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+// Stores table - must be defined before games for gameStores foreign key reference
+export const stores = sqliteTable('stores', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull().unique(), // 'Steam', 'GOG', 'Epic Games'
+  slug: text('slug').notNull().unique(), // 'steam', 'gog', 'epic'
+  iconUrl: text('icon_url'), // Optional store icon
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -60,6 +71,26 @@ export const games = sqliteTable('games', {
   // Compound indexes for common query patterns
   statusMonitoredIdx: index('games_status_monitored_idx').on(table.status, table.monitored),
   libraryStatusIdx: index('games_library_status_idx').on(table.libraryId, table.status),
+}));
+
+// Junction table for games and stores (many-to-many)
+export const gameStores = sqliteTable('game_stores', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  gameId: integer('game_id')
+    .notNull()
+    .references(() => games.id, { onDelete: 'cascade' }),
+  storeId: integer('store_id')
+    .notNull()
+    .references(() => stores.id, { onDelete: 'cascade' }),
+  storeGameId: text('store_game_id'), // Steam appId, GOG gameId, etc.
+  storeName: text('store_name'), // Original name from store (for mismatch tracking)
+  addedAt: integer('added_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, (table) => ({
+  gameStoreUnique: unique().on(table.gameId, table.storeId),
+  gameIdIdx: index('game_stores_game_id_idx').on(table.gameId),
+  storeIdIdx: index('game_stores_store_id_idx').on(table.storeId),
 }));
 
 export const releases = sqliteTable('releases', {
@@ -155,8 +186,14 @@ export const gameUpdates = sqliteTable('game_updates', {
 export type Library = typeof libraries.$inferSelect;
 export type NewLibrary = typeof libraries.$inferInsert;
 
+export type Store = typeof stores.$inferSelect;
+export type NewStore = typeof stores.$inferInsert;
+
 export type Game = typeof games.$inferSelect;
 export type NewGame = typeof games.$inferInsert;
+
+export type GameStore = typeof gameStores.$inferSelect;
+export type NewGameStore = typeof gameStores.$inferInsert;
 
 export type Release = typeof releases.$inferSelect;
 export type NewRelease = typeof releases.$inferInsert;

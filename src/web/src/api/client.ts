@@ -118,6 +118,13 @@ export interface IGDBGame {
   gameModes?: string[];
 }
 
+// Store info for games (from junction table)
+export interface GameStoreInfo {
+  name: string;
+  slug: string;
+  storeGameId?: string | null;
+}
+
 // Response data types
 export interface Game {
   id: number;
@@ -128,7 +135,8 @@ export interface Game {
   monitored: boolean;
   status: 'wanted' | 'downloading' | 'downloaded';
   platform: string;
-  store?: string | null;
+  store?: string | null; // Legacy field, kept for backwards compatibility
+  stores: GameStoreInfo[]; // New stores array from junction table
   steamName?: string | null;
   folderPath?: string | null;
   libraryId?: number | null;

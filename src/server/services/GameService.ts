@@ -1,6 +1,7 @@
 import { gameRepository, type PaginationParams, type PaginatedResult } from '../repositories/GameRepository';
 import { releaseRepository } from '../repositories/ReleaseRepository';
 import { downloadHistoryRepository } from '../repositories/DownloadHistoryRepository';
+import { gameStoreRepository } from '../repositories/GameStoreRepository';
 import { igdbClient } from '../integrations/igdb/IGDBClient';
 import { indexerService } from './IndexerService';
 import { downloadService } from './DownloadService';
@@ -8,6 +9,7 @@ import { settingsService } from './SettingsService';
 import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
 import type { Game, NewGame, Release, DownloadHistory } from '../db/schema';
 import type { GameSearchResult } from '../integrations/igdb/types';
+import type { GameWithStores, GameStoreInfo } from '../../shared/types';
 import { logger } from '../utils/logger';
 import { NotConfiguredError, NotFoundError, ConflictError } from '../utils/errors';
 
@@ -39,31 +41,84 @@ export class GameService {
   }
 
   /**
+   * Enrich a single game with its stores from the junction table
+   */
+  private enrichGameWithStores(game: Game, storesInfo: GameStoreInfo[]): GameWithStores {
+    return {
+      ...game,
+      stores: storesInfo,
+    };
+  }
+
+  /**
+   * Enrich multiple games with their stores (batch operation)
+   */
+  private async enrichGamesWithStores(games: Game[]): Promise<GameWithStores[]> {
+    if (games.length === 0) {
+      return [];
+    }
+
+    const gameIds = games.map(g => g.id);
+    const storeMap = await gameStoreRepository.getStoreInfoForGames(gameIds);
+
+    return games.map(game => ({
+      ...game,
+      stores: storeMap.get(game.id) || [],
+    }));
+  }
+
+  /**
    * Get all games from library (non-paginated)
    */
-  async getAllGames(): Promise<Game[]> {
-    return gameRepository.findAll();
+  async getAllGames(): Promise<GameWithStores[]> {
+    const games = await gameRepository.findAll();
+    return this.enrichGamesWithStores(games);
   }
 
   /**
    * Get games with pagination
    */
-  async getGamesPaginated(params: PaginationParams = {}): Promise<PaginatedResult<Game>> {
-    return gameRepository.findAllPaginated(params);
+  async getGamesPaginated(params: PaginationParams = {}): Promise<PaginatedResult<GameWithStores>> {
+    const result = await gameRepository.findAllPaginated(params);
+    const enrichedItems = await this.enrichGamesWithStores(result.items);
+    return {
+      ...result,
+      items: enrichedItems,
+    };
+  }
+
+  /**
+   * Get games filtered by store slug
+   * Returns only games that have a record in gameStores for the specified store
+   */
+  async getGamesByStore(storeSlug: string): Promise<GameWithStores[]> {
+    const store = await gameStoreRepository.getStoreBySlug(storeSlug);
+    if (!store) {
+      // If store doesn't exist, return empty array
+      return [];
+    }
+    const games = await gameStoreRepository.getGamesForStore(store.id);
+    return this.enrichGamesWithStores(games);
   }
 
   /**
    * Get game by ID
    */
-  async getGameById(id: number): Promise<Game | undefined> {
-    return gameRepository.findById(id);
+  async getGameById(id: number): Promise<GameWithStores | undefined> {
+    const game = await gameRepository.findById(id);
+    if (!game) {
+      return undefined;
+    }
+    const storesInfo = await gameStoreRepository.getStoreInfoForGame(id);
+    return this.enrichGameWithStores(game, storesInfo);
   }
 
   /**
    * Get monitored games
    */
-  async getMonitoredGames(): Promise<Game[]> {
-    return gameRepository.findMonitored();
+  async getMonitoredGames(): Promise<GameWithStores[]> {
+    const games = await gameRepository.findMonitored();
+    return this.enrichGamesWithStores(games);
   }
 
   /**
@@ -193,18 +248,19 @@ export class GameService {
   /**
    * Update game
    */
-  async updateGame(id: number, updates: Partial<NewGame>): Promise<Game> {
+  async updateGame(id: number, updates: Partial<NewGame>): Promise<GameWithStores> {
     const game = await gameRepository.update(id, updates);
     if (!game) {
       throw new NotFoundError('Game', id);
     }
-    return game;
+    const storesInfo = await gameStoreRepository.getStoreInfoForGame(id);
+    return this.enrichGameWithStores(game, storesInfo);
   }
 
   /**
    * Toggle game monitored status
    */
-  async toggleMonitored(id: number): Promise<Game> {
+  async toggleMonitored(id: number): Promise<GameWithStores> {
     const game = await gameRepository.findById(id);
     if (!game) {
       throw new NotFoundError('Game', id);
@@ -290,7 +346,7 @@ export class GameService {
   async updateGameStatus(
     id: number,
     status: 'wanted' | 'downloading' | 'downloaded'
-  ): Promise<Game> {
+  ): Promise<GameWithStores> {
     return this.updateGame(id, { status });
   }
 
@@ -298,7 +354,7 @@ export class GameService {
    * Rematch a game to a different IGDB entry
    * Updates all metadata from the new IGDB entry while preserving local fields
    */
-  async rematchGame(id: number, newIgdbId: number): Promise<Game> {
+  async rematchGame(id: number, newIgdbId: number): Promise<GameWithStores> {
     const game = await gameRepository.findById(id);
     if (!game) {
       throw new NotFoundError('Game', id);
@@ -334,7 +390,8 @@ export class GameService {
     }
 
     logger.info(`Game rematched successfully: ${updatedGame.title}`);
-    return updatedGame;
+    const storesInfo = await gameStoreRepository.getStoreInfoForGame(id);
+    return this.enrichGameWithStores(updatedGame, storesInfo);
   }
 
   /**
@@ -363,7 +420,7 @@ export class GameService {
    * Find a game by platform and title slug
    * Uses indexed slug column for efficient lookup
    */
-  async findByPlatformAndSlug(platform: string, slug: string): Promise<Game | undefined> {
+  async findByPlatformAndSlug(platform: string, slug: string): Promise<GameWithStores | undefined> {
     // Query by slug using the indexed column
     const gamesWithSlug = await gameRepository.findBySlug(slug);
 
@@ -376,7 +433,7 @@ export class GameService {
     const isSearchingForPc = normalizedPlatform === 'pc' || this.isPcPlatform(normalizedPlatform);
 
     // Find game where platform matches from the slug-matched results
-    return gamesWithSlug.find(game => {
+    const matchedGame = gamesWithSlug.find(game => {
       // If searching for PC, match any PC variant
       if (isSearchingForPc) {
         return this.isPcPlatform(game.platform);
@@ -388,6 +445,13 @@ export class GameService {
         gamePlatform.includes(normalizedPlatform) ||
         normalizedPlatform.includes(gamePlatform);
     });
+
+    if (!matchedGame) {
+      return undefined;
+    }
+
+    const storesInfo = await gameStoreRepository.getStoreInfoForGame(matchedGame.id);
+    return this.enrichGameWithStores(matchedGame, storesInfo);
   }
 
   /**

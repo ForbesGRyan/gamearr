@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { GogClient, GogGame } from '../integrations/gog/GogClient';
 import { settingsService } from '../services/SettingsService';
 import { gameService } from '../services/GameService';
+import { gameStoreRepository } from '../repositories/GameStoreRepository';
 import { IGDBClient } from '../integrations/igdb/IGDBClient';
 import type { NewGame } from '../db/schema';
 import type { GogImportSSEEvent } from '../../shared/types';
@@ -166,15 +167,24 @@ router.get('/owned-games', async (c) => {
     const client = new GogClient(refreshToken as string);
     const games = await client.getOwnedGames();
 
-    // Get existing games to mark which ones are already in library
+    // Get existing games to mark which ones are already in library with GOG store
     const existingGames = await gameService.getAllGames();
-    const existingNormalizedTitles = new Set(existingGames.map((g) => normalizeTitle(g.title)));
+    const existingByTitle = new Map(existingGames.map((g) => [normalizeTitle(g.title), g]));
 
-    // Enrich with import status (using normalized title matching)
-    const enrichedGames = games.map((game) => ({
-      ...game,
-      alreadyInLibrary: existingNormalizedTitles.has(normalizeTitle(game.title)),
-    }));
+    // Enrich with import status - only mark as "already in library" if GOG store is already set
+    // Check game-store relationships using the new many-to-many table
+    const enrichedGames = await Promise.all(
+      games.map(async (game) => {
+        const existing = existingByTitle.get(normalizeTitle(game.title));
+        const hasStore = existing
+          ? await gameStoreRepository.hasGameInStore(existing.id, 'gog')
+          : false;
+        return {
+          ...game,
+          alreadyInLibrary: hasStore,
+        };
+      })
+    );
 
     // Sort alphabetically
     enrichedGames.sort((a, b) => a.title.localeCompare(b.title));
@@ -232,6 +242,16 @@ router.post('/import', async (c) => {
 
     const gogClient = new GogClient(refreshToken as string);
     const ownedGames = await gogClient.getOwnedGames();
+
+    // Get the GOG store ID for linking games
+    const gogStore = await gameStoreRepository.getStoreBySlug('gog');
+    if (!gogStore) {
+      return c.json({
+        success: false,
+        error: 'GOG store not found in database. Please run migrations.',
+        code: ErrorCode.INTERNAL_ERROR,
+      }, 500);
+    }
 
     // Filter to selected games
     const selectedGames = ownedGames.filter((g) => gameIds.includes(g.id));
@@ -307,7 +327,6 @@ router.post('/import', async (c) => {
           status: 'downloaded',
           monitored: false,
           updatePolicy: 'ignore',
-          store: 'GOG',
           summary: igdbData.summary,
           genres: igdbData.genres ? JSON.stringify(igdbData.genres) : null,
           totalRating: igdbData.totalRating ? Math.round(igdbData.totalRating) : null,
@@ -316,7 +335,8 @@ router.post('/import', async (c) => {
           gameModes: igdbData.gameModes ? JSON.stringify(igdbData.gameModes) : null,
         };
 
-        await gameService.createGame(gameData);
+        const newGame = await gameService.createGame(gameData);
+        await gameStoreRepository.addGameToStore(newGame.id, gogStore.id, String(gogGame.id));
         imported++;
       } catch (gameError) {
         errors.push(`Failed to import ${gogGame.title}: ${gameError instanceof Error ? gameError.message : 'Unknown error'}`);
@@ -358,6 +378,12 @@ router.post('/import-stream', async (c) => {
     return c.json({ success: false, error: 'IGDB credentials are required for GOG import', code: ErrorCode.NOT_CONFIGURED }, 400);
   }
 
+  // Get the GOG store ID for linking games
+  const gogStore = await gameStoreRepository.getStoreBySlug('gog');
+  if (!gogStore) {
+    return c.json({ success: false, error: 'GOG store not found in database. Please run migrations.', code: ErrorCode.INTERNAL_ERROR }, 500);
+  }
+
   return new Response(
     new ReadableStream({
       async start(controller) {
@@ -371,29 +397,39 @@ router.post('/import-stream', async (c) => {
           const ownedGames = await gogClient.getOwnedGames();
           const selectedGames = ownedGames.filter((g) => gameIds.includes(g.id));
 
+          // Get existing games and build lookup maps
           const existingGames = await gameService.getAllGames();
-          const existingNormalizedTitles = new Set(existingGames.map((g) => normalizeTitle(g.title)));
-          const existingIgdbIds = new Set(existingGames.map((g) => g.igdbId));
-
-          const gamesToImport = selectedGames.filter(
-            (g) => !existingNormalizedTitles.has(normalizeTitle(g.title))
-          );
-
-          if (gamesToImport.length === 0) {
-            send({ type: 'complete', imported: 0, skipped: selectedGames.length });
-            controller.close();
-            return;
-          }
+          const existingByTitle = new Map(existingGames.map((g) => [normalizeTitle(g.title), g]));
+          const existingByIgdbId = new Map(existingGames.map((g) => [g.igdbId, g]));
+          const processedIgdbIds = new Set<number>();
 
           const igdbClient = new IGDBClient(igdbClientId as string, igdbClientSecret as string);
-          const total = gamesToImport.length;
+          const total = selectedGames.length;
           let imported = 0;
-          let skipped = selectedGames.length - gamesToImport.length;
+          let updated = 0;
+          let skipped = 0;
           const errors: string[] = [];
 
-          for (let i = 0; i < gamesToImport.length; i++) {
-            const gogGame = gamesToImport[i];
+          // Process all selected games
+          for (let i = 0; i < selectedGames.length; i++) {
+            const gogGame = selectedGames[i];
             const current = i + 1;
+
+            // Check if already exists by title
+            const existingByTitleMatch = existingByTitle.get(normalizeTitle(gogGame.title));
+            if (existingByTitleMatch) {
+              // Add game to GOG store if not already present
+              const hasGogStore = await gameStoreRepository.hasGameInStore(existingByTitleMatch.id, 'gog');
+              if (!hasGogStore) {
+                await gameStoreRepository.addGameToStore(existingByTitleMatch.id, gogStore.id, String(gogGame.id));
+                updated++;
+                send({ type: 'progress', current, total, game: gogGame.title, status: 'imported' });
+              } else {
+                skipped++;
+                send({ type: 'progress', current, total, game: gogGame.title, status: 'skipped' });
+              }
+              continue;
+            }
 
             send({ type: 'progress', current, total, game: gogGame.title, status: 'searching' });
 
@@ -418,13 +454,29 @@ router.post('/import-stream', async (c) => {
                 continue;
               }
 
-              if (existingIgdbIds.has(igdbData.igdbId)) {
+              // Check if already exists by IGDB ID
+              const existingByIgdbIdMatch = existingByIgdbId.get(igdbData.igdbId);
+              if (existingByIgdbIdMatch) {
+                // Add game to GOG store if not already present
+                const hasGogStore = await gameStoreRepository.hasGameInStore(existingByIgdbIdMatch.id, 'gog');
+                if (!hasGogStore) {
+                  await gameStoreRepository.addGameToStore(existingByIgdbIdMatch.id, gogStore.id, String(gogGame.id));
+                  updated++;
+                  send({ type: 'progress', current, total, game: gogGame.title, status: 'imported' });
+                } else {
+                  skipped++;
+                  send({ type: 'progress', current, total, game: gogGame.title, status: 'skipped' });
+                }
+                continue;
+              }
+
+              // Skip if we've already processed this IGDB ID in this batch
+              if (processedIgdbIds.has(igdbData.igdbId)) {
                 skipped++;
                 send({ type: 'progress', current, total, game: gogGame.title, status: 'skipped' });
                 continue;
               }
-
-              existingIgdbIds.add(igdbData.igdbId);
+              processedIgdbIds.add(igdbData.igdbId);
 
               const gameData: NewGame = {
                 title: igdbData.title || gogGame.title,
@@ -435,7 +487,6 @@ router.post('/import-stream', async (c) => {
                 status: 'downloaded',
                 monitored: false,
                 updatePolicy: 'ignore',
-                store: 'GOG',
                 summary: igdbData.summary,
                 genres: igdbData.genres ? JSON.stringify(igdbData.genres) : null,
                 totalRating: igdbData.totalRating ? Math.round(igdbData.totalRating) : null,
@@ -444,7 +495,8 @@ router.post('/import-stream', async (c) => {
                 gameModes: igdbData.gameModes ? JSON.stringify(igdbData.gameModes) : null,
               };
 
-              await gameService.createGame(gameData);
+              const newGame = await gameService.createGame(gameData);
+              await gameStoreRepository.addGameToStore(newGame.id, gogStore.id, String(gogGame.id));
               imported++;
               send({ type: 'progress', current, total, game: igdbData.title, status: 'imported' });
             } catch (gameError) {
@@ -453,7 +505,7 @@ router.post('/import-stream', async (c) => {
             }
           }
 
-          send({ type: 'complete', imported, skipped, errors: errors.length > 0 ? errors : undefined });
+          send({ type: 'complete', imported: imported + updated, skipped, errors: errors.length > 0 ? errors : undefined });
         } catch (error) {
           send({ type: 'error', message: error instanceof Error ? error.message : 'Unknown error' });
         } finally {

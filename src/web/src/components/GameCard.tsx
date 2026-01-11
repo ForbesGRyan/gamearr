@@ -1,6 +1,6 @@
 import React, { useState, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import StoreIcon from './StoreIcon';
+import StoreIcon, { GameStoreInfo } from './StoreIcon';
 import ConfirmModal from './ConfirmModal';
 import { EyeIcon, EyeSlashIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, GamepadIcon, RefreshIcon } from './Icons';
 import { getGameDetailPath } from '../utils/slug';
@@ -13,7 +13,8 @@ interface Game {
   monitored: boolean;
   status: 'wanted' | 'downloading' | 'downloaded';
   platform: string;
-  store?: string | null;
+  store?: string | null; // Legacy field
+  stores?: GameStoreInfo[]; // New stores array
   updateAvailable?: boolean;
 }
 
@@ -175,9 +176,9 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
           <span>{game.year || 'Unknown'}</span>
           <span>{game.platform}</span>
         </div>
-        {game.store && (
+        {(game.stores?.length || game.store) && (
           <div className="mt-2">
-            <StoreIcon store={game.store} />
+            <StoreIcon stores={game.stores} store={game.store} />
           </div>
         )}
       </div>
@@ -214,6 +215,13 @@ function arePropsEqual(prevProps: GameCardProps, nextProps: GameCardProps): bool
   if (prevGame.status !== nextGame.status) return false;
   if (prevGame.platform !== nextGame.platform) return false;
   if (prevGame.store !== nextGame.store) return false;
+  // Compare stores arrays by length and slugs
+  const prevStores = prevGame.stores || [];
+  const nextStores = nextGame.stores || [];
+  if (prevStores.length !== nextStores.length) return false;
+  for (let i = 0; i < prevStores.length; i++) {
+    if (prevStores[i].slug !== nextStores[i].slug) return false;
+  }
   if (prevGame.updateAvailable !== nextGame.updateAvailable) return false;
 
   // Compare selected state

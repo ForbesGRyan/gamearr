@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
-import { SteamClient, SteamGame } from '../integrations/steam/SteamClient';
+import { SteamClient } from '../integrations/steam/SteamClient';
 import { settingsService } from '../services/SettingsService';
 import { gameService } from '../services/GameService';
 import { IGDBClient } from '../integrations/igdb/IGDBClient';
+import { gameStoreRepository } from '../repositories/GameStoreRepository';
 import type { NewGame } from '../db/schema';
 import type { SteamImportSSEEvent } from '../../shared/types';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
@@ -101,18 +102,31 @@ router.get('/owned-games', async (c) => {
     }
 
     const client = new SteamClient(apiKey as string, steamId as string);
-    const games = await client.getOwnedGames();
+    const ownedGames = await client.getOwnedGames();
 
-    // Get existing games to mark which ones are already in library
+    // Get existing games to mark which ones are already in library with Steam store
     const existingGames = await gameService.getAllGames();
-    const existingNormalizedTitles = new Set(existingGames.map((g) => normalizeTitle(g.title)));
+    const existingByTitle = new Map(existingGames.map((g) => [normalizeTitle(g.title), g]));
 
-    // Enrich with import status (using normalized title matching)
-    const enrichedGames = games.map((game) => ({
-      ...game,
-      alreadyInLibrary: existingNormalizedTitles.has(normalizeTitle(game.name)),
-      headerImageUrl: SteamClient.getHeaderImageUrl(game.appId),
-    }));
+    // Fetch all game-store relationships upfront for efficiency
+    const gameIdsWithSteam = new Set<number>();
+    for (const existingGame of existingGames) {
+      const hasStore = await gameStoreRepository.hasGameInStore(existingGame.id, 'steam');
+      if (hasStore) {
+        gameIdsWithSteam.add(existingGame.id);
+      }
+    }
+
+    // Enrich with import status - only mark as "already in library" if Steam store is already set
+    const enrichedGames = ownedGames.map((game) => {
+      const existing = existingByTitle.get(normalizeTitle(game.name));
+      const hasStore = existing ? gameIdsWithSteam.has(existing.id) : false;
+      return {
+        ...game,
+        alreadyInLibrary: hasStore,
+        headerImageUrl: SteamClient.getHeaderImageUrl(game.appId),
+      };
+    });
 
     // Sort by playtime (most played first)
     enrichedGames.sort((a, b) => b.playtimeMinutes - a.playtimeMinutes);
@@ -173,6 +187,17 @@ router.post('/import', async (c) => {
 
     const steamClient = new SteamClient(apiKey as string, steamId as string);
     const ownedGames = await steamClient.getOwnedGames();
+
+    // Get Steam store ID for adding games to store
+    const steamStore = await gameStoreRepository.getStoreBySlug('steam');
+    if (!steamStore) {
+      return c.json({
+        success: false,
+        error: 'Steam store not found in database',
+        code: ErrorCode.NOT_CONFIGURED,
+      }, 500);
+    }
+    const steamStoreId = steamStore.id;
 
     // Filter to selected games
     const selectedGames = ownedGames.filter((g) => appIds.includes(g.appId));
@@ -253,9 +278,6 @@ router.post('/import', async (c) => {
           status: 'downloaded', // Steam games are already owned
           monitored: false, // Don't monitor Steam games for updates (Steam handles it)
           updatePolicy: 'ignore', // Don't check for updates (Steam handles it)
-          store: 'Steam',
-          // Store original Steam name if it differs from IGDB title (for diagnostics)
-          steamName: steamGame.name !== igdbData.title ? steamGame.name : null,
           summary: igdbData.summary,
           genres: igdbData.genres ? JSON.stringify(igdbData.genres) : null,
           totalRating: igdbData.totalRating ? Math.round(igdbData.totalRating) : null,
@@ -264,7 +286,14 @@ router.post('/import', async (c) => {
           gameModes: igdbData.gameModes ? JSON.stringify(igdbData.gameModes) : null,
         };
 
-        await gameService.createGame(gameData);
+        const newGame = await gameService.createGame(gameData);
+        // Add game to Steam store with app ID and original Steam name if different
+        await gameStoreRepository.addGameToStore(
+          newGame.id,
+          steamStoreId,
+          String(steamGame.appId),
+          steamGame.name !== igdbData.title ? steamGame.name : undefined
+        );
         imported++;
       } catch (gameError) {
         errors.push(`Failed to import ${steamGame.name}: ${gameError instanceof Error ? gameError.message : 'Unknown error'}`);
@@ -323,36 +352,56 @@ router.post('/import-stream', async (c) => {
         };
 
         try {
+          // Get Steam store ID for adding games to store
+          const steamStore = await gameStoreRepository.getStoreBySlug('steam');
+          if (!steamStore) {
+            send({ type: 'error', message: 'Steam store not found in database' });
+            return;
+          }
+          const steamStoreId = steamStore.id;
+
           const steamClient = new SteamClient(apiKey as string, steamId as string);
           const ownedGames = await steamClient.getOwnedGames();
           const selectedGames = ownedGames.filter((g) => appIds.includes(g.appId));
 
-          // Get existing games to check for duplicates
+          // Get existing games and build lookup maps
           const existingGames = await gameService.getAllGames();
-          const existingNormalizedTitles = new Set(existingGames.map((g) => normalizeTitle(g.title)));
-          const existingIgdbIds = new Set(existingGames.map((g) => g.igdbId));
-
-          // Filter out games that already exist by title
-          const gamesToImport = selectedGames.filter(
-            (g) => !existingNormalizedTitles.has(normalizeTitle(g.name))
-          );
-
-          if (gamesToImport.length === 0) {
-            send({ type: 'complete', imported: 0, skipped: selectedGames.length });
-            controller.close();
-            return;
-          }
+          const existingByTitle = new Map(existingGames.map((g) => [normalizeTitle(g.title), g]));
+          const existingByIgdbId = new Map(existingGames.map((g) => [g.igdbId, g]));
+          const processedIgdbIds = new Set<number>();
 
           const igdbClient = new IGDBClient(igdbClientId as string, igdbClientSecret as string);
-          const total = gamesToImport.length;
+          const total = selectedGames.length;
           let imported = 0;
-          let skipped = selectedGames.length - gamesToImport.length;
+          let updated = 0;
+          let skipped = 0;
           const errors: string[] = [];
 
-          // Process games one by one with progress updates
-          for (let i = 0; i < gamesToImport.length; i++) {
-            const steamGame = gamesToImport[i];
+          // Process all selected games
+          for (let i = 0; i < selectedGames.length; i++) {
+            const steamGame = selectedGames[i];
             const current = i + 1;
+
+            // Check if already exists by title
+            const existingByTitleMatch = existingByTitle.get(normalizeTitle(steamGame.name));
+            if (existingByTitleMatch) {
+              // Add to Steam store if not already present
+              const hasStore = await gameStoreRepository.hasGameInStore(existingByTitleMatch.id, 'steam');
+              if (!hasStore) {
+                await gameStoreRepository.addGameToStore(
+                  existingByTitleMatch.id,
+                  steamStoreId,
+                  String(steamGame.appId),
+                  steamGame.name !== existingByTitleMatch.title ? steamGame.name : undefined
+                );
+                updated++;
+                send({ type: 'progress', current, total, game: steamGame.name, status: 'imported' });
+              } else {
+                skipped++;
+                send({ type: 'progress', current, total, game: steamGame.name, status: 'skipped' });
+              }
+              continue;
+            }
 
             // Send searching progress
             send({ type: 'progress', current, total, game: steamGame.name, status: 'searching' });
@@ -381,13 +430,33 @@ router.post('/import-stream', async (c) => {
               }
 
               // Check if already exists by IGDB ID
-              if (existingIgdbIds.has(igdbData.igdbId)) {
+              const existingByIgdbIdMatch = existingByIgdbId.get(igdbData.igdbId);
+              if (existingByIgdbIdMatch) {
+                // Add to Steam store if not already present
+                const hasStore = await gameStoreRepository.hasGameInStore(existingByIgdbIdMatch.id, 'steam');
+                if (!hasStore) {
+                  await gameStoreRepository.addGameToStore(
+                    existingByIgdbIdMatch.id,
+                    steamStoreId,
+                    String(steamGame.appId),
+                    steamGame.name !== existingByIgdbIdMatch.title ? steamGame.name : undefined
+                  );
+                  updated++;
+                  send({ type: 'progress', current, total, game: steamGame.name, status: 'imported' });
+                } else {
+                  skipped++;
+                  send({ type: 'progress', current, total, game: steamGame.name, status: 'skipped' });
+                }
+                continue;
+              }
+
+              // Skip if we've already processed this IGDB ID in this batch
+              if (processedIgdbIds.has(igdbData.igdbId)) {
                 skipped++;
                 send({ type: 'progress', current, total, game: steamGame.name, status: 'skipped' });
                 continue;
               }
-
-              existingIgdbIds.add(igdbData.igdbId);
+              processedIgdbIds.add(igdbData.igdbId);
 
               const gameData: NewGame = {
                 title: igdbData.title || steamGame.name,
@@ -398,8 +467,6 @@ router.post('/import-stream', async (c) => {
                 status: 'downloaded',
                 monitored: false,
                 updatePolicy: 'ignore',
-                store: 'Steam',
-                steamName: steamGame.name !== igdbData.title ? steamGame.name : null,
                 summary: igdbData.summary,
                 genres: igdbData.genres ? JSON.stringify(igdbData.genres) : null,
                 totalRating: igdbData.totalRating ? Math.round(igdbData.totalRating) : null,
@@ -408,7 +475,14 @@ router.post('/import-stream', async (c) => {
                 gameModes: igdbData.gameModes ? JSON.stringify(igdbData.gameModes) : null,
               };
 
-              await gameService.createGame(gameData);
+              const newGame = await gameService.createGame(gameData);
+              // Add game to Steam store with app ID and original Steam name if different
+              await gameStoreRepository.addGameToStore(
+                newGame.id,
+                steamStoreId,
+                String(steamGame.appId),
+                steamGame.name !== igdbData.title ? steamGame.name : undefined
+              );
               imported++;
               send({ type: 'progress', current, total, game: igdbData.title, status: 'imported' });
             } catch (gameError) {
@@ -417,7 +491,7 @@ router.post('/import-stream', async (c) => {
             }
           }
 
-          send({ type: 'complete', imported, skipped, errors: errors.length > 0 ? errors : undefined });
+          send({ type: 'complete', imported: imported + updated, skipped, errors: errors.length > 0 ? errors : undefined });
         } catch (error) {
           send({ type: 'error', message: error instanceof Error ? error.message : 'Unknown error' });
         } finally {

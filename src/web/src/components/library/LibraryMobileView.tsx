@@ -49,7 +49,7 @@ export function LibraryMobileView({
               { label: 'Year', value: game.year || '\u2014' },
               {
                 label: 'Store',
-                value: game.store ? <StoreIcon store={game.store} /> : <span className="text-gray-500">{'\u2014'}</span>,
+                value: ((game.stores?.length ?? 0) > 0 || game.store) ? <StoreIcon stores={game.stores} store={game.store} /> : <span className="text-gray-500">{'\u2014'}</span>,
               },
               {
                 label: 'Monitored',

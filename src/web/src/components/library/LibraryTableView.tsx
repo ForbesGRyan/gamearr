@@ -189,7 +189,7 @@ export function LibraryTableView({
                 )}
               </td>
               <td className="px-4 py-3">
-                {game.store ? <StoreIcon store={game.store} /> : <span className="text-gray-500">{'\u2014'}</span>}
+                {((game.stores?.length ?? 0) > 0 || game.store) ? <StoreIcon stores={game.stores} store={game.store} /> : <span className="text-gray-500">{'\u2014'}</span>}
               </td>
               <td className="px-4 py-3">
                 <span className={`px-2 py-1 rounded text-xs font-medium ${

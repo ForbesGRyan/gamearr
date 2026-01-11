@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Game } from '../../api/client';
 import { GamepadIcon, TrashIcon, MagnifyingGlassIcon } from '../Icons';
+import StoreIcon from '../StoreIcon';
 
 interface GameDetailHeaderProps {
   game: Game;
@@ -59,8 +60,8 @@ function GameDetailHeader({ game, onDelete }: GameDetailHeaderProps) {
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <span className="bg-gray-700 px-2 py-1 rounded text-sm">{game.platform}</span>
           {getStatusBadge()}
-          {game.store && (
-            <span className="bg-purple-600/50 px-2 py-1 rounded text-sm">{game.store}</span>
+          {((game.stores?.length ?? 0) > 0 || game.store) && (
+            <StoreIcon stores={game.stores} store={game.store} />
           )}
           {!game.monitored && (
             <span className="bg-gray-600 px-2 py-1 rounded text-sm">Unmonitored</span>

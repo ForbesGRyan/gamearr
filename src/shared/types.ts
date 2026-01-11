@@ -54,6 +54,45 @@ export const SettingsSchema = z.object({
 
 export type Settings = z.infer<typeof SettingsSchema>;
 
+// Store info for API responses (from junction table)
+export interface GameStoreInfo {
+  name: string;
+  slug: string;
+  storeGameId?: string | null;
+}
+
+// Game with stores array for API responses
+export interface GameWithStores {
+  id: number;
+  igdbId: number;
+  title: string;
+  slug?: string | null;
+  year?: number | null;
+  platform: string;
+  store?: string | null; // Legacy field, kept for backwards compatibility
+  steamName?: string | null;
+  monitored: boolean;
+  status: 'wanted' | 'downloading' | 'downloaded';
+  coverUrl?: string | null;
+  folderPath?: string | null;
+  libraryId?: number | null;
+  summary?: string | null;
+  genres?: string | null;
+  totalRating?: number | null;
+  developer?: string | null;
+  publisher?: string | null;
+  gameModes?: string | null;
+  similarGames?: string | null;
+  installedVersion?: string | null;
+  installedQuality?: string | null;
+  latestVersion?: string | null;
+  updatePolicy?: 'notify' | 'auto' | 'ignore' | null;
+  lastUpdateCheck?: Date | null;
+  updateAvailable?: boolean | null;
+  addedAt: Date;
+  stores: GameStoreInfo[];
+}
+
 // API response types
 export interface ApiResponse<T> {
   success: boolean;

@@ -93,10 +93,10 @@ export function LibraryOverviewGrid({
                       <span>{game.year || 'Unknown year'}</span>
                       <span>&#8226;</span>
                       <span>{game.platform}</span>
-                      {game.store && (
+                      {((game.stores?.length ?? 0) > 0 || game.store) && (
                         <>
                           <span>&#8226;</span>
-                          <StoreIcon store={game.store} />
+                          <StoreIcon stores={game.stores} store={game.store} />
                         </>
                       )}
                     </div>
