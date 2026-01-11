@@ -15,7 +15,7 @@ interface LibraryScanTabProps {
   libraryFolders: LibraryFolder[];
   autoMatchSuggestions: Record<string, AutoMatchSuggestion>;
   isAutoMatching: Record<string, boolean>;
-  selectedStore: Record<string, string | undefined>;
+  selectedStores: Record<string, string[]>;
   libraries: Library[];
   selectedLibrary: Record<string, number | undefined>;
   isBackgroundAutoMatching: boolean;
@@ -28,7 +28,7 @@ interface LibraryScanTabProps {
   onEditAutoMatch: (folder: LibraryFolder) => void;
   onCancelAutoMatch: (folder: LibraryFolder) => void;
   onCancelBackgroundAutoMatch: () => void;
-  onStoreChange: (folderPath: string, store: string | undefined) => void;
+  onStoresChange: (folderPath: string, stores: string[]) => void;
   onLibraryChange: (folderPath: string, libraryId: number | undefined) => void;
   onOpenSteamImport: () => void;
   onOpenGogImport: () => void;
@@ -40,7 +40,7 @@ export function LibraryScanTab({
   libraryFolders,
   autoMatchSuggestions,
   isAutoMatching,
-  selectedStore,
+  selectedStores,
   libraries,
   selectedLibrary,
   isBackgroundAutoMatching,
@@ -53,7 +53,7 @@ export function LibraryScanTab({
   onEditAutoMatch,
   onCancelAutoMatch,
   onCancelBackgroundAutoMatch,
-  onStoreChange,
+  onStoresChange,
   onLibraryChange,
   onOpenSteamImport,
   onOpenGogImport,
@@ -531,12 +531,12 @@ export function LibraryScanTab({
                       <div className="mb-4 flex gap-4">
                         <div className="flex-1">
                           <StoreSelector
-                            value={selectedStore[folder.path] || null}
-                            onChange={(store) => onStoreChange(folder.path, store || undefined)}
-                            label="Digital Store (Optional)"
+                            value={selectedStores[folder.path] || []}
+                            onChange={(stores) => onStoresChange(folder.path, stores)}
+                            label="Digital Stores (Optional)"
                           />
                           <p className="text-xs text-gray-400 mt-1">
-                            Select a store if you own this game digitally.
+                            Select stores if you own this game digitally.
                           </p>
                         </div>
                         {libraries.length > 0 && (

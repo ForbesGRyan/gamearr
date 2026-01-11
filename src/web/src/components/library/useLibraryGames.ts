@@ -257,7 +257,15 @@ export function useLibraryGames() {
   }, []);
 
   const handleEdit = useCallback((game: Game) => {
-    navigate(getGameDetailPath(game.platform, game.title));
+    const path = getGameDetailPath(game.platform, game.title);
+    // Use View Transition for navigation
+    if (document.startViewTransition) {
+      document.startViewTransition(() => {
+        navigate(path);
+      });
+    } else {
+      navigate(path);
+    }
   }, [navigate]);
 
   // Pagination handlers

@@ -252,6 +252,43 @@ export class GameStoreRepository {
     return results[0] ?? null;
   }
 
+  /**
+   * Update stores for a game (replaces all existing stores)
+   * @param gameId - The game to update
+   * @param storeNames - Array of store names to associate with the game
+   */
+  async setStoresForGame(gameId: number, storeNames: string[]): Promise<void> {
+    logger.info(`Setting stores for game ${gameId}: ${storeNames.join(', ') || '(none)'}`);
+
+    // Delete all existing store associations for this game
+    await db.delete(gameStores).where(eq(gameStores.gameId, gameId));
+
+    // If no stores to add, we're done
+    if (storeNames.length === 0) {
+      return;
+    }
+
+    // Get or create stores and add associations
+    for (const storeName of storeNames) {
+      // Find or create the store
+      let store = await this.getStoreByName(storeName);
+      if (!store) {
+        // Create a slug from the name
+        const slug = storeName
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-]/g, '');
+        store = await this.createStore({ name: storeName, slug });
+      }
+
+      // Add the junction record
+      await db.insert(gameStores).values({
+        gameId,
+        storeId: store.id,
+      });
+    }
+  }
+
   // ============================================
   // Helper for getting games with stores joined
   // ============================================

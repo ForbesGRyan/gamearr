@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { getGameDetailPath } from '../../utils/slug';
 import StoreIcon from '../StoreIcon';
 import { EyeIcon, EyeSlashIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, GamepadIcon } from '../Icons';
@@ -37,8 +37,6 @@ export function LibraryTableView({
   onEdit,
   onDelete,
 }: LibraryTableViewProps) {
-  const navigate = useNavigate();
-
   const SortIndicator = ({ column }: { column: SortColumn }) => {
     if (sortColumn !== column) {
       return <span className="text-gray-500 ml-1">&#8597;</span>;
@@ -127,7 +125,12 @@ export function LibraryTableView({
               </td>
               <td className="px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-10 rounded bg-gray-700 flex-shrink-0 overflow-hidden">
+                  <Link
+                    to={getGameDetailPath(game.platform, game.title)}
+                    viewTransition
+                    className="w-8 h-10 rounded bg-gray-700 flex-shrink-0 overflow-hidden"
+                    style={{ viewTransitionName: `game-cover-${game.id}` }}
+                  >
                     {game.coverUrl ? (
                       <img src={game.coverUrl} alt="" className="w-full h-full object-cover" />
                     ) : (
@@ -135,13 +138,14 @@ export function LibraryTableView({
                         <GamepadIcon className="w-4 h-4" />
                       </div>
                     )}
-                  </div>
-                  <button
-                    onClick={() => navigate(getGameDetailPath(game.platform, game.title))}
-                    className="font-medium text-left hover:text-blue-400 transition"
+                  </Link>
+                  <Link
+                    to={getGameDetailPath(game.platform, game.title)}
+                    viewTransition
+                    className="font-medium hover:text-blue-400 transition"
                   >
                     {game.title}
-                  </button>
+                  </Link>
                   {game.updateAvailable && (
                     <span className="text-xs bg-orange-500 px-1.5 py-0.5 rounded flex items-center gap-1">
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

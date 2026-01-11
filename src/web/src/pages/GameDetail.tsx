@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { api, Game, GrabbedRelease, DownloadHistoryEntry, GameUpdate, Library } from '../api/client';
 import {
   GameDetailHeader,
@@ -114,7 +114,14 @@ function GameDetail() {
     if (!game) return;
     const response = await api.deleteGame(game.id);
     if (response.success) {
-      navigate('/');
+      // Use View Transition for delete navigation
+      if (document.startViewTransition) {
+        document.startViewTransition(() => {
+          navigate('/');
+        });
+      } else {
+        navigate('/');
+      }
     }
   };
 
@@ -143,13 +150,14 @@ function GameDetail() {
   if (error || !game) {
     return (
       <div>
-        <button
-          onClick={() => navigate('/')}
+        <Link
+          to="/"
+          viewTransition
           className="flex items-center gap-1 text-gray-400 hover:text-white mb-6 transition min-h-[44px]"
         >
           <ChevronLeftIcon className="w-5 h-5" />
           Back to Library
-        </button>
+        </Link>
         <div className="bg-red-900/50 border border-red-700 rounded-lg p-6 text-center">
           <p className="text-red-200">{error || 'Game not found'}</p>
         </div>
@@ -160,13 +168,14 @@ function GameDetail() {
   return (
     <div>
       {/* Back button */}
-      <button
-        onClick={() => navigate('/')}
+      <Link
+        to="/"
+        viewTransition
         className="flex items-center gap-1 text-gray-400 hover:text-white mb-6 transition min-h-[44px]"
       >
         <ChevronLeftIcon className="w-5 h-5" />
         Back to Library
-      </button>
+      </Link>
 
       {/* Header */}
       <GameDetailHeader
@@ -199,7 +208,7 @@ function GameDetail() {
       </div>
 
       {/* Tab Content */}
-      <div>
+      <div className="animate-fade-in" key={activeTab}>
         {activeTab === 'info' && (
           <GameInfoSection
             game={game}

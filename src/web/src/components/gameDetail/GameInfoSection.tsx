@@ -14,7 +14,17 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
   const [saving, setSaving] = useState(false);
 
   // Form state
-  const [store, setStore] = useState(game.store || null);
+  // Initialize stores from stores array (many-to-many), fallback to legacy store field as single-element array
+  const getInitialStores = (): string[] => {
+    if (game.stores && game.stores.length > 0) {
+      return game.stores.map((s) => s.name);
+    }
+    if (game.store) {
+      return [game.store];
+    }
+    return [];
+  };
+  const [stores, setStores] = useState<string[]>(getInitialStores);
   const [libraryId, setLibraryId] = useState<number | null>(game.libraryId || null);
   const [status, setStatus] = useState(game.status);
   const [monitored, setMonitored] = useState(game.monitored);
@@ -31,14 +41,16 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
 
   const handleSave = async () => {
     setSaving(true);
+    // Update game fields
     await api.updateGame(game.id, {
-      store,
       libraryId,
       status,
       monitored,
       updatePolicy,
       platform,
     } as Parameters<typeof api.updateGame>[1]);
+    // Update stores separately via the stores endpoint
+    await api.updateGameStores(game.id, stores);
     setSaving(false);
     onUpdate();
   };
@@ -81,8 +93,14 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
   };
 
   // Check if form has changes
+  // Compare stores arrays
+  const originalStores = game.stores?.map((s) => s.name) || (game.store ? [game.store] : []);
+  const storesChanged =
+    stores.length !== originalStores.length ||
+    stores.some((s) => !originalStores.includes(s)) ||
+    originalStores.some((s) => !stores.includes(s));
   const hasChanges =
-    store !== (game.store || null) ||
+    storesChanged ||
     libraryId !== (game.libraryId || null) ||
     status !== game.status ||
     monitored !== game.monitored ||
@@ -95,14 +113,14 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
       <div className="bg-gray-800 rounded-lg p-4">
         <h3 className="text-lg font-semibold mb-4">Store & Library</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
+          <div className="md:col-span-2">
             <StoreSelector
-              value={store}
-              onChange={setStore}
-              label="Digital Store"
+              value={stores}
+              onChange={setStores}
+              label="Digital Stores"
             />
             <p className="text-xs text-gray-500 mt-1">
-              Where you purchased or own this game
+              Where you purchased or own this game (select all that apply)
             </p>
           </div>
           <div>

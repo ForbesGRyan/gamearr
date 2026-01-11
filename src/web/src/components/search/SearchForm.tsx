@@ -8,8 +8,8 @@ interface SearchFormProps {
   onSubmit: (e: React.FormEvent) => void;
   isLoading: boolean;
   searchMode: SearchMode;
-  selectedStore: string | null;
-  onStoreChange: (store: string | null) => void;
+  selectedStores: string[];
+  onStoresChange: (stores: string[]) => void;
   selectedLibraryId: number | null;
   onLibraryChange: (libraryId: number | null) => void;
 }
@@ -20,8 +20,8 @@ function SearchForm({
   onSubmit,
   isLoading,
   searchMode,
-  selectedStore,
-  onStoreChange,
+  selectedStores,
+  onStoresChange,
   selectedLibraryId,
   onLibraryChange,
 }: SearchFormProps) {
@@ -68,12 +68,12 @@ function SearchForm({
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <StoreSelector
-              value={selectedStore}
-              onChange={onStoreChange}
-              label="Digital Store (Optional)"
+              value={selectedStores}
+              onChange={onStoresChange}
+              label="Digital Stores (Optional)"
             />
             <p className="text-xs text-gray-400 mt-1">
-              If you select a store, the game will be marked as already owned.
+              If you select stores, the game will be marked as already owned.
             </p>
           </div>
           <LibrarySelector

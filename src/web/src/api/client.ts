@@ -456,6 +456,13 @@ class ApiClient {
     });
   }
 
+  async updateGameStores(id: number, stores: string[]): Promise<ApiResponse<Game>> {
+    return this.request<Game>(`/games/${id}/stores`, {
+      method: 'PUT',
+      body: JSON.stringify({ stores }),
+    });
+  }
+
   async getGameBySlug(platform: string, slug: string): Promise<ApiResponse<Game>> {
     return this.request<Game>(`/games/lookup/${encodeURIComponent(platform)}/${encodeURIComponent(slug)}`);
   }

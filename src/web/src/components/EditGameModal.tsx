@@ -4,6 +4,12 @@ import StoreSelector from './StoreSelector';
 import ConfirmModal from './ConfirmModal';
 import { CloseIcon } from './Icons';
 
+interface GameStoreInfo {
+  name: string;
+  slug: string;
+  storeGameId?: string | null;
+}
+
 interface Game {
   id: number;
   title: string;
@@ -14,6 +20,7 @@ interface Game {
   status: 'wanted' | 'downloading' | 'downloaded';
   platform: string;
   store?: string | null;
+  stores?: GameStoreInfo[];
   steamName?: string | null;
   folderPath?: string | null;
   libraryId?: number | null;
@@ -56,7 +63,7 @@ interface EditGameModalProps {
 }
 
 function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalProps) {
-  const [store, setStore] = useState<string | null>(null);
+  const [stores, setStores] = useState<string[]>([]);
   const [folderPath, setFolderPath] = useState('');
   const [monitored, setMonitored] = useState(true);
   const [status, setStatus] = useState<'wanted' | 'downloading' | 'downloaded'>('wanted');
@@ -97,7 +104,14 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
   // Load game data when modal opens
   useEffect(() => {
     if (game) {
-      setStore(game.store || null);
+      // Initialize stores from stores array (many-to-many) or legacy field
+      if (game.stores && game.stores.length > 0) {
+        setStores(game.stores.map((s) => s.name));
+      } else if (game.store) {
+        setStores([game.store]);
+      } else {
+        setStores([]);
+      }
       setFolderPath(game.folderPath || '');
       setMonitored(game.monitored);
       setStatus(game.status);
@@ -273,7 +287,6 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
 
     try {
       const updates: any = {
-        store: store || null,
         folderPath: folderPath || null,
         monitored,
         status,
@@ -284,6 +297,8 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
       const response = await api.updateGame(game.id, updates);
 
       if (response.success) {
+        // Update stores via the dedicated endpoint
+        await api.updateGameStores(game.id, stores);
         onGameUpdated();
         onClose();
       } else {
@@ -415,9 +430,9 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
 
           {/* Store Selector */}
           <div>
-            <StoreSelector value={store} onChange={setStore} label="Digital Store" />
+            <StoreSelector value={stores} onChange={setStores} label="Digital Stores" />
             <p className="text-xs text-gray-400 mt-1">
-              Select a store if you own this game digitally. Games with a store won't be downloaded.
+              Select stores if you own this game digitally (multiple stores supported).
             </p>
           </div>
 

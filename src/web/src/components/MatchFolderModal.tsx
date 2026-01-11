@@ -45,7 +45,7 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
   const [isSearching, setIsSearching] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedStore, setSelectedStore] = useState<string | null>(null);
+  const [selectedStores, setSelectedStores] = useState<string[]>([]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Record<number, string>>({});
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
@@ -160,14 +160,20 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
         platforms: [platform], // Override with selected platform
       };
 
-      const response = await api.matchLibraryFolder(folder.path, folder.folderName, gameWithPlatform, selectedStore, selectedLibraryId);
+      // Use first store for the legacy field
+      const response = await api.matchLibraryFolder(folder.path, folder.folderName, gameWithPlatform, selectedStores[0] || null, selectedLibraryId);
 
-      if (response.success) {
+      if (response.success && response.data) {
+        // If multiple stores selected, update stores via the dedicated endpoint
+        if (selectedStores.length > 0) {
+          await api.updateGameStores(response.data.id, selectedStores);
+        }
         onFolderMatched();
         onClose();
         setSearchQuery('');
         setSearchResults([]);
         setSelectedPlatforms({});
+        setSelectedStores([]);
         setSelectedLibraryId(null);
       } else {
         setError(response.error || 'Failed to match folder');
@@ -222,9 +228,9 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
 
             <div className="mt-4 flex flex-col md:flex-row gap-4">
               <div className="flex-1">
-                <StoreSelector value={selectedStore} onChange={setSelectedStore} label="Digital Store (Optional)" />
+                <StoreSelector value={selectedStores} onChange={setSelectedStores} label="Digital Stores (Optional)" />
                 <p className="text-xs text-gray-400 mt-1">
-                  Select a store if you own this game digitally.
+                  Select stores if you own this game digitally.
                 </p>
               </div>
               {libraries.length > 0 && (

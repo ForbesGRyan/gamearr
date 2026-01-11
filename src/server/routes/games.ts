@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { gameService } from '../services/GameService';
+import { gameStoreRepository } from '../repositories/GameStoreRepository';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode, NotFoundError, ValidationError } from '../utils/errors';
 
@@ -303,6 +304,38 @@ games.patch('/:id/rematch', zValidator('json', rematchGameSchema), async (c) => 
     return c.json({ success: true, data: game });
   } catch (error) {
     logger.error('Failed to rematch game:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// Validation schema for stores update
+const updateStoresSchema = z.object({
+  stores: z.array(z.string()).max(10),
+});
+
+// PUT /api/v1/games/:id/stores - Update stores for a game
+games.put('/:id/stores', zValidator('json', updateStoresSchema), async (c) => {
+  const id = parseInt(c.req.param('id'));
+  if (isNaN(id)) {
+    return c.json({ success: false, error: 'Invalid game ID', code: ErrorCode.VALIDATION_ERROR }, 400);
+  }
+  logger.info(`PUT /api/v1/games/${id}/stores`);
+
+  try {
+    // Verify game exists
+    const game = await gameService.getGameById(id);
+    if (!game) {
+      return c.json({ success: false, error: 'Game not found', code: ErrorCode.NOT_FOUND }, 404);
+    }
+
+    const { stores } = c.req.valid('json');
+    await gameStoreRepository.setStoresForGame(id, stores);
+
+    // Return updated game with stores
+    const updatedGame = await gameService.getGameById(id);
+    return c.json({ success: true, data: updatedGame });
+  } catch (error) {
+    logger.error('Failed to update game stores:', error);
     return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });

@@ -25,7 +25,7 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
   const [isSearching, setIsSearching] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedStore, setSelectedStore] = useState<string | null>(null);
+  const [selectedStores, setSelectedStores] = useState<string[]>([]);
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
 
   // Handle Escape key to close modal
@@ -75,19 +75,24 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
     setError(null);
 
     try {
+      // Add the game first (using first store for legacy field)
       const response = await api.addGame({
         igdbId,
         monitored: true,
-        store: selectedStore,
+        store: selectedStores[0] || null,
         libraryId: selectedLibraryId ?? undefined,
       });
 
-      if (response.success) {
+      if (response.success && response.data) {
+        // If multiple stores selected, update stores via the dedicated endpoint
+        if (selectedStores.length > 0) {
+          await api.updateGameStores(response.data.id, selectedStores);
+        }
         onGameAdded();
         onClose();
         setSearchQuery('');
         setSearchResults([]);
-        setSelectedStore(null);
+        setSelectedStores([]);
         setSelectedLibraryId(null);
       } else {
         setError(response.error || 'Failed to add game');
@@ -144,9 +149,9 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <StoreSelector value={selectedStore} onChange={setSelectedStore} label="Digital Store (Optional)" />
+                <StoreSelector value={selectedStores} onChange={setSelectedStores} label="Digital Stores (Optional)" />
                 <p className="text-xs text-gray-400 mt-1">
-                  If you select a store, the game will be marked as already owned.
+                  If you select stores, the game will be marked as already owned.
                 </p>
               </div>
               <LibrarySelector

@@ -122,7 +122,7 @@ function Library() {
   const [isScanLoaded, setIsScanLoaded] = useState(false);
   const [autoMatchSuggestions, setAutoMatchSuggestions] = useState<Record<string, AutoMatchSuggestion>>({});
   const [isAutoMatching, setIsAutoMatching] = useState<Record<string, boolean>>({});
-  const [selectedStore, setSelectedStore] = useState<Record<string, string | null>>({});
+  const [selectedStores, setSelectedStores] = useState<Record<string, string[]>>({});
   const [selectedLibraryForMatch, setSelectedLibraryForMatch] = useState<Record<string, number | undefined>>({});
 
   // Background auto-matching state
@@ -464,15 +464,20 @@ function Library() {
         }
       }
 
+      const folderStores = selectedStores[folder.path] || [];
       const response = await api.matchLibraryFolder(
         folder.path,
         folder.folderName,
         suggestionWithPlatform,
-        selectedStore[folder.path] || null,
+        folderStores[0] || null, // Use first store for legacy field
         selectedLibraryForMatch[folder.path] || null
       );
 
-      if (response.success) {
+      if (response.success && response.data) {
+        // If multiple stores selected, update stores via the dedicated endpoint
+        if (folderStores.length > 0) {
+          await api.updateGameStores(response.data.id, folderStores);
+        }
         setAutoMatchSuggestions((prev) => {
           const newSuggestions = { ...prev };
           delete newSuggestions[folder.path];
@@ -488,7 +493,7 @@ function Library() {
     } catch {
       setError('Failed to match folder');
     }
-  }, [autoMatchSuggestions, selectedLibraryForMatch, selectedStore, libraries, loadGames, loadScanData, setError]);
+  }, [autoMatchSuggestions, selectedLibraryForMatch, selectedStores, libraries, loadGames, loadScanData, setError]);
 
   const handleCancelAutoMatch = useCallback((folder: LibraryFolder) => {
     setAutoMatchSuggestions((prev) => {
@@ -848,7 +853,7 @@ function Library() {
           libraryFolders={libraryFolders}
           autoMatchSuggestions={autoMatchSuggestions}
           isAutoMatching={isAutoMatching}
-          selectedStore={selectedStore}
+          selectedStores={selectedStores}
           libraries={libraries}
           selectedLibrary={selectedLibraryForMatch}
           isBackgroundAutoMatching={isBackgroundAutoMatching}
@@ -861,8 +866,8 @@ function Library() {
           onEditAutoMatch={handleEditAutoMatch}
           onCancelAutoMatch={handleCancelAutoMatch}
           onCancelBackgroundAutoMatch={cancelBackgroundAutoMatch}
-          onStoreChange={(folderPath, store) =>
-            setSelectedStore((prev) => ({ ...prev, [folderPath]: store }))
+          onStoresChange={(folderPath, stores) =>
+            setSelectedStores((prev) => ({ ...prev, [folderPath]: stores }))
           }
           onLibraryChange={(folderPath, libraryId) =>
             setSelectedLibraryForMatch((prev) => ({ ...prev, [folderPath]: libraryId }))

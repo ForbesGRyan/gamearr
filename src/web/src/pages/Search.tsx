@@ -50,7 +50,7 @@ function Search() {
 
   // Games search state
   const [gameResults, setGameResults] = useState<SearchResult[]>([]);
-  const [selectedStore, setSelectedStore] = useState<string | null>(null);
+  const [selectedStores, setSelectedStores] = useState<string[]>([]);
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
   const [addingGameId, setAddingGameId] = useState<number | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Record<number, string>>({});
@@ -115,15 +115,20 @@ function Search() {
     const platform = selectedPlatforms[game.igdbId] || game.platforms?.[0];
 
     try {
+      // Add the game first (using first store for legacy field)
       const response = await api.addGame({
         igdbId: game.igdbId,
         monitored: true,
-        store: selectedStore,
+        store: selectedStores[0] || null,
         libraryId: selectedLibraryId ?? undefined,
         platform,
       });
 
       if (response.success && response.data) {
+        // If multiple stores selected, update stores via the dedicated endpoint
+        if (selectedStores.length > 0) {
+          await api.updateGameStores(response.data.id, selectedStores);
+        }
         setSuccessMessage(`Added "${game.title}" to your library`);
         setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
         if (shouldSearchReleases) {
@@ -186,8 +191,8 @@ function Search() {
         onSubmit={handleSearch}
         isLoading={isLoading}
         searchMode={searchMode}
-        selectedStore={selectedStore}
-        onStoreChange={setSelectedStore}
+        selectedStores={selectedStores}
+        onStoresChange={setSelectedStores}
         selectedLibraryId={selectedLibraryId}
         onLibraryChange={setSelectedLibraryId}
       />

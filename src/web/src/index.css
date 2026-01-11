@@ -30,25 +30,31 @@ code {
 }
 
 /* View Transitions API */
-@view-transition {
-  navigation: auto;
-}
 
+/* Default page transition */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 100ms;
-  animation-timing-function: ease-in-out;
+  animation-duration: 200ms;
+  animation-timing-function: ease-out;
 }
 
+/* Game cover shared element transition */
+::view-transition-old(game-cover),
+::view-transition-new(game-cover) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Crossfade for non-cover content */
 ::view-transition-old(root) {
-  animation-name: fade-out;
+  animation: view-fade-out 200ms ease-out both;
 }
 
 ::view-transition-new(root) {
-  animation-name: fade-in;
+  animation: view-fade-in 200ms ease-out both;
 }
 
-@keyframes fade-out {
+@keyframes view-fade-out {
   from {
     opacity: 1;
   }
@@ -57,7 +63,7 @@ code {
   }
 }
 
-@keyframes fade-in {
+@keyframes view-fade-in {
   from {
     opacity: 0;
   }

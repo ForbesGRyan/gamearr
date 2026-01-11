@@ -1,11 +1,10 @@
 interface StoreSelectorProps {
-  value: string | null;
-  onChange: (store: string | null) => void;
+  value: string[];
+  onChange: (stores: string[]) => void;
   label?: string;
 }
 
-const stores = [
-  { value: '', label: 'None' },
+export const AVAILABLE_STORES = [
   { value: 'Steam', label: 'Steam' },
   { value: 'Epic Games', label: 'Epic Games' },
   { value: 'GOG', label: 'GOG' },
@@ -14,21 +13,37 @@ const stores = [
   { value: 'Other', label: 'Other' },
 ];
 
-function StoreSelector({ value, onChange, label = 'Store' }: StoreSelectorProps) {
+function StoreSelector({ value, onChange, label = 'Digital Stores' }: StoreSelectorProps) {
+  const toggleStore = (storeName: string) => {
+    if (value.includes(storeName)) {
+      onChange(value.filter((s) => s !== storeName));
+    } else {
+      onChange([...value, storeName]);
+    }
+  };
+
   return (
     <div>
       <label className="block text-sm font-medium text-gray-300 mb-2">{label}</label>
-      <select
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value || null)}
-        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-      >
-        {stores.map((store) => (
-          <option key={store.value} value={store.value}>
-            {store.label}
-          </option>
-        ))}
-      </select>
+      <div className="flex flex-wrap gap-2">
+        {AVAILABLE_STORES.map((store) => {
+          const isSelected = value.includes(store.value);
+          return (
+            <button
+              key={store.value}
+              type="button"
+              onClick={() => toggleStore(store.value)}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition ${
+                isSelected
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              {store.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

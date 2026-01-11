@@ -33,7 +33,10 @@ function GameDetailHeader({ game, onDelete }: GameDetailHeaderProps) {
   return (
     <div className="flex gap-6 mb-6">
       {/* Cover Image */}
-      <div className="w-48 flex-shrink-0">
+      <div
+        className="w-48 flex-shrink-0"
+        style={{ viewTransitionName: `game-cover-${game.id}` }}
+      >
         {game.coverUrl ? (
           <img
             src={game.coverUrl}

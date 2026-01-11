@@ -1,5 +1,5 @@
 import React, { useState, memo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import StoreIcon, { GameStoreInfo } from './StoreIcon';
 import ConfirmModal from './ConfirmModal';
 import { EyeIcon, EyeSlashIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, GamepadIcon, RefreshIcon } from './Icons';
@@ -29,12 +29,8 @@ interface GameCardProps {
 }
 
 function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggleSelect, priority = false }: GameCardProps) {
-  const navigate = useNavigate();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  const handleNavigateToDetail = () => {
-    navigate(getGameDetailPath(game.platform, game.title));
-  };
+  const detailPath = getGameDetailPath(game.platform, game.title);
 
   const statusColors = {
     wanted: 'bg-orange-500',
@@ -59,10 +55,12 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
     <div className={`bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition group ${downloadingClass} ${selectedClass}`}>
       {/* Cover Image */}
       <div className="relative aspect-[2/3] bg-gray-700">
-        <button
-          onClick={handleNavigateToDetail}
-          className="w-full h-full cursor-pointer"
+        <Link
+          to={detailPath}
+          viewTransition
+          className="block w-full h-full cursor-pointer"
           aria-label={`View ${game.title}`}
+          style={{ viewTransitionName: `game-cover-${game.id}` }}
         >
           {game.coverUrl ? (
             <img
@@ -78,7 +76,7 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
               <GamepadIcon className="w-12 h-12" />
             </div>
           )}
-        </button>
+        </Link>
 
         {/* Selection Checkbox - z-20 to stay above hover overlay */}
         {onToggleSelect && (
@@ -131,14 +129,15 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
               >
                 {game.monitored ? <EyeIcon aria-hidden="true" /> : <EyeSlashIcon aria-hidden="true" />}
               </button>
-              <button
-                onClick={handleNavigateToDetail}
+              <Link
+                to={detailPath}
+                viewTransition
                 className="bg-purple-600 hover:bg-purple-700 min-h-[44px] min-w-[44px] flex items-center justify-center rounded transition text-sm"
                 title="View Details"
                 aria-label={`View details for ${game.title}`}
               >
                 <PencilIcon aria-hidden="true" />
-              </button>
+              </Link>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 className="bg-red-600 hover:bg-red-700 min-h-[44px] min-w-[44px] flex items-center justify-center rounded transition text-sm"
@@ -165,12 +164,13 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
       {/* Game Info */}
       <div className="p-3">
         <h3 className="font-semibold text-sm truncate" title={game.title}>
-          <button
-            onClick={handleNavigateToDetail}
-            className="hover:text-blue-400 transition text-left w-full truncate"
+          <Link
+            to={detailPath}
+            viewTransition
+            className="hover:text-blue-400 transition block truncate"
           >
             {game.title}
-          </button>
+          </Link>
         </h3>
         <div className="flex items-center justify-between mt-1 text-xs text-gray-400">
           <span>{game.year || 'Unknown'}</span>

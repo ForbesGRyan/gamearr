@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import StoreIcon from '../StoreIcon';
 import { EyeIcon, EyeSlashIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, GamepadIcon } from '../Icons';
 import { getGameDetailPath } from '../../utils/slug';
@@ -23,8 +23,6 @@ export function LibraryOverviewGrid({
   onEdit,
   onDelete,
 }: LibraryOverviewGridProps) {
-  const navigate = useNavigate();
-
   return (
     <div className="space-y-4">
       {games.map((game) => {
@@ -50,9 +48,11 @@ export function LibraryOverviewGrid({
               </div>
               {/* Cover & Rating */}
               <div className="flex-shrink-0">
-                <div
-                  className="w-32 h-44 rounded-lg bg-gray-700 overflow-hidden shadow-lg cursor-pointer hover:ring-2 hover:ring-blue-400 transition"
-                  onClick={() => navigate(getGameDetailPath(game.platform, game.title))}
+                <Link
+                  to={getGameDetailPath(game.platform, game.title)}
+                  viewTransition
+                  className="block w-32 h-44 rounded-lg bg-gray-700 overflow-hidden shadow-lg hover:ring-2 hover:ring-blue-400 transition"
+                  style={{ viewTransitionName: `game-cover-${game.id}` }}
                 >
                   {game.coverUrl ? (
                     <img src={game.coverUrl} alt="" className="w-full h-full object-cover" />
@@ -61,7 +61,7 @@ export function LibraryOverviewGrid({
                       <GamepadIcon className="w-10 h-10" />
                     </div>
                   )}
-                </div>
+                </Link>
                 {game.totalRating && (
                   <div className="mt-3 text-center">
                     <span className={`inline-block px-3 py-1.5 rounded-lg text-sm font-bold text-white ${
@@ -83,12 +83,13 @@ export function LibraryOverviewGrid({
                 {/* Header Row */}
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h3
-                      className="font-bold text-xl hover:text-blue-400 cursor-pointer transition"
-                      onClick={() => navigate(getGameDetailPath(game.platform, game.title))}
+                    <Link
+                      to={getGameDetailPath(game.platform, game.title)}
+                      viewTransition
+                      className="font-bold text-xl hover:text-blue-400 transition"
                     >
                       {game.title}
-                    </h3>
+                    </Link>
                     <div className="flex items-center gap-3 mt-1 text-sm text-gray-400">
                       <span>{game.year || 'Unknown year'}</span>
                       <span>&#8226;</span>
