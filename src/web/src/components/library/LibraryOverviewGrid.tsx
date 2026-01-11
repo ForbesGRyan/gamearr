@@ -1,5 +1,7 @@
+import { useNavigate } from 'react-router-dom';
 import StoreIcon from '../StoreIcon';
 import { EyeIcon, EyeSlashIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, GamepadIcon } from '../Icons';
+import { getGameDetailPath } from '../../utils/slug';
 import type { Game, SimilarGame } from './types';
 
 interface LibraryOverviewGridProps {
@@ -21,6 +23,8 @@ export function LibraryOverviewGrid({
   onEdit,
   onDelete,
 }: LibraryOverviewGridProps) {
+  const navigate = useNavigate();
+
   return (
     <div className="space-y-4">
       {games.map((game) => {
@@ -76,7 +80,12 @@ export function LibraryOverviewGrid({
                 {/* Header Row */}
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h3 className="font-bold text-xl">{game.title}</h3>
+                    <h3
+                      className="font-bold text-xl hover:text-blue-400 cursor-pointer transition"
+                      onClick={() => navigate(getGameDetailPath(game.platform, game.title))}
+                    >
+                      {game.title}
+                    </h3>
                     <div className="flex items-center gap-3 mt-1 text-sm text-gray-400">
                       <span>{game.year || 'Unknown year'}</span>
                       <span>&#8226;</span>
