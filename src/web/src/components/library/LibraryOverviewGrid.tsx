@@ -50,7 +50,10 @@ export function LibraryOverviewGrid({
               </div>
               {/* Cover & Rating */}
               <div className="flex-shrink-0">
-                <div className="w-32 h-44 rounded-lg bg-gray-700 overflow-hidden shadow-lg">
+                <div
+                  className="w-32 h-44 rounded-lg bg-gray-700 overflow-hidden shadow-lg cursor-pointer hover:ring-2 hover:ring-blue-400 transition"
+                  onClick={() => navigate(getGameDetailPath(game.platform, game.title))}
+                >
                   {game.coverUrl ? (
                     <img src={game.coverUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
