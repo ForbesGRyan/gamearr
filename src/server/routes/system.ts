@@ -182,13 +182,10 @@ system.post('/skip-setup', async (c) => {
       }, 403);
     }
 
-    // If setup was already skipped or completed, don't allow re-skipping
+    // If setup was already skipped, just return success (idempotent)
     if (setupSkipped === 'true') {
-      logger.warn('Attempted to skip setup when already skipped');
-      return c.json({
-        success: false,
-        error: 'Setup has already been skipped'
-      }, 400);
+      logger.info('Setup already skipped, returning success');
+      return c.json({ success: true });
     }
 
     // Check if setup is already complete (all required services configured)
@@ -203,12 +200,10 @@ system.post('/skip-setup', async (c) => {
     const qbUsername = await settingsService.getSetting('qbittorrent_username');
     const hasQBittorrent = !!(qbHost && qbUsername);
 
+    // If setup is already complete, just return success
     if (hasLibrary && hasIGDB && hasProwlarr && hasQBittorrent) {
-      logger.warn('Attempted to skip setup when already complete');
-      return c.json({
-        success: false,
-        error: 'Setup is already complete'
-      }, 400);
+      logger.info('Setup already complete, returning success');
+      return c.json({ success: true });
     }
 
     await settingsService.setSetting('setup_skipped', 'true');

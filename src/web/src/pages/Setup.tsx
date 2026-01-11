@@ -62,12 +62,22 @@ export function Setup() {
   };
 
   const handleFinish = async () => {
-    await api.skipSetup();
+    try {
+      await api.skipSetup();
+    } catch (e) {
+      // Navigate anyway - setup complete is the important action
+      console.error('Failed to mark setup complete:', e);
+    }
     navigate('/');
   };
 
   const handleSkipSetup = async () => {
-    await api.skipSetup();
+    try {
+      await api.skipSetup();
+    } catch (e) {
+      // Navigate anyway - user wants to skip
+      console.error('Failed to skip setup:', e);
+    }
     navigate('/');
   };
 
