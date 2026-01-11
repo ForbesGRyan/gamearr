@@ -7,6 +7,8 @@ Gamearr monitors your wanted games, automatically searches for releases via Prow
 ## Features
 
 - **IGDB Integration** - Search and add games with full metadata (cover art, year, platforms, descriptions)
+- **Steam Import** - Import your Steam library with one click
+- **GOG Import** - Import your GOG Galaxy library via OAuth login
 - **Prowlarr Integration** - Search multiple torrent indexers for game releases
 - **qBittorrent Integration** - Automated download management with progress tracking
 - **Library Scanning** - Scan existing game folders and match to database
@@ -119,6 +121,9 @@ Configure these in the Settings page (http://localhost:3000/settings):
 | **Prowlarr Categories** | Filter search to specific categories (e.g., Games/PC) |
 | **qBittorrent Category** | Category for Gamearr downloads |
 | **Dry-Run Mode** | Log downloads without actually grabbing |
+| **Steam API Key** | From [Steam Web API](https://steamcommunity.com/dev/apikey) for library import |
+| **Steam ID** | Your 64-bit Steam ID for library import |
+| **GOG Account** | Login via OAuth in Settings > Metadata |
 
 ## Usage
 
@@ -152,6 +157,23 @@ Games meeting the auto-grab criteria (score >= 100, seeders >= 5) are automatica
 3. Unmatched folders appear with an **Auto Match** button
 4. Click **Auto Match** to search IGDB, or **Match** to search manually
 5. Confirm the match to add the game as "downloaded"
+
+### Steam/GOG Import
+
+Import your existing game libraries from Steam or GOG:
+
+**Steam:**
+1. Go to **Settings > Metadata** and enter your Steam API Key and Steam ID
+2. Go to **Library > Import** and click **Import** under Steam
+3. Select games to import and click **Import Selected**
+
+**GOG:**
+1. Go to **Settings > Metadata** and click **Login with GOG**
+2. Log in to GOG in the popup, then copy the redirect URL back to Gamearr
+3. Go to **Library > Import** and click **Import** under GOG
+4. Select games to import and click **Import Selected**
+
+Imported games are automatically matched with IGDB metadata and marked as "downloaded".
 
 ### Library Health
 
@@ -192,6 +214,14 @@ All endpoints prefixed with `/api/v1`:
 | `/library/health/duplicates` | GET | Find potential duplicate games |
 | `/library/health/loose-files` | GET | Find loose archive files |
 | `/library/health/organize-file` | POST | Organize loose file into folder |
+| `/steam/test` | GET | Test Steam connection |
+| `/steam/owned-games` | GET | Get Steam library |
+| `/steam/import-stream` | POST | Import Steam games (SSE) |
+| `/gog/auth/url` | GET | Get GOG OAuth URL |
+| `/gog/auth/exchange` | POST | Exchange GOG auth code |
+| `/gog/test` | GET | Test GOG connection |
+| `/gog/owned-games` | GET | Get GOG library |
+| `/gog/import-stream` | POST | Import GOG games (SSE) |
 
 ## Development
 
@@ -237,7 +267,7 @@ gamearr/
 │   │   ├── routes/          # API endpoints
 │   │   ├── services/        # Business logic
 │   │   ├── repositories/    # Database access
-│   │   ├── integrations/    # IGDB, Prowlarr, qBittorrent, Steam clients
+│   │   ├── integrations/    # IGDB, Prowlarr, qBittorrent, Steam, GOG clients
 │   │   ├── jobs/            # RssSync, SearchScheduler, DownloadMonitor
 │   │   ├── middleware/      # Auth, CSRF, rate limiting, embedded static
 │   │   ├── generated/       # Auto-generated VFS for embedded frontend
