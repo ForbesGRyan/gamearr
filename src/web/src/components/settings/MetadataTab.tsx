@@ -160,13 +160,31 @@ export default function MetadataTab({
 
   const handleGogCodeSubmit = useCallback(async () => {
     if (!gogCode.trim()) {
-      showSaveMessage('error', 'Please enter the authorization code');
+      showSaveMessage('error', 'Please paste the URL or code');
       return;
+    }
+
+    // Extract code from URL if user pasted full URL
+    let code = gogCode.trim();
+    if (code.includes('code=')) {
+      try {
+        const url = new URL(code.startsWith('http') ? code : `https://${code}`);
+        const extractedCode = url.searchParams.get('code');
+        if (extractedCode) {
+          code = extractedCode;
+        }
+      } catch {
+        // If URL parsing fails, try regex as fallback
+        const match = code.match(/code=([^&]+)/);
+        if (match) {
+          code = match[1];
+        }
+      }
     }
 
     setIsExchangingCode(true);
     try {
-      const response = await api.exchangeGogCode(gogCode.trim());
+      const response = await api.exchangeGogCode(code);
       if (response.success) {
         setGogTest({
           status: 'success',
@@ -394,22 +412,18 @@ export default function MetadataTab({
           {showGogCodeInput && gogTest.status !== 'success' && (
             <div className="space-y-4 p-4 bg-gray-700/50 rounded-lg border border-gray-600">
               <div className="space-y-2">
-                <h4 className="font-medium text-purple-400">Step 2: Enter Authorization Code</h4>
+                <h4 className="font-medium text-purple-400">Step 2: Paste the URL</h4>
                 <p className="text-sm text-gray-400">
-                  After logging in to GOG, you'll be redirected to a page with the code in the URL.
-                  Copy the <code className="bg-gray-800 px-1 rounded">code=XXXXX</code> value from the URL and paste it below.
+                  After logging in, copy the <strong>entire URL</strong> from the browser's address bar and paste it below.
                 </p>
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">
-                  Authorization Code
-                </label>
                 <input
                   type="text"
-                  placeholder="Paste the code from the URL here"
+                  placeholder="https://embed.gog.com/on_login_success?origin=client&code=..."
                   value={gogCode}
                   onChange={(e) => setGogCode(e.target.value)}
-                  className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-purple-500 focus:outline-none text-base font-mono"
+                  className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-purple-500 focus:outline-none text-base font-mono text-sm"
                 />
               </div>
               <div className="flex flex-col sm:flex-row gap-3">
