@@ -53,8 +53,14 @@ export function GogImportModal({
         <div className="bg-gray-700 p-4 border-b border-gray-600 flex items-center justify-between rounded-t-lg">
           <h2 className="text-xl font-semibold flex items-center gap-2">
             {/* GOG Logo */}
-            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-2-13v6l5.25 3.15.75-1.23-4.5-2.67V7H10z"/>
+            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="9" stroke="url(#gogGradientModal)" strokeWidth="4"/>
+              <defs>
+                <linearGradient id="gogGradientModal" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#d946ef"/>
+                  <stop offset="100%" stopColor="#7c3aed"/>
+                </linearGradient>
+              </defs>
             </svg>
             Import from GOG
           </h2>

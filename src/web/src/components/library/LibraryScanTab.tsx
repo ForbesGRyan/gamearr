@@ -232,9 +232,8 @@ export function LibraryScanTab({
               onClick={onOpenGogImport}
               className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded transition flex items-center gap-2"
             >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-                <text x="12" y="16" textAnchor="middle" fontSize="10" fontWeight="bold" fill="currentColor">G</text>
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="4"/>
               </svg>
               Import
             </button>
