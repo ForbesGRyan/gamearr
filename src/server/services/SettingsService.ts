@@ -268,6 +268,15 @@ export class SettingsService {
   }
 
   /**
+   * Get a setting value from database only (no env var fallback)
+   * Use this for setup status checks where we need to know if the user
+   * has explicitly configured settings vs relying on environment variables
+   */
+  async getSettingFromDb(key: string): Promise<string | null> {
+    return this.getCached(key);
+  }
+
+  /**
    * Get all settings (for display purposes, hide sensitive values)
    */
   async getAllSettings(): Promise<Record<string, SettingValue>> {

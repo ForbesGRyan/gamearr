@@ -112,23 +112,25 @@ system.get('/setup-status', async (c) => {
 
   try {
     // Check each required component
+    // Use getSettingFromDb to only check database values, not environment variables
+    // This ensures the setup wizard shows for users who haven't explicitly configured settings
     const hasLibrary = await libraryService.hasLibraries();
 
-    const igdbClientId = await settingsService.getSetting('igdb_client_id');
-    const igdbClientSecret = await settingsService.getSetting('igdb_client_secret');
+    const igdbClientId = await settingsService.getSettingFromDb('igdb_client_id');
+    const igdbClientSecret = await settingsService.getSettingFromDb('igdb_client_secret');
     const hasIGDB = !!(igdbClientId && igdbClientSecret);
 
-    const prowlarrUrl = await settingsService.getSetting('prowlarr_url');
-    const prowlarrApiKey = await settingsService.getSetting('prowlarr_api_key');
+    const prowlarrUrl = await settingsService.getSettingFromDb('prowlarr_url');
+    const prowlarrApiKey = await settingsService.getSettingFromDb('prowlarr_api_key');
     const hasProwlarr = !!(prowlarrUrl && prowlarrApiKey);
 
-    const qbHost = await settingsService.getSetting('qbittorrent_host');
-    const qbUsername = await settingsService.getSetting('qbittorrent_username');
-    const qbPassword = await settingsService.getSetting('qbittorrent_password');
+    const qbHost = await settingsService.getSettingFromDb('qbittorrent_host');
+    const qbUsername = await settingsService.getSettingFromDb('qbittorrent_username');
+    const qbPassword = await settingsService.getSettingFromDb('qbittorrent_password');
     const hasQBittorrent = !!(qbHost && qbUsername);
 
     // Check if setup was skipped
-    const setupSkipped = await settingsService.getSetting('setup_skipped');
+    const setupSkipped = await settingsService.getSettingFromDb('setup_skipped');
 
     const isComplete = setupSkipped === 'true' || (hasLibrary && hasIGDB && hasProwlarr && hasQBittorrent);
 
@@ -176,9 +178,21 @@ system.post('/reset-setup', async (c) => {
   }
 
   try {
-    // Clear the setup_skipped setting by setting it to null/empty
-    await settingsService.deleteSetting('setup_skipped');
-    logger.info('Setup state has been reset');
+    // Clear ALL setup-related settings so isComplete becomes false
+    // This includes: setup_skipped, IGDB, Prowlarr, qBittorrent credentials
+    // Note: We don't delete libraries to avoid cascade delete issues with db:push artifacts
+    await Promise.all([
+      settingsService.deleteSetting('setup_skipped'),
+      settingsService.deleteSetting('igdb_client_id'),
+      settingsService.deleteSetting('igdb_client_secret'),
+      settingsService.deleteSetting('prowlarr_url'),
+      settingsService.deleteSetting('prowlarr_api_key'),
+      settingsService.deleteSetting('qbittorrent_host'),
+      settingsService.deleteSetting('qbittorrent_username'),
+      settingsService.deleteSetting('qbittorrent_password'),
+    ]);
+
+    logger.info('Setup state has been fully reset (all service settings cleared)');
     return c.json({ success: true });
   } catch (error) {
     logger.error('Failed to reset setup:', error);
@@ -194,8 +208,9 @@ system.post('/skip-setup', async (c) => {
   try {
     // Security check: Don't allow skip if setup is already complete
     // This prevents unauthenticated users from modifying settings after initial setup
-    const setupSkipped = await settingsService.getSetting('setup_skipped');
-    const authEnabled = await settingsService.getSetting('auth_enabled');
+    // Use getSettingFromDb to be consistent with setup-status check (no env var fallback)
+    const setupSkipped = await settingsService.getSettingFromDb('setup_skipped');
+    const authEnabled = await settingsService.getSettingFromDb('auth_enabled');
 
     // If auth is enabled, this endpoint should have been blocked by auth middleware
     // But as defense-in-depth, reject here too
@@ -213,16 +228,17 @@ system.post('/skip-setup', async (c) => {
       return c.json({ success: true });
     }
 
-    // Check if setup is already complete (all required services configured)
+    // Check if setup is already complete (all required services configured in DB)
+    // Use getSettingFromDb to match the setup-status endpoint behavior
     const hasLibrary = await libraryService.hasLibraries();
-    const igdbClientId = await settingsService.getSetting('igdb_client_id');
-    const igdbClientSecret = await settingsService.getSetting('igdb_client_secret');
+    const igdbClientId = await settingsService.getSettingFromDb('igdb_client_id');
+    const igdbClientSecret = await settingsService.getSettingFromDb('igdb_client_secret');
     const hasIGDB = !!(igdbClientId && igdbClientSecret);
-    const prowlarrUrl = await settingsService.getSetting('prowlarr_url');
-    const prowlarrApiKey = await settingsService.getSetting('prowlarr_api_key');
+    const prowlarrUrl = await settingsService.getSettingFromDb('prowlarr_url');
+    const prowlarrApiKey = await settingsService.getSettingFromDb('prowlarr_api_key');
     const hasProwlarr = !!(prowlarrUrl && prowlarrApiKey);
-    const qbHost = await settingsService.getSetting('qbittorrent_host');
-    const qbUsername = await settingsService.getSetting('qbittorrent_username');
+    const qbHost = await settingsService.getSettingFromDb('qbittorrent_host');
+    const qbUsername = await settingsService.getSettingFromDb('qbittorrent_username');
     const hasQBittorrent = !!(qbHost && qbUsername);
 
     // If setup is already complete, just return success

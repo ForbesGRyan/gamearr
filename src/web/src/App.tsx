@@ -16,7 +16,8 @@ const Search = lazy(() => import('./pages/Search'));
 const Activity = lazy(() => import('./pages/Activity'));
 const Updates = lazy(() => import('./pages/Updates'));
 const Settings = lazy(() => import('./pages/Settings'));
-const Setup = lazy(() => import('./pages/Setup').then(m => ({ default: m.Setup })));
+// Setup is eagerly loaded to avoid lazy-loading timing issues with navigation
+import { Setup } from './pages/Setup';
 
 // Loading skeleton that resembles the Library page
 function PageLoader() {
@@ -67,17 +68,30 @@ const getNavLinkClassName = ({ isActive }: { isActive: boolean }) =>
 // Component to check setup status and redirect if needed
 function SetupGuard({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const [isChecking, setIsChecking] = useState(true);
+
+  // When on setup page, skip all checking - setup page should always be accessible
+  const isOnSetupPage = location.pathname === '/setup';
+
+  // Initialize to false (no checking needed) when on setup page
+  const [isChecking, setIsChecking] = useState(!isOnSetupPage);
   const [needsSetup, setNeedsSetup] = useState(false);
 
   useEffect(() => {
+    // Skip check if on setup page
+    if (location.pathname === '/setup') {
+      setIsChecking(false);
+      setNeedsSetup(false);
+      return;
+    }
+
     const checkSetup = async () => {
+      setIsChecking(true);
       try {
         const response = await api.getSetupStatus();
         if (response.success && response.data) {
           setNeedsSetup(!response.data.isComplete);
         }
-      } catch (error) {
+      } catch {
         // If we can't check, assume setup is needed
         setNeedsSetup(true);
       } finally {
@@ -85,16 +99,8 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // Don't check if we're already on the setup page
-    if (location.pathname !== '/setup') {
-      // Reset checking state when navigating away from setup
-      setIsChecking(true);
-      setNeedsSetup(false);
-      checkSetup();
-    } else {
-      setIsChecking(false);
-      setNeedsSetup(false);
-    }
+    // Check setup status when navigating to other pages
+    checkSetup();
   }, [location.pathname]);
 
   if (isChecking) {
