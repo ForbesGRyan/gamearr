@@ -49,18 +49,16 @@ function normalizeTitle(title: string): string {
 /**
  * Get GOG OAuth authorization URL
  * GET /api/v1/gog/auth/url
+ *
+ * Note: GOG only allows their own redirect URI (embed.gog.com),
+ * so the user must copy the code from the URL after login.
  */
 router.get('/auth/url', async (c) => {
   try {
-    // Build callback URL based on the request origin
-    const origin = c.req.header('origin') || c.req.header('referer')?.replace(/\/[^/]*$/, '') || 'http://localhost:7878';
-    const callbackUrl = `${origin}/api/v1/gog/auth/callback`;
-
-    const authUrl = GogClient.getAuthUrl(callbackUrl);
-
+    const authUrl = GogClient.getAuthUrl();
     return c.json({
       success: true,
-      data: { url: authUrl, callbackUrl },
+      data: { url: authUrl },
     });
   } catch (error) {
     return c.json(formatErrorResponse(error), getHttpStatusCode(error));
@@ -68,59 +66,29 @@ router.get('/auth/url', async (c) => {
 });
 
 /**
- * Handle GOG OAuth callback
- * GET /api/v1/gog/auth/callback
+ * Exchange GOG authorization code for tokens
+ * POST /api/v1/gog/auth/exchange
+ *
+ * After the user logs in on GOG, they are redirected to embed.gog.com
+ * with a code parameter. The user copies this code and submits it here.
  */
-router.get('/auth/callback', async (c) => {
-  const code = c.req.query('code');
-  const error = c.req.query('error');
-
-  // Build the callback URL (same as what was used to initiate auth)
-  const origin = c.req.header('origin') || c.req.header('referer')?.replace(/\/[^/]*$/, '') || 'http://localhost:7878';
-  const callbackUrl = `${origin}/api/v1/gog/auth/callback`;
-
-  // Return an HTML page that communicates with the parent window
-  const html = (message: string, success: boolean, username?: string) => `
-<!DOCTYPE html>
-<html>
-<head>
-  <title>GOG Authentication</title>
-  <style>
-    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-    .container { text-align: center; padding: 2rem; }
-    .success { color: #4ade80; }
-    .error { color: #f87171; }
-    h1 { font-size: 1.5rem; margin-bottom: 1rem; }
-    p { color: #9ca3af; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1 class="${success ? 'success' : 'error'}">${message}</h1>
-    ${username ? `<p>Logged in as: ${username}</p>` : ''}
-    <p>You can close this window.</p>
-  </div>
-  <script>
-    if (window.opener) {
-      window.opener.postMessage({ type: 'gog-auth-complete', success: ${success}, username: ${username ? `'${username}'` : 'null'} }, '*');
-      setTimeout(() => window.close(), 2000);
-    }
-  </script>
-</body>
-</html>
-`;
-
-  if (error) {
-    return c.html(html(`Authentication failed: ${error}`, false));
-  }
-
-  if (!code) {
-    return c.html(html('No authorization code received', false));
-  }
-
+router.post('/auth/exchange', async (c) => {
   try {
+    const { code } = await c.req.json<{ code: string }>();
+
+    if (!code || typeof code !== 'string') {
+      return c.json({
+        success: false,
+        error: 'Authorization code is required',
+        code: ErrorCode.VALIDATION_ERROR,
+      }, 400);
+    }
+
+    // Clean up the code (remove any whitespace or URL parts if user pasted wrong thing)
+    const cleanCode = code.trim();
+
     // Exchange code for tokens
-    const tokens = await GogClient.exchangeCode(code, callbackUrl);
+    const tokens = await GogClient.exchangeCode(cleanCode);
 
     // Save the refresh token
     await settingsService.setSetting('gog_refresh_token', tokens.refreshToken);
@@ -131,10 +99,15 @@ router.get('/auth/callback', async (c) => {
 
     logger.info(`GOG OAuth successful for user: ${testResult.username}`);
 
-    return c.html(html('Successfully connected to GOG!', true, testResult.username));
-  } catch (err) {
-    logger.error('GOG OAuth callback error:', err);
-    return c.html(html(`Authentication failed: ${err instanceof Error ? err.message : 'Unknown error'}`, false));
+    return c.json({
+      success: true,
+      data: {
+        username: testResult.username,
+      },
+    });
+  } catch (error) {
+    logger.error('GOG code exchange error:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
 

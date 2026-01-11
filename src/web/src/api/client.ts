@@ -687,8 +687,15 @@ class ApiClient {
   }
 
   // GOG Integration
-  async getGogAuthUrl(): Promise<ApiResponse<{ url: string; callbackUrl: string }>> {
-    return this.request<{ url: string; callbackUrl: string }>('/gog/auth/url');
+  async getGogAuthUrl(): Promise<ApiResponse<{ url: string }>> {
+    return this.request<{ url: string }>('/gog/auth/url');
+  }
+
+  async exchangeGogCode(code: string): Promise<ApiResponse<{ username?: string }>> {
+    return this.request<{ username?: string }>('/gog/auth/exchange', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
   }
 
   async testGogConnection(): Promise<ApiResponse<{ connected: boolean; username?: string }>> {

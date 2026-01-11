@@ -40,6 +40,9 @@ export default function MetadataTab({
   const [steamTest, setSteamTest] = useState<ConnectionTestResult>({ status: 'idle' });
   const [gogTest, setGogTest] = useState<ConnectionTestResult>({ status: 'idle' });
   const [isGogLoggingIn, setIsGogLoggingIn] = useState(false);
+  const [showGogCodeInput, setShowGogCodeInput] = useState(false);
+  const [gogCode, setGogCode] = useState('');
+  const [isExchangingCode, setIsExchangingCode] = useState(false);
 
   // Check GOG connection on mount if token exists
   useEffect(() => {
@@ -47,34 +50,6 @@ export default function MetadataTab({
       testGogConnection();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Listen for OAuth callback message
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'gog-auth-complete') {
-        setIsGogLoggingIn(false);
-        if (event.data.success) {
-          setGogTest({
-            status: 'success',
-            message: 'Connected successfully!',
-            username: event.data.username,
-          });
-          showSaveMessage('success', `Connected to GOG as ${event.data.username}`);
-          // Reload settings to get the new token
-          window.location.reload();
-        } else {
-          setGogTest({
-            status: 'error',
-            message: 'Authentication failed',
-          });
-          showSaveMessage('error', 'GOG authentication failed');
-        }
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [showSaveMessage]);
 
   const handleSaveIgdb = useCallback(async () => {
     if (!igdbClientId.trim() || !igdbClientSecret.trim()) {
@@ -170,6 +145,9 @@ export default function MetadataTab({
           'GOG Login',
           `width=${width},height=${height},left=${left},top=${top},popup=yes`
         );
+        // Show code input after opening popup
+        setShowGogCodeInput(true);
+        setIsGogLoggingIn(false);
       } else {
         setIsGogLoggingIn(false);
         showSaveMessage('error', response.error || 'Failed to get GOG login URL');
@@ -179,6 +157,36 @@ export default function MetadataTab({
       showSaveMessage('error', 'Failed to start GOG login');
     }
   }, [showSaveMessage]);
+
+  const handleGogCodeSubmit = useCallback(async () => {
+    if (!gogCode.trim()) {
+      showSaveMessage('error', 'Please enter the authorization code');
+      return;
+    }
+
+    setIsExchangingCode(true);
+    try {
+      const response = await api.exchangeGogCode(gogCode.trim());
+      if (response.success) {
+        setGogTest({
+          status: 'success',
+          message: response.data?.username ? `Connected as ${response.data.username}` : 'Connected successfully!',
+          username: response.data?.username,
+        });
+        showSaveMessage('success', `Connected to GOG${response.data?.username ? ` as ${response.data.username}` : ''}`);
+        setShowGogCodeInput(false);
+        setGogCode('');
+        // Reload to get updated token
+        window.location.reload();
+      } else {
+        showSaveMessage('error', response.error || 'Failed to connect to GOG');
+      }
+    } catch {
+      showSaveMessage('error', 'Failed to exchange code');
+    } finally {
+      setIsExchangingCode(false);
+    }
+  }, [gogCode, showSaveMessage]);
 
   const handleGogLogout = useCallback(async () => {
     setIsSavingGog(true);
@@ -363,8 +371,8 @@ export default function MetadataTab({
             </div>
           )}
 
-          {/* Login button - show when not connected */}
-          {gogTest.status !== 'success' && (
+          {/* Login button - show when not connected and not showing code input */}
+          {gogTest.status !== 'success' && !showGogCodeInput && (
             <div className="space-y-3">
               <button
                 onClick={handleGogLogin}
@@ -374,11 +382,51 @@ export default function MetadataTab({
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
                 </svg>
-                {isGogLoggingIn ? 'Logging in...' : 'Login with GOG'}
+                {isGogLoggingIn ? 'Opening login...' : 'Login with GOG'}
               </button>
               <p className="text-xs text-gray-500">
                 Click to open GOG login in a popup window.
               </p>
+            </div>
+          )}
+
+          {/* Code input - show after login popup opens */}
+          {showGogCodeInput && gogTest.status !== 'success' && (
+            <div className="space-y-4 p-4 bg-gray-700/50 rounded-lg border border-gray-600">
+              <div className="space-y-2">
+                <h4 className="font-medium text-purple-400">Step 2: Enter Authorization Code</h4>
+                <p className="text-sm text-gray-400">
+                  After logging in to GOG, you'll be redirected to a page with the code in the URL.
+                  Copy the <code className="bg-gray-800 px-1 rounded">code=XXXXX</code> value from the URL and paste it below.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">
+                  Authorization Code
+                </label>
+                <input
+                  type="text"
+                  placeholder="Paste the code from the URL here"
+                  value={gogCode}
+                  onChange={(e) => setGogCode(e.target.value)}
+                  className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-purple-500 focus:outline-none text-base font-mono"
+                />
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={handleGogCodeSubmit}
+                  disabled={isExchangingCode || !gogCode.trim()}
+                  className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
+                >
+                  {isExchangingCode ? 'Connecting...' : 'Connect'}
+                </button>
+                <button
+                  onClick={() => { setShowGogCodeInput(false); setGogCode(''); }}
+                  className="w-full sm:w-auto bg-gray-600 hover:bg-gray-500 px-4 py-3 md:py-2 rounded transition min-h-[44px]"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
 

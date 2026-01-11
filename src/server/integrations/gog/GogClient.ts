@@ -62,6 +62,7 @@ export interface GogGame {
 // GOG Galaxy OAuth2 credentials (public, used by Galaxy client)
 const GOG_CLIENT_ID = '46899977096215655';
 const GOG_CLIENT_SECRET = '9d85c43b1482497dbbce61f6e4aa173a433796eeae2ca8c5f6129f2dc4de46d9';
+// GOG only allows their own redirect URI - user must copy code manually
 const GOG_REDIRECT_URI = 'https://embed.gog.com/on_login_success?origin=client';
 
 export class GogClient {
@@ -78,11 +79,12 @@ export class GogClient {
 
   /**
    * Get the GOG OAuth authorization URL
+   * Note: GOG only allows their own redirect URI, so user must copy the code manually
    */
-  static getAuthUrl(callbackUrl: string): string {
+  static getAuthUrl(): string {
     const params = new URLSearchParams({
       client_id: GOG_CLIENT_ID,
-      redirect_uri: callbackUrl,
+      redirect_uri: GOG_REDIRECT_URI,
       response_type: 'code',
       layout: 'client2',
     });
@@ -92,7 +94,7 @@ export class GogClient {
   /**
    * Exchange an authorization code for tokens
    */
-  static async exchangeCode(code: string, callbackUrl: string): Promise<{ refreshToken: string; accessToken: string; expiresIn: number }> {
+  static async exchangeCode(code: string): Promise<{ refreshToken: string; accessToken: string; expiresIn: number }> {
     logger.info('Exchanging GOG authorization code for tokens...');
 
     const params = new URLSearchParams({
@@ -100,7 +102,7 @@ export class GogClient {
       client_secret: GOG_CLIENT_SECRET,
       grant_type: 'authorization_code',
       code,
-      redirect_uri: callbackUrl,
+      redirect_uri: GOG_REDIRECT_URI,
     });
 
     const response = await fetch(`https://auth.gog.com/token?${params.toString()}`);
