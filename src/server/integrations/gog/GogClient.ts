@@ -59,6 +59,11 @@ export interface GogGame {
   isGame: boolean;
 }
 
+// GOG Galaxy OAuth2 credentials (public, used by Galaxy client)
+const GOG_CLIENT_ID = '46899977096215655';
+const GOG_CLIENT_SECRET = '9d85c43b1482497dbbce61f6e4aa173a433796eeae2ca8c5f6129f2dc4de46d9';
+const GOG_REDIRECT_URI = 'https://embed.gog.com/on_login_success?origin=client';
+
 export class GogClient {
   private refreshToken: string;
   private accessToken: string | null = null;
@@ -67,12 +72,53 @@ export class GogClient {
   // GOG API rate limit (be conservative)
   private readonly rateLimiter = new RateLimiter({ maxRequests: 2, windowMs: 1000 });
 
-  // GOG Galaxy OAuth2 client ID (public, used by Galaxy client)
-  private readonly clientId = '46899977096215655';
-  private readonly clientSecret = '9d85c43b1482497dbbce61f6e4aa173a433796eeae2571571f7c05b6a4221c1f';
-
   constructor(refreshToken?: string) {
     this.refreshToken = refreshToken || process.env.GOG_REFRESH_TOKEN || '';
+  }
+
+  /**
+   * Get the GOG OAuth authorization URL
+   */
+  static getAuthUrl(callbackUrl: string): string {
+    const params = new URLSearchParams({
+      client_id: GOG_CLIENT_ID,
+      redirect_uri: callbackUrl,
+      response_type: 'code',
+      layout: 'client2',
+    });
+    return `https://auth.gog.com/auth?${params.toString()}`;
+  }
+
+  /**
+   * Exchange an authorization code for tokens
+   */
+  static async exchangeCode(code: string, callbackUrl: string): Promise<{ refreshToken: string; accessToken: string; expiresIn: number }> {
+    logger.info('Exchanging GOG authorization code for tokens...');
+
+    const params = new URLSearchParams({
+      client_id: GOG_CLIENT_ID,
+      client_secret: GOG_CLIENT_SECRET,
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: callbackUrl,
+    });
+
+    const response = await fetch(`https://auth.gog.com/token?${params.toString()}`);
+
+    if (!response.ok) {
+      const text = await response.text();
+      logger.error('GOG token exchange failed:', response.status, text);
+      throw new GogError(`Token exchange failed: ${response.status} ${response.statusText}`, ErrorCode.GOG_AUTH_FAILED);
+    }
+
+    const data = await response.json() as GogTokenResponse;
+    logger.info('GOG token exchange successful');
+
+    return {
+      refreshToken: data.refresh_token,
+      accessToken: data.access_token,
+      expiresIn: data.expires_in,
+    };
   }
 
   /**
@@ -94,8 +140,8 @@ export class GogClient {
 
     const url = 'https://auth.gog.com/token';
     const params = new URLSearchParams({
-      client_id: this.clientId,
-      client_secret: this.clientSecret,
+      client_id: GOG_CLIENT_ID,
+      client_secret: GOG_CLIENT_SECRET,
       grant_type: 'refresh_token',
       refresh_token: this.refreshToken,
     });

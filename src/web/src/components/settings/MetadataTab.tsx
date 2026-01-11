@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { api } from '../../api/client';
 
 interface ConnectionTestResult {
   status: 'idle' | 'testing' | 'success' | 'error';
   message?: string;
+  username?: string;
 }
 
 interface MetadataTabProps {
@@ -38,6 +39,42 @@ export default function MetadataTab({
   const [isSavingGog, setIsSavingGog] = useState(false);
   const [steamTest, setSteamTest] = useState<ConnectionTestResult>({ status: 'idle' });
   const [gogTest, setGogTest] = useState<ConnectionTestResult>({ status: 'idle' });
+  const [isGogLoggingIn, setIsGogLoggingIn] = useState(false);
+
+  // Check GOG connection on mount if token exists
+  useEffect(() => {
+    if (gogRefreshToken) {
+      testGogConnection();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for OAuth callback message
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'gog-auth-complete') {
+        setIsGogLoggingIn(false);
+        if (event.data.success) {
+          setGogTest({
+            status: 'success',
+            message: 'Connected successfully!',
+            username: event.data.username,
+          });
+          showSaveMessage('success', `Connected to GOG as ${event.data.username}`);
+          // Reload settings to get the new token
+          window.location.reload();
+        } else {
+          setGogTest({
+            status: 'error',
+            message: 'Authentication failed',
+          });
+          showSaveMessage('error', 'GOG authentication failed');
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [showSaveMessage]);
 
   const handleSaveIgdb = useCallback(async () => {
     if (!igdbClientId.trim() || !igdbClientSecret.trim()) {
@@ -104,8 +141,12 @@ export default function MetadataTab({
     setGogTest({ status: 'testing' });
     try {
       const response = await api.testGogConnection();
-      if (response.success && response.data) {
-        setGogTest({ status: 'success', message: 'Connected successfully!' });
+      if (response.success && response.data?.connected) {
+        setGogTest({
+          status: 'success',
+          message: response.data.username ? `Connected as ${response.data.username}` : 'Connected successfully!',
+          username: response.data.username,
+        });
       } else {
         setGogTest({ status: 'error', message: response.error || 'Connection failed' });
       }
@@ -113,6 +154,45 @@ export default function MetadataTab({
       setGogTest({ status: 'error', message: 'Connection test failed' });
     }
   }, []);
+
+  const handleGogLogin = useCallback(async () => {
+    setIsGogLoggingIn(true);
+    try {
+      const response = await api.getGogAuthUrl();
+      if (response.success && response.data?.url) {
+        // Open popup for GOG login
+        const width = 600;
+        const height = 700;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+        window.open(
+          response.data.url,
+          'GOG Login',
+          `width=${width},height=${height},left=${left},top=${top},popup=yes`
+        );
+      } else {
+        setIsGogLoggingIn(false);
+        showSaveMessage('error', response.error || 'Failed to get GOG login URL');
+      }
+    } catch {
+      setIsGogLoggingIn(false);
+      showSaveMessage('error', 'Failed to start GOG login');
+    }
+  }, [showSaveMessage]);
+
+  const handleGogLogout = useCallback(async () => {
+    setIsSavingGog(true);
+    try {
+      await api.updateSetting('gog_refresh_token', '');
+      setGogRefreshToken('');
+      setGogTest({ status: 'idle' });
+      showSaveMessage('success', 'Disconnected from GOG');
+    } catch {
+      showSaveMessage('error', 'Failed to disconnect from GOG');
+    } finally {
+      setIsSavingGog(false);
+    }
+  }, [setGogRefreshToken, showSaveMessage]);
 
   return (
     <>
@@ -262,57 +342,96 @@ export default function MetadataTab({
         </h3>
         <p className="text-gray-400 mb-4 text-sm md:text-base">
           Connect your GOG account to import your owned games.
-          Requires a refresh token from the GOG Galaxy client.
         </p>
         <div className="space-y-4">
-          <p className="text-xs text-gray-500">
-            To get your refresh token, use the{' '}
-            <a
-              href="https://github.com/Mixaill/awesome-gog-galaxy"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:underline"
-            >
-              GOG Galaxy integration tools
-            </a>{' '}
-            or extract it from your GOG Galaxy client's local database.
-          </p>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">
-              Refresh Token
-            </label>
-            <input
-              type="password"
-              placeholder="Your GOG Galaxy refresh token"
-              value={gogRefreshToken}
-              onChange={(e) => setGogRefreshToken(e.target.value)}
-              className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              The refresh token is used to authenticate with GOG's API and retrieve your game library
-            </p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button
-              onClick={handleSaveGog}
-              disabled={isSavingGog}
-              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
-            >
-              {isSavingGog ? 'Saving...' : 'Save'}
-            </button>
-            <button
-              onClick={testGogConnection}
-              disabled={gogTest.status === 'testing' || !gogRefreshToken}
-              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
-            >
-              {gogTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
-            </button>
-          </div>
-          {gogTest.status !== 'idle' && gogTest.status !== 'testing' && (
-            <div className={`p-3 rounded ${gogTest.status === 'success' ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'}`}>
+          {/* Connected status */}
+          {gogTest.status === 'success' && gogTest.username && (
+            <div className="flex items-center justify-between p-3 rounded bg-green-900/30 border border-green-700">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-green-400">Connected as <strong>{gogTest.username}</strong></span>
+              </div>
+              <button
+                onClick={handleGogLogout}
+                disabled={isSavingGog}
+                className="text-sm text-red-400 hover:text-red-300 transition"
+              >
+                Disconnect
+              </button>
+            </div>
+          )}
+
+          {/* Login button - show when not connected */}
+          {gogTest.status !== 'success' && (
+            <div className="space-y-3">
+              <button
+                onClick={handleGogLogin}
+                disabled={isGogLoggingIn}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 px-6 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                </svg>
+                {isGogLoggingIn ? 'Logging in...' : 'Login with GOG'}
+              </button>
+              <p className="text-xs text-gray-500">
+                Click to open GOG login in a popup window.
+              </p>
+            </div>
+          )}
+
+          {/* Error status */}
+          {gogTest.status === 'error' && (
+            <div className="p-3 rounded bg-red-900/50 text-red-400">
               {gogTest.message}
             </div>
           )}
+
+          {/* Advanced: Manual token input */}
+          <details className="text-sm">
+            <summary className="text-gray-500 cursor-pointer hover:text-gray-400">
+              Advanced: Manual token entry
+            </summary>
+            <div className="mt-3 space-y-3">
+              <p className="text-xs text-gray-500">
+                Alternatively, you can enter a refresh token manually. Get it from{' '}
+                <a
+                  href="https://github.com/Mixaill/awesome-gog-galaxy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:underline"
+                >
+                  GOG Galaxy tools
+                </a>{' '}
+                or your GOG Galaxy client's database.
+              </p>
+              <input
+                type="password"
+                placeholder="Paste refresh token here"
+                value={gogRefreshToken}
+                onChange={(e) => setGogRefreshToken(e.target.value)}
+                className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
+              />
+              <div className="flex flex-col sm:flex-row gap-3 mt-3">
+                <button
+                  onClick={handleSaveGog}
+                  disabled={isSavingGog || !gogRefreshToken}
+                  className="w-full sm:w-auto bg-green-600 hover:bg-green-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
+                >
+                  {isSavingGog ? 'Saving...' : 'Save Token'}
+                </button>
+                <button
+                  onClick={testGogConnection}
+                  disabled={gogTest.status === 'testing' || !gogRefreshToken}
+                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
+                >
+                  {gogTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
+                </button>
+              </div>
+            </div>
+          </details>
         </div>
       </div>
     </>

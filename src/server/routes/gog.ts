@@ -47,6 +47,98 @@ function normalizeTitle(title: string): string {
 }
 
 /**
+ * Get GOG OAuth authorization URL
+ * GET /api/v1/gog/auth/url
+ */
+router.get('/auth/url', async (c) => {
+  try {
+    // Build callback URL based on the request origin
+    const origin = c.req.header('origin') || c.req.header('referer')?.replace(/\/[^/]*$/, '') || 'http://localhost:7878';
+    const callbackUrl = `${origin}/api/v1/gog/auth/callback`;
+
+    const authUrl = GogClient.getAuthUrl(callbackUrl);
+
+    return c.json({
+      success: true,
+      data: { url: authUrl, callbackUrl },
+    });
+  } catch (error) {
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+/**
+ * Handle GOG OAuth callback
+ * GET /api/v1/gog/auth/callback
+ */
+router.get('/auth/callback', async (c) => {
+  const code = c.req.query('code');
+  const error = c.req.query('error');
+
+  // Build the callback URL (same as what was used to initiate auth)
+  const origin = c.req.header('origin') || c.req.header('referer')?.replace(/\/[^/]*$/, '') || 'http://localhost:7878';
+  const callbackUrl = `${origin}/api/v1/gog/auth/callback`;
+
+  // Return an HTML page that communicates with the parent window
+  const html = (message: string, success: boolean, username?: string) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GOG Authentication</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+    .container { text-align: center; padding: 2rem; }
+    .success { color: #4ade80; }
+    .error { color: #f87171; }
+    h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+    p { color: #9ca3af; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="${success ? 'success' : 'error'}">${message}</h1>
+    ${username ? `<p>Logged in as: ${username}</p>` : ''}
+    <p>You can close this window.</p>
+  </div>
+  <script>
+    if (window.opener) {
+      window.opener.postMessage({ type: 'gog-auth-complete', success: ${success}, username: ${username ? `'${username}'` : 'null'} }, '*');
+      setTimeout(() => window.close(), 2000);
+    }
+  </script>
+</body>
+</html>
+`;
+
+  if (error) {
+    return c.html(html(`Authentication failed: ${error}`, false));
+  }
+
+  if (!code) {
+    return c.html(html('No authorization code received', false));
+  }
+
+  try {
+    // Exchange code for tokens
+    const tokens = await GogClient.exchangeCode(code, callbackUrl);
+
+    // Save the refresh token
+    await settingsService.setSetting('gog_refresh_token', tokens.refreshToken);
+
+    // Test the connection to get username
+    const client = new GogClient(tokens.refreshToken);
+    const testResult = await client.testConnection();
+
+    logger.info(`GOG OAuth successful for user: ${testResult.username}`);
+
+    return c.html(html('Successfully connected to GOG!', true, testResult.username));
+  } catch (err) {
+    logger.error('GOG OAuth callback error:', err);
+    return c.html(html(`Authentication failed: ${err instanceof Error ? err.message : 'Unknown error'}`, false));
+  }
+});
+
+/**
  * Test GOG connection
  * GET /api/v1/gog/test
  */

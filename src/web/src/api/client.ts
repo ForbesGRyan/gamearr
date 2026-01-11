@@ -687,8 +687,12 @@ class ApiClient {
   }
 
   // GOG Integration
-  async testGogConnection(): Promise<ApiResponse<boolean>> {
-    return this.request<boolean>('/gog/test');
+  async getGogAuthUrl(): Promise<ApiResponse<{ url: string; callbackUrl: string }>> {
+    return this.request<{ url: string; callbackUrl: string }>('/gog/auth/url');
+  }
+
+  async testGogConnection(): Promise<ApiResponse<{ connected: boolean; username?: string }>> {
+    return this.request<{ connected: boolean; username?: string }>('/gog/test');
   }
 
   async getGogOwnedGames(): Promise<ApiResponse<GogGame[]>> {
