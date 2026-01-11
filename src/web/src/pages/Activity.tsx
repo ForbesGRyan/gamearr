@@ -35,12 +35,10 @@ function Activity() {
   const initialDir = validSortDirections.includes(searchParams.get('dir') as SortDirection)
     ? (searchParams.get('dir') as SortDirection)
     : 'desc';
-  const initialShowCompleted = searchParams.get('completed') === 'true';
 
   const [downloads, setDownloads] = useState<Download[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCompleted, setShowCompleted] = useState(initialShowCompleted);
   const [downloadToDelete, setDownloadToDelete] = useState<Download | null>(null);
   const [downloadToImport, setDownloadToImport] = useState<Download | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -61,11 +59,10 @@ function Activity() {
     if (statusFilter !== 'all') params.set('status', statusFilter);
     if (sortField !== 'added') params.set('sort', sortField);
     if (sortDirection !== 'desc') params.set('dir', sortDirection);
-    if (showCompleted) params.set('completed', 'true');
     setSearchParams(params, { replace: true });
-  }, [searchQuery, statusFilter, sortField, sortDirection, showCompleted, setSearchParams]);
+  }, [searchQuery, statusFilter, sortField, sortDirection, setSearchParams]);
 
-  const loadDownloads = useCallback(async (includeCompleted: boolean = false, showLoading: boolean = false) => {
+  const loadDownloads = useCallback(async (showLoading: boolean = false) => {
     if (!isMountedRef.current) return;
 
     if (showLoading || !hasLoadedRef.current) {
@@ -74,7 +71,8 @@ function Activity() {
     setError(null);
 
     try {
-      const response = await api.getDownloads(includeCompleted);
+      // Always include completed downloads - filtering is done client-side via status filter
+      const response = await api.getDownloads(true);
 
       if (isMountedRef.current) {
         if (response.success && response.data) {
@@ -97,9 +95,9 @@ function Activity() {
 
   useEffect(() => {
     isMountedRef.current = true;
-    loadDownloads(showCompleted, true);
+    loadDownloads(true);
 
-    intervalRef.current = setInterval(() => loadDownloads(showCompleted, false), 15000);
+    intervalRef.current = setInterval(() => loadDownloads(false), 15000);
 
     return () => {
       isMountedRef.current = false;
@@ -108,7 +106,7 @@ function Activity() {
         intervalRef.current = null;
       }
     };
-  }, [loadDownloads, showCompleted]);
+  }, [loadDownloads]);
 
   // Filter and sort downloads
   const filteredDownloads = useMemo(() => {
@@ -120,7 +118,7 @@ function Activity() {
   const handlePause = async (hash: string) => {
     try {
       await api.pauseDownload(hash);
-      loadDownloads(showCompleted);
+      loadDownloads();
     } catch (err) {
       setActionError('Failed to pause download');
     }
@@ -129,7 +127,7 @@ function Activity() {
   const handleResume = async (hash: string) => {
     try {
       await api.resumeDownload(hash);
-      loadDownloads(showCompleted);
+      loadDownloads();
     } catch (err) {
       setActionError('Failed to resume download');
     }
@@ -140,7 +138,7 @@ function Activity() {
 
     try {
       await api.cancelDownload(downloadToDelete.hash, false);
-      loadDownloads(showCompleted);
+      loadDownloads();
     } catch (err) {
       setActionError('Failed to delete download');
     } finally {
@@ -167,9 +165,7 @@ function Activity() {
       <ActivityHeader
         totalDownloads={downloads.length}
         filteredCount={filteredDownloads.length}
-        showCompleted={showCompleted}
-        onToggleCompleted={() => setShowCompleted(!showCompleted)}
-        onRefresh={() => loadDownloads(showCompleted, true)}
+        onRefresh={() => loadDownloads(true)}
       />
 
       <ActivityFilters
@@ -242,7 +238,7 @@ function Activity() {
         onClose={() => setDownloadToImport(null)}
         onImported={() => {
           setDownloadToImport(null);
-          loadDownloads(showCompleted);
+          loadDownloads();
         }}
       />
     </div>
