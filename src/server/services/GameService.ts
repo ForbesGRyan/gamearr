@@ -215,15 +215,8 @@ export class GameService {
 
   /**
    * Delete game from library
-   * Also removes associated qBittorrent torrents
    */
   async deleteGame(id: number): Promise<void> {
-    // First, remove any associated qBittorrent torrents
-    const torrentsRemoved = await downloadService.removeTorrentsByGameIds([id]);
-    if (torrentsRemoved > 0) {
-      logger.info(`Removed ${torrentsRemoved} torrent(s) for game ${id}`);
-    }
-
     const deleted = await gameRepository.delete(id);
     if (!deleted) {
       throw new NotFoundError('Game', id);
@@ -270,7 +263,6 @@ export class GameService {
 
   /**
    * Batch delete multiple games
-   * Also removes associated qBittorrent torrents
    * Returns count of deleted games
    */
   async batchDelete(gameIds: number[]): Promise<{ deleted: number }> {
@@ -279,12 +271,6 @@ export class GameService {
     }
 
     logger.info(`Batch deleting ${gameIds.length} games`);
-
-    // First, remove any associated qBittorrent torrents
-    const torrentsRemoved = await downloadService.removeTorrentsByGameIds(gameIds);
-    if (torrentsRemoved > 0) {
-      logger.info(`Removed ${torrentsRemoved} torrent(s) for games: ${gameIds.join(', ')}`);
-    }
 
     // Import for batch delete
     const { db } = await import('../db');
