@@ -178,7 +178,7 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
 
   return (
     <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 md:p-4">
-      <div className="fixed inset-0 md:inset-auto md:relative md:max-w-4xl md:max-h-[90vh] w-full h-full md:w-auto md:h-auto bg-gray-900 md:rounded-lg flex flex-col shadow-2xl border-0 md:border border-gray-600">
+      <div className="fixed inset-0 md:inset-auto md:relative md:w-[56rem] md:max-h-[90vh] w-full h-full md:h-auto bg-gray-900 md:rounded-lg flex flex-col shadow-2xl border-0 md:border border-gray-600">
         {/* Sticky Header */}
         <div className="sticky top-0 bg-gray-700 flex items-center justify-between p-4 md:p-6 border-b border-gray-600 md:rounded-t-lg flex-shrink-0 z-10">
           <div className="min-w-0 flex-1">
