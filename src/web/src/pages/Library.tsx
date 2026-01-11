@@ -157,6 +157,7 @@ function Library() {
   const [steamSearchQuery, setSteamSearchQuery] = useState('');
   const [steamMinPlaytime, setSteamMinPlaytime] = useState<number>(0);
   const [steamShowOwned, setSteamShowOwned] = useState(true);
+  const [steamSortBy, setSteamSortBy] = useState<'playtime' | 'name'>('playtime');
 
   // GOG import state
   const [isGogModalOpen, setIsGogModalOpen] = useState(false);
@@ -178,7 +179,7 @@ function Library() {
   }, [duplicates, dismissedDuplicates]);
 
   const filteredSteamGames = useMemo(() => {
-    return steamGames.filter((game) => {
+    const filtered = steamGames.filter((game) => {
       if (steamSearchQuery.trim()) {
         const query = steamSearchQuery.toLowerCase();
         if (!game.name.toLowerCase().includes(query)) return false;
@@ -188,7 +189,15 @@ function Library() {
       if (!steamShowOwned && game.alreadyInLibrary) return false;
       return true;
     });
-  }, [steamGames, steamSearchQuery, steamMinPlaytime, steamShowOwned]);
+    // Sort the filtered results
+    return filtered.sort((a, b) => {
+      if (steamSortBy === 'name') {
+        return a.name.localeCompare(b.name);
+      }
+      // Default: sort by playtime (descending)
+      return b.playtimeMinutes - a.playtimeMinutes;
+    });
+  }, [steamGames, steamSearchQuery, steamMinPlaytime, steamShowOwned, steamSortBy]);
 
   const filteredGogGames = useMemo(() => {
     return gogGames.filter((game) => {
@@ -951,6 +960,8 @@ function Library() {
         onMinPlaytimeChange={setSteamMinPlaytime}
         showOwned={steamShowOwned}
         onShowOwnedChange={setSteamShowOwned}
+        sortBy={steamSortBy}
+        onSortChange={setSteamSortBy}
       />
 
       {/* GOG Import Modal */}

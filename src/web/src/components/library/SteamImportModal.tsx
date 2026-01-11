@@ -23,6 +23,9 @@ interface SteamImportModalProps {
   onMinPlaytimeChange: (hours: number) => void;
   showOwned: boolean;
   onShowOwnedChange: (show: boolean) => void;
+  // Sort state
+  sortBy: 'playtime' | 'name';
+  onSortChange: (sort: 'playtime' | 'name') => void;
 }
 
 export function SteamImportModal({
@@ -46,6 +49,8 @@ export function SteamImportModal({
   onMinPlaytimeChange,
   showOwned,
   onShowOwnedChange,
+  sortBy,
+  onSortChange,
 }: SteamImportModalProps) {
   if (!isOpen) return null;
 
@@ -164,6 +169,19 @@ export function SteamImportModal({
                       <option value={25}>25+ hours</option>
                       <option value={50}>50+ hours</option>
                       <option value={100}>100+ hours</option>
+                    </select>
+                  </div>
+
+                  {/* Sort by */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-400 whitespace-nowrap">Sort by:</label>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => onSortChange(e.target.value as 'playtime' | 'name')}
+                      className="bg-gray-600 border border-gray-500 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="playtime">Playtime</option>
+                      <option value="name">Name</option>
                     </select>
                   </div>
 
