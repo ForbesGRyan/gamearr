@@ -62,6 +62,7 @@ router.get('/auth/url', async (c) => {
       data: { url: authUrl },
     });
   } catch (error) {
+    logger.error('Failed to get GOG auth URL:', error);
     return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
@@ -144,6 +145,7 @@ router.get('/test', async (c) => {
       }, 502);
     }
   } catch (error) {
+    logger.error('GOG connection test failed:', error);
     return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
@@ -194,6 +196,7 @@ router.get('/owned-games', async (c) => {
       data: enrichedGames,
     });
   } catch (error) {
+    logger.error('Failed to get owned GOG games:', error);
     return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });
@@ -352,6 +355,7 @@ router.post('/import', async (c) => {
       },
     });
   } catch (error) {
+    logger.error('GOG import failed:', error);
     return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });

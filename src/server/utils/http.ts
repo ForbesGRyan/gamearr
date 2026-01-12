@@ -4,6 +4,8 @@
  * but we centralize configuration here to ensure consistent behavior across all clients.
  */
 
+import { logger } from './logger';
+
 /**
  * Default fetch options that enable HTTP keep-alive for connection reuse.
  * These options help maintain persistent connections to frequently accessed hosts.
@@ -191,6 +193,7 @@ export async function fetchWithRetry(
   retryConfig: RetryConfig = defaultRetryConfig
 ): Promise<Response> {
   let lastError: Error | null = null;
+  const urlString = typeof url === 'string' ? url : url instanceof URL ? url.toString() : url.url;
 
   for (let attempt = 0; attempt <= retryConfig.maxRetries; attempt++) {
     try {
@@ -209,8 +212,10 @@ export async function fetchWithRetry(
           } else {
             delayMs = calculateBackoff(attempt, retryConfig);
           }
+          logger.debug(`HTTP ${response.status} response, retrying after ${delayMs}ms (attempt ${attempt + 1}/${retryConfig.maxRetries})`, { url: urlString });
         } else {
           delayMs = calculateBackoff(attempt, retryConfig);
+          logger.debug(`HTTP ${response.status} response, retrying in ${delayMs}ms (attempt ${attempt + 1}/${retryConfig.maxRetries})`, { url: urlString });
         }
 
         await sleep(delayMs);
@@ -224,14 +229,17 @@ export async function fetchWithRetry(
       // Check if we should retry network errors
       if (isRetryableError(error) && attempt < retryConfig.maxRetries) {
         const delayMs = calculateBackoff(attempt, retryConfig);
+        logger.debug(`Network error, retrying in ${delayMs}ms (attempt ${attempt + 1}/${retryConfig.maxRetries})`, { url: urlString, error: lastError.message });
         await sleep(delayMs);
         continue;
       }
 
+      logger.error(`HTTP request failed after ${attempt + 1} attempts`, { url: urlString, error: lastError.message });
       throw error;
     }
   }
 
+  logger.error(`HTTP request failed: max retries (${retryConfig.maxRetries}) exceeded`, { url: urlString });
   throw lastError || new Error('Max retries exceeded');
 }
 

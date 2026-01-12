@@ -1,3 +1,6 @@
+import { existsSync, mkdirSync, statSync, appendFileSync, readdirSync, renameSync } from 'fs';
+import { join, dirname } from 'path';
+
 type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 
 interface LogEntry {
@@ -34,6 +37,123 @@ const SENSITIVE_VALUE_PATTERNS = [
 ];
 
 class Logger {
+  private logDir: string;
+  private currentDate: string = '';
+  private currentLogFile: string = '';
+  private maxFileSize: number = 10 * 1024 * 1024; // 10MB
+  private fileLoggingEnabled: boolean = true;
+
+  constructor() {
+    this.logDir = this.getLogDirectory();
+    this.ensureLogDirectory();
+  }
+
+  /**
+   * Get the log directory path (logs/ alongside the executable)
+   */
+  private getLogDirectory(): string {
+    // In production (compiled binary), use directory of executable
+    // In development, use project root
+    const baseDir = process.env.NODE_ENV === 'production'
+      ? dirname(process.execPath)
+      : process.cwd();
+    return join(baseDir, 'logs');
+  }
+
+  /**
+   * Ensure the logs directory exists
+   */
+  private ensureLogDirectory(): void {
+    try {
+      if (!existsSync(this.logDir)) {
+        mkdirSync(this.logDir, { recursive: true });
+      }
+    } catch (error) {
+      // If we can't create the log directory, disable file logging
+      this.fileLoggingEnabled = false;
+      console.error(`Failed to create log directory: ${this.logDir}`, error);
+    }
+  }
+
+  /**
+   * Get the current log file path based on date
+   */
+  private getLogFilePath(date: string, rotationIndex: number = 0): string {
+    const suffix = rotationIndex > 0 ? `.${rotationIndex}` : '';
+    return join(this.logDir, `gamearr-${date}${suffix}.log`);
+  }
+
+  /**
+   * Get current date string in YYYY-MM-DD format
+   */
+  private getCurrentDateString(): string {
+    return new Date().toISOString().split('T')[0];
+  }
+
+  /**
+   * Rotate log file when size limit is reached
+   */
+  private rotateLogFile(): void {
+    try {
+      // Find the next available rotation index
+      let rotationIndex = 1;
+      while (existsSync(this.getLogFilePath(this.currentDate, rotationIndex))) {
+        rotationIndex++;
+      }
+
+      // Rename current log file
+      const newPath = this.getLogFilePath(this.currentDate, rotationIndex);
+      renameSync(this.currentLogFile, newPath);
+
+      // Reset current log file (will be recreated on next write)
+      this.currentLogFile = this.getLogFilePath(this.currentDate);
+    } catch (error) {
+      console.error('Failed to rotate log file:', error);
+    }
+  }
+
+  /**
+   * Check if current log file needs rotation (size limit)
+   */
+  private checkSizeRotation(): void {
+    try {
+      if (existsSync(this.currentLogFile)) {
+        const stats = statSync(this.currentLogFile);
+        if (stats.size >= this.maxFileSize) {
+          this.rotateLogFile();
+        }
+      }
+    } catch {
+      // Ignore errors during size check
+    }
+  }
+
+  /**
+   * Write a log entry to the file
+   */
+  private writeToFile(formattedMessage: string): void {
+    if (!this.fileLoggingEnabled) return;
+
+    try {
+      const today = this.getCurrentDateString();
+
+      // Check if date changed (new day)
+      if (today !== this.currentDate) {
+        this.currentDate = today;
+        this.currentLogFile = this.getLogFilePath(today);
+      }
+
+      // Check if we need to rotate due to size
+      this.checkSizeRotation();
+
+      // Append to log file
+      appendFileSync(this.currentLogFile, formattedMessage + '\n');
+    } catch (error) {
+      // Don't use logger here to avoid infinite recursion
+      console.error('Failed to write to log file:', error);
+    }
+  }
+
   private formatTimestamp(): string {
     return new Date().toISOString();
   }
@@ -124,10 +244,18 @@ class Logger {
     const reset = '\x1b[0m';
     const levelStr = level.toUpperCase().padEnd(5);
 
+    // Console output (with colors)
     console.log(
       `${color}[${entry.timestamp}] ${levelStr}${reset} ${sanitizedMessage}`,
       sanitizedData !== undefined ? sanitizedData : ''
     );
+
+    // File output (without colors)
+    const dataStr = sanitizedData !== undefined
+      ? ` ${JSON.stringify(sanitizedData)}`
+      : '';
+    const fileMessage = `[${entry.timestamp}] ${levelStr} ${sanitizedMessage}${dataStr}`;
+    this.writeToFile(fileMessage);
   }
 
   info(message: string, data?: unknown) {
@@ -144,6 +272,13 @@ class Logger {
 
   debug(message: string, data?: unknown) {
     this.log('debug', message, data);
+  }
+
+  /**
+   * Get the log directory path (for use by rotation job)
+   */
+  getLogDir(): string {
+    return this.logDir;
   }
 }
 

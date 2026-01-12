@@ -1,4 +1,5 @@
 import type { Context, Next } from 'hono';
+import { logger } from '../utils/logger';
 
 // MIME types for common file extensions
 const MIME_TYPES: Record<string, string> = {
@@ -72,13 +73,19 @@ export function createEmbeddedStaticMiddleware(vfs: VirtualFileSystem) {
 
       if (isBinary) {
         // Decode base64 for binary files
-        const binary = Uint8Array.from(atob(content), c => c.charCodeAt(0));
-        return new Response(binary, {
-          headers: {
-            'Content-Type': mimeType,
-            'Cache-Control': path.includes('assets/') ? 'public, max-age=31536000, immutable' : 'no-cache',
-          },
-        });
+        try {
+          const binary = Uint8Array.from(atob(content), c => c.charCodeAt(0));
+          return new Response(binary, {
+            headers: {
+              'Content-Type': mimeType,
+              'Cache-Control': path.includes('assets/') ? 'public, max-age=31536000, immutable' : 'no-cache',
+            },
+          });
+        } catch (error) {
+          logger.error(`Failed to decode binary file: ${path}`, error);
+          await next();
+          return;
+        }
       }
 
       return new Response(content, {
@@ -89,6 +96,8 @@ export function createEmbeddedStaticMiddleware(vfs: VirtualFileSystem) {
       });
     }
 
+    // File not found in VFS, pass to next handler
+    logger.debug(`Static file not found in VFS: ${c.req.path}`);
     await next();
   };
 }

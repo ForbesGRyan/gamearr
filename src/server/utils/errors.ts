@@ -3,6 +3,8 @@
  * Provides consistent error handling across the application
  */
 
+import { logger } from './logger';
+
 export enum ErrorCode {
   // General errors (1xxx)
   UNKNOWN = 1000,
@@ -285,7 +287,7 @@ interface HonoContext {
 export function routeHandler<T>(
   handler: (c: HonoContext) => Promise<{ success: boolean; data?: T; error?: string } | Response>,
   operationName: string,
-  logFn: (message: string, ...args: unknown[]) => void = console.error
+  logFn: (message: string, ...args: unknown[]) => void = logger.error.bind(logger)
 ): (c: HonoContext) => Promise<Response> {
   return async (c: HonoContext): Promise<Response> => {
     try {

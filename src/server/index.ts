@@ -45,6 +45,7 @@ import { searchScheduler } from './jobs/SearchScheduler';
 import { rssSync } from './jobs/RssSync';
 import { metadataRefreshJob } from './jobs/MetadataRefreshJob';
 import { updateCheckJob } from './jobs/UpdateCheckJob';
+import { logRotationJob } from './jobs/LogRotationJob';
 
 // Import integration clients for configuration
 import { qbittorrentClient } from './integrations/qbittorrent/QBittorrentClient';
@@ -226,6 +227,7 @@ initializeClients().then(async () => {
   rssSync.start();
   metadataRefreshJob.start();
   updateCheckJob.start();
+  logRotationJob.start();
   logger.info('✅ Background jobs started');
 });
 
