@@ -303,6 +303,137 @@ export class SettingsService {
 
     return settingsMap;
   }
+
+  /**
+   * Migrate settings from old keys to new keys
+   * This handles settings format changes and key renames
+   * @returns Object with counts of migrated and failed migrations
+   */
+  async migrateSettings(): Promise<{
+    migrated: number;
+    failed: number;
+    details: Array<{ oldKey: string; newKey: string; success: boolean; error?: string }>;
+  }> {
+    // Define key migrations: oldKey -> newKey
+    // This list can be expanded as settings evolve
+    const keyMigrations: Array<{ oldKey: string; newKey: string; transform?: (value: string) => string }> = [
+      // Example migrations that might occur during app evolution:
+      // { oldKey: 'prowlarr_host', newKey: 'prowlarr_url' },
+      // { oldKey: 'qbit_host', newKey: 'qbittorrent_host' },
+      // { oldKey: 'qbit_user', newKey: 'qbittorrent_username' },
+      // { oldKey: 'qbit_pass', newKey: 'qbittorrent_password' },
+      // { oldKey: 'indexer_categories', newKey: 'prowlarr_categories' },
+      // { oldKey: 'download_category', newKey: 'qbittorrent_category' },
+    ];
+
+    const results: Array<{ oldKey: string; newKey: string; success: boolean; error?: string }> = [];
+    let migrated = 0;
+    let failed = 0;
+
+    for (const migration of keyMigrations) {
+      try {
+        // Check if old key exists
+        const oldValue = await settingsRepository.get(migration.oldKey);
+        if (oldValue === null) {
+          // Old key doesn't exist, no migration needed
+          continue;
+        }
+
+        // Check if new key already exists (don't overwrite)
+        const newValue = await settingsRepository.get(migration.newKey);
+        if (newValue !== null) {
+          logger.info(
+            `Migration skipped: ${migration.oldKey} -> ${migration.newKey} (new key already exists)`
+          );
+          results.push({
+            oldKey: migration.oldKey,
+            newKey: migration.newKey,
+            success: true,
+            error: 'New key already exists, migration skipped',
+          });
+          continue;
+        }
+
+        // Apply transformation if provided
+        const valueToMigrate = migration.transform ? migration.transform(oldValue) : oldValue;
+
+        // Set new key with migrated value
+        await settingsRepository.set(migration.newKey, valueToMigrate);
+
+        // Delete old key
+        await settingsRepository.delete(migration.oldKey);
+
+        // Invalidate cache for both keys
+        this.invalidateCache(migration.oldKey);
+        this.invalidateCache(migration.newKey);
+
+        logger.info(`Migrated setting: ${migration.oldKey} -> ${migration.newKey}`);
+        results.push({
+          oldKey: migration.oldKey,
+          newKey: migration.newKey,
+          success: true,
+        });
+        migrated++;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Failed to migrate setting ${migration.oldKey} -> ${migration.newKey}:`, error);
+        results.push({
+          oldKey: migration.oldKey,
+          newKey: migration.newKey,
+          success: false,
+          error: errorMessage,
+        });
+        failed++;
+      }
+    }
+
+    logger.info(`Settings migration complete: ${migrated} migrated, ${failed} failed`);
+    return { migrated, failed, details: results };
+  }
+
+  /**
+   * Migrate a single setting from old key to new key
+   * Useful for ad-hoc migrations or testing
+   * @param oldKey The old setting key
+   * @param newKey The new setting key
+   * @param transform Optional transformation function for the value
+   * @returns true if migration was performed, false if skipped (no old value or new key exists)
+   */
+  async migrateSingleSetting(
+    oldKey: string,
+    newKey: string,
+    transform?: (value: string) => string
+  ): Promise<boolean> {
+    // Check if old key exists
+    const oldValue = await settingsRepository.get(oldKey);
+    if (oldValue === null) {
+      logger.info(`Migration skipped: ${oldKey} does not exist`);
+      return false;
+    }
+
+    // Check if new key already exists (don't overwrite)
+    const newValue = await settingsRepository.get(newKey);
+    if (newValue !== null) {
+      logger.info(`Migration skipped: ${newKey} already exists`);
+      return false;
+    }
+
+    // Apply transformation if provided
+    const valueToMigrate = transform ? transform(oldValue) : oldValue;
+
+    // Set new key with migrated value
+    await settingsRepository.set(newKey, valueToMigrate);
+
+    // Delete old key
+    await settingsRepository.delete(oldKey);
+
+    // Invalidate cache for both keys
+    this.invalidateCache(oldKey);
+    this.invalidateCache(newKey);
+
+    logger.info(`Migrated setting: ${oldKey} -> ${newKey}`);
+    return true;
+  }
 }
 
 // Singleton instance

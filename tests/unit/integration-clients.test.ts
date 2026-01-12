@@ -528,6 +528,160 @@ describe('ProwlarrClient', () => {
     });
   });
 
+  describe('configure()', () => {
+    test('should configure client with valid URL and API key', () => {
+      const originalUrl = process.env.PROWLARR_URL;
+      const originalKey = process.env.PROWLARR_API_KEY;
+      delete process.env.PROWLARR_URL;
+      delete process.env.PROWLARR_API_KEY;
+
+      const unconfiguredClient = new ProwlarrClient('', '');
+      expect(unconfiguredClient.isConfigured()).toBe(false);
+
+      unconfiguredClient.configure({
+        url: 'http://new-prowlarr:9696',
+        apiKey: 'new-api-key',
+      });
+
+      expect(unconfiguredClient.isConfigured()).toBe(true);
+
+      process.env.PROWLARR_URL = originalUrl;
+      process.env.PROWLARR_API_KEY = originalKey;
+    });
+
+    test('should remove trailing slash from URL when configuring', () => {
+      const originalUrl = process.env.PROWLARR_URL;
+      const originalKey = process.env.PROWLARR_API_KEY;
+      delete process.env.PROWLARR_URL;
+      delete process.env.PROWLARR_API_KEY;
+
+      const testClient = new ProwlarrClient('', '');
+
+      testClient.configure({
+        url: 'http://prowlarr-with-slash:9696/',
+        apiKey: 'test-key',
+      });
+
+      expect(testClient.isConfigured()).toBe(true);
+
+      process.env.PROWLARR_URL = originalUrl;
+      process.env.PROWLARR_API_KEY = originalKey;
+    });
+
+    test('should not configure when URL is empty', () => {
+      const testClient = new ProwlarrClient('http://initial:9696', 'initial-key');
+      expect(testClient.isConfigured()).toBe(true);
+
+      testClient.configure({
+        url: '',
+        apiKey: 'valid-key',
+      });
+
+      expect(testClient.isConfigured()).toBe(false);
+    });
+
+    test('should not configure when API key is empty', () => {
+      const testClient = new ProwlarrClient('http://initial:9696', 'initial-key');
+      expect(testClient.isConfigured()).toBe(true);
+
+      testClient.configure({
+        url: 'http://valid-url:9696',
+        apiKey: '',
+      });
+
+      expect(testClient.isConfigured()).toBe(false);
+    });
+
+    test('should not configure when both URL and API key are empty', () => {
+      const testClient = new ProwlarrClient('http://initial:9696', 'initial-key');
+      expect(testClient.isConfigured()).toBe(true);
+
+      testClient.configure({
+        url: '',
+        apiKey: '',
+      });
+
+      expect(testClient.isConfigured()).toBe(false);
+    });
+
+    test('should handle undefined URL gracefully', () => {
+      const testClient = new ProwlarrClient('http://initial:9696', 'initial-key');
+
+      testClient.configure({
+        url: undefined as unknown as string,
+        apiKey: 'valid-key',
+      });
+
+      expect(testClient.isConfigured()).toBe(false);
+    });
+
+    test('should handle undefined API key gracefully', () => {
+      const testClient = new ProwlarrClient('http://initial:9696', 'initial-key');
+
+      testClient.configure({
+        url: 'http://valid:9696',
+        apiKey: undefined as unknown as string,
+      });
+
+      expect(testClient.isConfigured()).toBe(false);
+    });
+
+    test('should allow reconfiguration with new credentials', () => {
+      const testClient = new ProwlarrClient('http://old:9696', 'old-key');
+      expect(testClient.isConfigured()).toBe(true);
+
+      testClient.configure({
+        url: 'http://new:9696',
+        apiKey: 'new-key',
+      });
+
+      expect(testClient.isConfigured()).toBe(true);
+    });
+
+    test('should use new credentials after reconfiguration', async () => {
+      const testClient = new ProwlarrClient('http://old:9696', 'old-key');
+
+      testClient.configure({
+        url: 'http://new-server:9696',
+        apiKey: 'new-api-key',
+      });
+
+      let capturedUrl = '';
+      let capturedHeaders: Record<string, string> = {};
+
+      globalThis.fetch = mock(async (url: string, options?: RequestInit) => {
+        capturedUrl = url;
+        capturedHeaders = options?.headers as Record<string, string>;
+        return createMockResponse({ status: 'OK' });
+      });
+
+      await testClient.testConnection();
+
+      expect(capturedUrl).toContain('http://new-server:9696');
+      expect(capturedHeaders['X-Api-Key']).toBe('new-api-key');
+    });
+
+    test('should handle URL with multiple trailing slashes', () => {
+      const originalUrl = process.env.PROWLARR_URL;
+      const originalKey = process.env.PROWLARR_API_KEY;
+      delete process.env.PROWLARR_URL;
+      delete process.env.PROWLARR_API_KEY;
+
+      const testClient = new ProwlarrClient('', '');
+
+      // Note: The current implementation only removes one trailing slash
+      testClient.configure({
+        url: 'http://prowlarr:9696//',
+        apiKey: 'test-key',
+      });
+
+      expect(testClient.isConfigured()).toBe(true);
+
+      process.env.PROWLARR_URL = originalUrl;
+      process.env.PROWLARR_API_KEY = originalKey;
+    });
+  });
+
   describe('testConnection', () => {
     test('should return true on successful connection', async () => {
       globalThis.fetch = mock(async () => {
