@@ -182,6 +182,40 @@ export const gameUpdates = sqliteTable('game_updates', {
   statusIdx: index('game_updates_status_idx').on(table.status),
 }));
 
+// Game events table - tracks game lifecycle events (imports, rematch, etc.)
+export const gameEvents = sqliteTable('game_events', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  gameId: integer('game_id')
+    .notNull()
+    .references(() => games.id, { onDelete: 'cascade' }),
+  eventType: text('event_type', {
+    enum: ['imported_steam', 'imported_gog', 'imported_manual', 'igdb_rematch', 'folder_matched', 'status_changed']
+  }).notNull(),
+  data: text('data'), // JSON object with event-specific data
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, (table) => ({
+  gameIdIdx: index('game_events_game_id_idx').on(table.gameId),
+  eventTypeIdx: index('game_events_event_type_idx').on(table.eventType),
+}));
+
+// Embeddings cache for semantic search
+export const gameEmbeddings = sqliteTable('game_embeddings', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  gameId: integer('game_id')
+    .notNull()
+    .unique()  // One embedding per game
+    .references(() => games.id, { onDelete: 'cascade' }),
+  titleHash: text('title_hash').notNull(), // SHA256 of title for cache invalidation
+  embedding: text('embedding').notNull(),  // JSON array of floats
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, (table) => ({
+  titleHashIdx: index('game_embeddings_title_hash_idx').on(table.titleHash),
+}));
+
 // Type exports
 export type Library = typeof libraries.$inferSelect;
 export type NewLibrary = typeof libraries.$inferInsert;
@@ -209,3 +243,9 @@ export type NewLibraryFile = typeof libraryFiles.$inferInsert;
 
 export type GameUpdate = typeof gameUpdates.$inferSelect;
 export type NewGameUpdate = typeof gameUpdates.$inferInsert;
+
+export type GameEmbedding = typeof gameEmbeddings.$inferSelect;
+export type NewGameEmbedding = typeof gameEmbeddings.$inferInsert;
+
+export type GameEvent = typeof gameEvents.$inferSelect;
+export type NewGameEvent = typeof gameEvents.$inferInsert;

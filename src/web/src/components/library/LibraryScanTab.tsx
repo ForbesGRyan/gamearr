@@ -74,16 +74,17 @@ export function LibraryScanTab({
   const [hasVersionFilter, setHasVersionFilter] = useState<boolean | null>(null);
   const [libraryFilter, setLibraryFilter] = useState<string>('all');
 
-  // Get unique library names for filter dropdown
-  const uniqueLibraryNames = useMemo(() => {
-    const names = new Set<string>();
-    libraryFolders.forEach(folder => {
-      if (folder.libraryName) {
-        names.add(folder.libraryName);
-      }
-    });
-    return Array.from(names).sort();
-  }, [libraryFolders]);
+  // Get library info for filter dropdown - use all configured libraries, sorted by priority
+  const allLibraryOptions = useMemo(() => {
+    return libraries
+      .map(lib => ({
+        name: lib.name,
+        platform: lib.platform,
+        priority: lib.priority,
+        label: lib.platform ? `${lib.name} (${lib.platform})` : lib.name,
+      }))
+      .sort((a, b) => a.priority - b.priority);
+  }, [libraries]);
 
   // Filter and sort folders
   const filteredAndSortedFolders = useMemo(() => {
@@ -407,7 +408,7 @@ export function LibraryScanTab({
               </select>
 
               {/* Library Filter - only show if there are multiple libraries */}
-              {uniqueLibraryNames.length > 1 && (
+              {allLibraryOptions.length > 1 && (
                 <select
                   value={libraryFilter}
                   onChange={(e) => {
@@ -417,8 +418,8 @@ export function LibraryScanTab({
                   className="bg-gray-600 border border-gray-500 rounded px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
                 >
                   <option value="all">All Libraries</option>
-                  {uniqueLibraryNames.map(name => (
-                    <option key={name} value={name}>{name}</option>
+                  {allLibraryOptions.map(lib => (
+                    <option key={lib.name} value={lib.name}>{lib.label}</option>
                   ))}
                 </select>
               )}

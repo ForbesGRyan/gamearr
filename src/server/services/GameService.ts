@@ -2,10 +2,13 @@ import { gameRepository, type PaginationParams, type PaginatedResult } from '../
 import { releaseRepository } from '../repositories/ReleaseRepository';
 import { downloadHistoryRepository } from '../repositories/DownloadHistoryRepository';
 import { gameStoreRepository } from '../repositories/GameStoreRepository';
+import { gameEventRepository } from '../repositories/GameEventRepository';
 import { igdbClient } from '../integrations/igdb/IGDBClient';
 import { indexerService } from './IndexerService';
 import { downloadService } from './DownloadService';
 import { settingsService } from './SettingsService';
+import { semanticSearchService } from './SemanticSearchService';
+import { imageCacheService } from './ImageCacheService';
 import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
 import type { Game, NewGame, Release, DownloadHistory } from '../db/schema';
 import type { GameSearchResult } from '../integrations/igdb/types';
@@ -26,7 +29,78 @@ export class GameService {
   }
 
   /**
+   * Generate alternative search queries by expanding/contracting common word variations
+   * This helps find games when IGDB's text search doesn't match due to naming differences
+   */
+  private generateSearchVariations(query: string): string[] {
+    const variations: string[] = [];
+
+    // Common word expansions/contractions (bidirectional)
+    const wordMappings: [RegExp, string, RegExp, string][] = [
+      // [pattern1, replacement1, pattern2, replacement2] - tries both directions
+      [/\bBrothers\b/gi, 'Bros', /\bBros\.?\b/gi, 'Brothers'],
+      [/\bversus\b/gi, 'vs', /\bvs\.?\b/gi, 'versus'],
+      [/\band\b/gi, '&', /\s*&\s*/g, ' and '],
+      [/\bMister\b/gi, 'Mr', /\bMr\.?\b/gi, 'Mister'],
+      [/\bDoctor\b/gi, 'Dr', /\bDr\.?\b/gi, 'Doctor'],
+      [/\bSaint\b/gi, 'St', /\bSt\.?\b/gi, 'Saint'],
+      [/\bMount\b/gi, 'Mt', /\bMt\.?\b/gi, 'Mount'],
+      [/\bNumber\b/gi, '#', /\s*#\s*/g, ' Number '],
+      [/\bPart\b/gi, 'Pt', /\bPt\.?\b/gi, 'Part'],
+    ];
+
+    // Try each mapping in both directions
+    for (const [pattern1, replace1, pattern2, replace2] of wordMappings) {
+      if (pattern1.test(query)) {
+        const variation = query.replace(pattern1, replace1).replace(/\s+/g, ' ').trim();
+        if (variation !== query && !variations.includes(variation)) {
+          variations.push(variation);
+        }
+      }
+      if (pattern2.test(query)) {
+        const variation = query.replace(pattern2, replace2).replace(/\s+/g, ' ').trim();
+        if (variation !== query && !variations.includes(variation)) {
+          variations.push(variation);
+        }
+      }
+    }
+
+    // Roman numeral conversions
+    const romanToArabic: [RegExp, string][] = [
+      [/\bII\b/g, '2'], [/\bIII\b/g, '3'], [/\bIV\b/g, '4'],
+      [/\bV\b/g, '5'], [/\bVI\b/g, '6'], [/\bVII\b/g, '7'],
+      [/\bVIII\b/g, '8'], [/\bIX\b/g, '9'], [/\bX\b/g, '10'],
+    ];
+    const arabicToRoman: [RegExp, string][] = [
+      [/\b2\b/g, 'II'], [/\b3\b/g, 'III'], [/\b4\b/g, 'IV'],
+      [/\b5\b/g, 'V'], [/\b6\b/g, 'VI'], [/\b7\b/g, 'VII'],
+      [/\b8\b/g, 'VIII'], [/\b9\b/g, 'IX'], [/\b10\b/g, 'X'],
+    ];
+
+    for (const [pattern, replacement] of romanToArabic) {
+      if (pattern.test(query)) {
+        const variation = query.replace(pattern, replacement);
+        if (!variations.includes(variation)) {
+          variations.push(variation);
+        }
+      }
+    }
+    for (const [pattern, replacement] of arabicToRoman) {
+      if (pattern.test(query)) {
+        const variation = query.replace(pattern, replacement);
+        if (!variations.includes(variation)) {
+          variations.push(variation);
+        }
+      }
+    }
+
+    return variations;
+  }
+
+  /**
    * Search for games on IGDB
+   * Results are re-ranked using semantic similarity for better relevance
+   * If no results found, tries alternative query variations (Brothers↔Bros, etc.)
    */
   async searchIGDB(query: string): Promise<GameSearchResult[]> {
     if (!igdbClient.isConfigured()) {
@@ -37,7 +111,32 @@ export class GameService {
     const normalizedQuery = this.normalizeSearchQuery(query);
     logger.info(`Searching IGDB: "${query}" → normalized: "${normalizedQuery}"`);
 
-    return igdbClient.searchGames({ search: normalizedQuery, limit: 20 });
+    let results = await igdbClient.searchGames({ search: normalizedQuery, limit: 20 });
+
+    // If no results, try alternative query variations
+    if (results.length === 0) {
+      const variations = this.generateSearchVariations(normalizedQuery);
+      for (const variation of variations) {
+        logger.info(`No results, trying variation: "${variation}"`);
+        results = await igdbClient.searchGames({ search: variation, limit: 20 });
+        if (results.length > 0) {
+          logger.info(`Found ${results.length} results with variation: "${variation}"`);
+          break;
+        }
+      }
+    }
+
+    // Re-rank results using semantic similarity
+    if (results.length > 1) {
+      try {
+        return await semanticSearchService.rerankIGDBResults(query, results);
+      } catch (error) {
+        logger.warn('Semantic re-ranking failed, returning original order:', error);
+        return results;
+      }
+    }
+
+    return results;
   }
 
   /**
@@ -367,6 +466,19 @@ export class GameService {
     }
 
     logger.info(`Rematching game "${game.title}" to "${igdbGame.title}" (IGDB ID: ${newIgdbId})`);
+
+    // Record the rematch event before updating
+    await gameEventRepository.createRematchEvent(id, {
+      previousIgdbId: game.igdbId,
+      previousTitle: game.title,
+      previousCoverUrl: game.coverUrl || undefined,
+      newIgdbId: igdbGame.igdbId,
+      newTitle: igdbGame.title,
+      newCoverUrl: igdbGame.coverUrl,
+    });
+
+    // Invalidate cached cover image so the new one will be downloaded
+    await imageCacheService.deleteCache(id);
 
     // Update with new IGDB metadata while preserving local fields like status, store, folderPath
     const updates: Partial<NewGame> = {

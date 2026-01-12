@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { api, Game, GrabbedRelease, DownloadHistoryEntry, GameUpdate, Library } from '../api/client';
+import { api, Game, GrabbedRelease, DownloadHistoryEntry, GameUpdate, Library, GameEvent } from '../api/client';
 import {
   GameDetailHeader,
   GameInfoSection,
@@ -8,10 +8,11 @@ import {
   GameReleasesSection,
   GameUpdatesSection,
   GameHistorySection,
+  GameEventsSection,
 } from '../components/gameDetail';
 import { ChevronLeftIcon } from '../components/Icons';
 
-type TabId = 'info' | 'metadata' | 'releases' | 'updates' | 'history';
+type TabId = 'info' | 'metadata' | 'releases' | 'updates' | 'history' | 'events';
 
 interface Tab {
   id: TabId;
@@ -24,6 +25,7 @@ const TABS: Tab[] = [
   { id: 'releases', label: 'Releases' },
   { id: 'updates', label: 'Updates' },
   { id: 'history', label: 'History' },
+  { id: 'events', label: 'Events' },
 ];
 
 function GameDetail() {
@@ -34,6 +36,7 @@ function GameDetail() {
   const [releases, setReleases] = useState<GrabbedRelease[]>([]);
   const [history, setHistory] = useState<DownloadHistoryEntry[]>([]);
   const [updates, setUpdates] = useState<GameUpdate[]>([]);
+  const [events, setEvents] = useState<GameEvent[]>([]);
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,11 +78,12 @@ function GameDetail() {
   }, []);
 
   const loadAdditionalData = async (gameId: number) => {
-    // Load releases, history, and updates in parallel
-    const [releasesRes, historyRes, updatesRes] = await Promise.all([
+    // Load releases, history, updates, and events in parallel
+    const [releasesRes, historyRes, updatesRes, eventsRes] = await Promise.all([
       api.getGameReleases(gameId),
       api.getGameHistory(gameId),
       api.getGameUpdates(gameId),
+      api.getGameEvents(gameId),
     ]);
 
     if (releasesRes.success && releasesRes.data) {
@@ -90,6 +94,9 @@ function GameDetail() {
     }
     if (updatesRes.success && updatesRes.data) {
       setUpdates(updatesRes.data);
+    }
+    if (eventsRes.success && eventsRes.data) {
+      setEvents(eventsRes.data);
     }
   };
 
@@ -235,6 +242,9 @@ function GameDetail() {
         )}
         {activeTab === 'history' && (
           <GameHistorySection history={history} releases={releases} />
+        )}
+        {activeTab === 'events' && (
+          <GameEventsSection events={events} />
         )}
       </div>
     </div>

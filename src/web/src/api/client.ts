@@ -297,6 +297,45 @@ export interface DownloadHistoryEntry {
   completedAt?: string;
 }
 
+export type GameEventType =
+  | 'imported_steam'
+  | 'imported_gog'
+  | 'imported_manual'
+  | 'igdb_rematch'
+  | 'folder_matched'
+  | 'status_changed';
+
+export interface GameEvent {
+  id: number;
+  gameId: number;
+  eventType: GameEventType;
+  data?: string; // JSON string with event-specific data
+  createdAt: string;
+}
+
+export interface SteamImportEventData {
+  steamAppId: number;
+  steamName: string;
+  matchedTitle: string;
+  igdbId: number;
+}
+
+export interface GogImportEventData {
+  gogId: number;
+  gogTitle: string;
+  matchedTitle: string;
+  igdbId: number;
+}
+
+export interface IgdbRematchEventData {
+  previousIgdbId: number;
+  previousTitle: string;
+  previousCoverUrl?: string;
+  newIgdbId: number;
+  newTitle: string;
+  newCoverUrl?: string;
+}
+
 export interface PopularityType {
   id: number;
   name: string;
@@ -473,6 +512,10 @@ class ApiClient {
 
   async getGameHistory(gameId: number): Promise<ApiResponse<DownloadHistoryEntry[]>> {
     return this.request<DownloadHistoryEntry[]>(`/games/${gameId}/history`);
+  }
+
+  async getGameEvents(gameId: number): Promise<ApiResponse<GameEvent[]>> {
+    return this.request<GameEvent[]>(`/games/${gameId}/events`);
   }
 
   // Search

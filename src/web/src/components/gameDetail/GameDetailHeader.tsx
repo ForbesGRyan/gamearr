@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Game } from '../../api/client';
 import { GamepadIcon, TrashIcon, MagnifyingGlassIcon } from '../Icons';
 import StoreIcon from '../StoreIcon';
+import { getCoverUrl } from '../../utils/images';
 
 interface GameDetailHeaderProps {
   game: Game;
@@ -39,7 +40,7 @@ function GameDetailHeader({ game, onDelete }: GameDetailHeaderProps) {
       >
         {game.coverUrl ? (
           <img
-            src={game.coverUrl}
+            src={getCoverUrl(game.id, game.coverUrl)}
             alt={game.title}
             className="w-full aspect-[2/3] object-cover rounded-lg shadow-lg"
           />

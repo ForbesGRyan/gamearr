@@ -11,6 +11,7 @@ interface LibraryGamesFilterProps {
   onFiltersChange: (filters: Filters) => void;
   allGenres: string[];
   allGameModes: string[];
+  allStores: string[];
   activeFilterCount: number;
   filteredCount: number;
   totalCount: number;
@@ -28,6 +29,7 @@ export function LibraryGamesFilter({
   onFiltersChange,
   allGenres,
   allGameModes,
+  allStores,
   activeFilterCount,
   filteredCount,
   totalCount,
@@ -49,6 +51,15 @@ export function LibraryGamesFilter({
       gameModes: filters.gameModes.includes(mode)
         ? filters.gameModes.filter((m) => m !== mode)
         : [...filters.gameModes, mode],
+    });
+  };
+
+  const toggleStoreFilter = (store: string) => {
+    onFiltersChange({
+      ...filters,
+      stores: filters.stores.includes(store)
+        ? filters.stores.filter((s) => s !== store)
+        : [...filters.stores, store],
     });
   };
 
@@ -156,6 +167,31 @@ export function LibraryGamesFilter({
           </div>
         )}
 
+        {/* Store Filter */}
+        {allStores.length > 0 && (
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <label className="text-sm text-gray-400 shrink-0">Store:</label>
+            <div className="relative flex-1 sm:flex-none">
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) toggleStoreFilter(e.target.value);
+                }}
+                className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
+              >
+                <option value="">
+                  {filters.stores.length > 0 ? `${filters.stores.length} selected` : 'Select...'}
+                </option>
+                {allStores.map((store) => (
+                  <option key={store} value={store}>
+                    {filters.stores.includes(store) ? `[x] ${store}` : store}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
         {/* Genre Filter */}
         {allGenres.length > 0 && (
           <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -221,8 +257,20 @@ export function LibraryGamesFilter({
       </div>
 
       {/* Active Filter Chips */}
-      {(filters.genres.length > 0 || filters.gameModes.length > 0) && (
+      {(filters.genres.length > 0 || filters.gameModes.length > 0 || filters.stores.length > 0) && (
         <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-700">
+          {filters.stores.map((store) => (
+            <button
+              key={store}
+              onClick={() => toggleStoreFilter(store)}
+              className="text-xs bg-green-600 hover:bg-green-500 px-2.5 py-1 rounded-full flex items-center gap-1 transition"
+            >
+              {store}
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          ))}
           {filters.genres.map((genre) => (
             <button
               key={genre}

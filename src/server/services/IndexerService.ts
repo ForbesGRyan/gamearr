@@ -1,9 +1,11 @@
 import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
 import { settingsService } from './SettingsService';
+import { semanticSearchService } from './SemanticSearchService';
 import type { ReleaseSearchResult } from '../integrations/prowlarr/types';
 import type { Game } from '../db/schema';
 import { logger } from '../utils/logger';
 import { NotConfiguredError } from '../utils/errors';
+import { cleanSearchQuery } from '../utils/searchQuery';
 
 export interface ScoredRelease extends ReleaseSearchResult {
   score: number;
@@ -35,15 +37,20 @@ export class IndexerService {
       limit: 50,
     });
 
-    // Score and filter releases
+    // Score and filter releases (base scoring)
     const scoredReleases = releases
       .map((release) => this.scoreRelease(release, game))
-      .filter((release) => release.score > 0) // Filter out obvious bad matches
-      .sort((a, b) => b.score - a.score); // Sort by score descending
+      .filter((release) => release.score > 0); // Filter out obvious bad matches
 
-    logger.info(`Found ${scoredReleases.length} potential releases for ${game.title}`);
+    // Enhance scores with semantic similarity
+    const enhancedReleases = await this.enhanceWithSemanticScores(scoredReleases, game);
 
-    return scoredReleases;
+    // Sort by final score descending
+    enhancedReleases.sort((a, b) => b.score - a.score);
+
+    logger.info(`Found ${enhancedReleases.length} potential releases for ${game.title}`);
+
+    return enhancedReleases;
   }
 
   /**
@@ -299,6 +306,55 @@ export class IndexerService {
       score,
       matchConfidence,
     };
+  }
+
+  /**
+   * Enhance release scores with semantic similarity
+   * Adds bonus points based on how semantically similar the release title is to the game title
+   */
+  private async enhanceWithSemanticScores(
+    releases: ScoredRelease[],
+    game: Game
+  ): Promise<ScoredRelease[]> {
+    if (releases.length === 0) return releases;
+
+    try {
+      const enhanced = await Promise.all(
+        releases.map(async (release) => {
+          // Clean the release title to extract the game name part
+          const cleanedTitle = cleanSearchQuery(release.title);
+
+          // Get semantic similarity score (0-1)
+          const similarity = await semanticSearchService.scoreReleaseSimilarity(
+            cleanedTitle,
+            game.title
+          );
+
+          // Add bonus points based on similarity (max 40 points for perfect match)
+          const semanticBonus = Math.round(similarity * 40);
+
+          // Update confidence based on semantic similarity
+          let matchConfidence = release.matchConfidence;
+          if (similarity > 0.85 && release.score + semanticBonus >= 120) {
+            matchConfidence = 'high';
+          } else if (similarity < 0.5 && matchConfidence !== 'low') {
+            matchConfidence = 'medium';
+          }
+
+          return {
+            ...release,
+            score: release.score + semanticBonus,
+            matchConfidence,
+          };
+        })
+      );
+
+      logger.debug(`Enhanced ${releases.length} releases with semantic scores`);
+      return enhanced;
+    } catch (error) {
+      logger.warn('Failed to enhance releases with semantic scores:', error);
+      return releases; // Return original scores on failure
+    }
   }
 
   /**

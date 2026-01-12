@@ -1,14 +1,18 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { formatBytes, formatTimestamp } from '../../utils/formatters';
 import { FolderIcon } from '../Icons';
 import { api } from '../../api/client';
-import type { LooseFile, DuplicateGroup } from './types';
+import type { LooseFile, DuplicateGroup, LibraryInfo } from './types';
+
+type LooseFileSortColumn = 'name' | 'size' | 'type' | 'modified' | 'library';
+type SortDirection = 'asc' | 'desc';
 
 interface LibraryHealthTabProps {
   isLoading: boolean;
   isLoaded: boolean;
   duplicates: DuplicateGroup[];
   looseFiles: LooseFile[];
+  libraries: LibraryInfo[];
   organizingFile: string | null;
   onOrganizeFile: (filePath: string, folderName: string) => void;
   onDismissDuplicate: (group: DuplicateGroup) => void;
@@ -31,12 +35,77 @@ export function LibraryHealthTab({
   isLoaded,
   duplicates,
   looseFiles,
+  libraries,
   organizingFile,
   onOrganizeFile,
   onDismissDuplicate,
 }: LibraryHealthTabProps) {
   const [confirmingFile, setConfirmingFile] = useState<LooseFile | null>(null);
   const [customFolderName, setCustomFolderName] = useState<string>('');
+  const [selectedLibrary, setSelectedLibrary] = useState<string>('all');
+  const [sortColumn, setSortColumn] = useState<LooseFileSortColumn>('name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  // Get library options for filter dropdown - use all configured libraries, sorted by priority
+  const allLibraryOptions = useMemo(() => {
+    return libraries
+      .map(lib => ({
+        name: lib.name,
+        platform: lib.platform,
+        priority: lib.priority ?? 0,
+        label: lib.platform ? `${lib.name} (${lib.platform})` : lib.name,
+      }))
+      .sort((a, b) => a.priority - b.priority);
+  }, [libraries]);
+
+  // Filter and sort loose files
+  const filteredAndSortedFiles = useMemo(() => {
+    let filtered = looseFiles;
+
+    // Filter by library
+    if (selectedLibrary !== 'all') {
+      filtered = filtered.filter(file => file.libraryName === selectedLibrary);
+    }
+
+    // Sort
+    return [...filtered].sort((a, b) => {
+      let comparison = 0;
+      switch (sortColumn) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'size':
+          comparison = a.size - b.size;
+          break;
+        case 'type':
+          comparison = a.extension.localeCompare(b.extension);
+          break;
+        case 'modified':
+          comparison = a.modifiedAt - b.modifiedAt;
+          break;
+        case 'library':
+          comparison = (a.libraryName || '').localeCompare(b.libraryName || '');
+          break;
+      }
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [looseFiles, selectedLibrary, sortColumn, sortDirection]);
+
+  const handleSort = (column: LooseFileSortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortIndicator = ({ column }: { column: LooseFileSortColumn }) => {
+    if (sortColumn !== column) {
+      return <span className="text-gray-500 ml-1">&#8597;</span>;
+    }
+    return <span className="text-blue-400 ml-1">{sortDirection === 'asc' ? '\u2191' : '\u2193'}</span>;
+  };
 
   const handleOrganizeClick = (file: LooseFile) => {
     setConfirmingFile(file);
@@ -134,23 +203,38 @@ export function LibraryHealthTab({
 
       {/* Loose Files Section */}
       <div className="bg-gray-800 rounded-lg p-6">
-        <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-          </svg>
-          Loose Files
-          {looseFiles.length > 0 && (
-            <span className="ml-2 bg-orange-600 text-white text-sm px-2 py-0.5 rounded-full">
-              {looseFiles.length}
-            </span>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-semibold flex items-center gap-2">
+            <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            Loose Files
+            {looseFiles.length > 0 && (
+              <span className="ml-2 bg-orange-600 text-white text-sm px-2 py-0.5 rounded-full">
+                {filteredAndSortedFiles.length}{selectedLibrary !== 'all' ? ` / ${looseFiles.length}` : ''}
+              </span>
+            )}
+          </h3>
+          {/* Library filter dropdown */}
+          {allLibraryOptions.length > 1 && (
+            <select
+              value={selectedLibrary}
+              onChange={(e) => setSelectedLibrary(e.target.value)}
+              className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
+            >
+              <option value="all">All Libraries</option>
+              {allLibraryOptions.map(lib => (
+                <option key={lib.name} value={lib.name}>{lib.label}</option>
+              ))}
+            </select>
           )}
-        </h3>
+        </div>
         <p className="text-gray-400 text-sm mb-4">
           These archive and ISO files are sitting directly in your library folder.
           Click "Organize" to create a folder and move the file into it.
         </p>
 
-        {looseFiles.length === 0 ? (
+        {filteredAndSortedFiles.length === 0 ? (
           <div className="flex items-center gap-3 p-4 bg-gray-700 rounded-lg">
             <div className="w-10 h-10 text-green-500 flex-shrink-0">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
@@ -159,7 +243,11 @@ export function LibraryHealthTab({
             </div>
             <div>
               <p className="text-gray-200 font-medium">No loose files found</p>
-              <p className="text-gray-400 text-sm">All files in your library folder are properly organized within game folders.</p>
+              <p className="text-gray-400 text-sm">
+                {selectedLibrary !== 'all'
+                  ? `No loose files in "${selectedLibrary}" library.`
+                  : 'All files in your library folder are properly organized within game folders.'}
+              </p>
             </div>
           </div>
         ) : (
@@ -167,15 +255,43 @@ export function LibraryHealthTab({
             <table className="w-full">
               <thead>
                 <tr className="text-left text-gray-400 border-b border-gray-700">
-                  <th className="pb-3 pr-4">Name</th>
-                  <th className="pb-3 pr-4">Size</th>
-                  <th className="pb-3 pr-4">Type</th>
-                  <th className="pb-3 pr-4">Modified</th>
+                  <th
+                    className="pb-3 pr-4 cursor-pointer hover:text-gray-200 transition select-none"
+                    onClick={() => handleSort('name')}
+                  >
+                    Name<SortIndicator column="name" />
+                  </th>
+                  {allLibraryOptions.length > 1 && (
+                    <th
+                      className="pb-3 pr-4 cursor-pointer hover:text-gray-200 transition select-none"
+                      onClick={() => handleSort('library')}
+                    >
+                      Library<SortIndicator column="library" />
+                    </th>
+                  )}
+                  <th
+                    className="pb-3 pr-4 cursor-pointer hover:text-gray-200 transition select-none"
+                    onClick={() => handleSort('size')}
+                  >
+                    Size<SortIndicator column="size" />
+                  </th>
+                  <th
+                    className="pb-3 pr-4 cursor-pointer hover:text-gray-200 transition select-none"
+                    onClick={() => handleSort('type')}
+                  >
+                    Type<SortIndicator column="type" />
+                  </th>
+                  <th
+                    className="pb-3 pr-4 cursor-pointer hover:text-gray-200 transition select-none"
+                    onClick={() => handleSort('modified')}
+                  >
+                    Modified<SortIndicator column="modified" />
+                  </th>
                   <th className="pb-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {looseFiles.map((file) => (
+                {filteredAndSortedFiles.map((file) => (
                   <tr key={file.path} className="border-b border-gray-700 hover:bg-gray-750">
                     <td className="py-3 pr-4">
                       <span className="font-medium truncate block max-w-md" title={file.name}>
@@ -185,6 +301,11 @@ export function LibraryHealthTab({
                         {file.path}
                       </span>
                     </td>
+                    {allLibraryOptions.length > 1 && (
+                      <td className="py-3 pr-4 text-gray-400">
+                        {file.libraryName || '\u2014'}
+                      </td>
+                    )}
                     <td className="py-3 pr-4 text-gray-400">
                       {formatBytes(file.size)}
                     </td>

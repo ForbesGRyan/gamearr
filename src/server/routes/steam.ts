@@ -4,6 +4,8 @@ import { settingsService } from '../services/SettingsService';
 import { gameService } from '../services/GameService';
 import { IGDBClient } from '../integrations/igdb/IGDBClient';
 import { gameStoreRepository } from '../repositories/GameStoreRepository';
+import { gameEventRepository } from '../repositories/GameEventRepository';
+import { semanticSearchService } from '../services/SemanticSearchService';
 import type { NewGame } from '../db/schema';
 import type { SteamImportSSEEvent } from '../../shared/types';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
@@ -250,11 +252,9 @@ router.post('/import', async (c) => {
           continue;
         }
 
-        // Find best match (exact or close title match)
-        const exactMatch = searchResults.find(
-          (r) => r.title.toLowerCase() === steamGame.name.toLowerCase()
-        );
-        const igdbData = exactMatch || searchResults[0];
+        // Find best match using semantic search
+        const semanticMatch = await semanticSearchService.findBestMatch(steamGame.name, searchResults, 0.6);
+        const igdbData = semanticMatch?.result || searchResults[0];
 
         if (!igdbData?.igdbId) {
           errors.push(`Could not find "${steamGame.name}" on IGDB - skipping`);
@@ -296,6 +296,13 @@ router.post('/import', async (c) => {
           String(steamGame.appId),
           steamGame.name !== igdbData.title ? steamGame.name : undefined
         );
+        // Record import event
+        await gameEventRepository.createSteamImportEvent(newGame.id, {
+          steamAppId: steamGame.appId,
+          steamName: steamGame.name,
+          matchedTitle: igdbData.title,
+          igdbId: igdbData.igdbId,
+        });
         imported++;
       } catch (gameError) {
         errors.push(`Failed to import ${steamGame.name}: ${gameError instanceof Error ? gameError.message : 'Unknown error'}`);
@@ -420,11 +427,9 @@ router.post('/import-stream', async (c) => {
                 continue;
               }
 
-              // Find best match (exact or close title match)
-              const exactMatch = searchResults.find(
-                (r) => r.title.toLowerCase() === steamGame.name.toLowerCase()
-              );
-              const igdbData = exactMatch || searchResults[0];
+              // Find best match using semantic search
+              const semanticMatch = await semanticSearchService.findBestMatch(steamGame.name, searchResults, 0.6);
+              const igdbData = semanticMatch?.result || searchResults[0];
 
               if (!igdbData?.igdbId) {
                 errors.push(`Could not find "${steamGame.name}" on IGDB`);
@@ -486,6 +491,13 @@ router.post('/import-stream', async (c) => {
                 String(steamGame.appId),
                 steamGame.name !== igdbData.title ? steamGame.name : undefined
               );
+              // Record import event
+              await gameEventRepository.createSteamImportEvent(newGame.id, {
+                steamAppId: steamGame.appId,
+                steamName: steamGame.name,
+                matchedTitle: igdbData.title,
+                igdbId: igdbData.igdbId,
+              });
               imported++;
               send({ type: 'progress', current, total, game: igdbData.title, status: 'imported' });
             } catch (gameError) {

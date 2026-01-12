@@ -148,6 +148,17 @@ function initializeSchema() {
       )
     `);
 
+    // Create game_embeddings table for semantic search
+    sqlite.run(`
+      CREATE TABLE IF NOT EXISTS game_embeddings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id INTEGER NOT NULL UNIQUE REFERENCES games(id) ON DELETE CASCADE,
+        title_hash TEXT NOT NULL,
+        embedding TEXT NOT NULL,
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+
     // Create indexes
     sqlite.run('CREATE INDEX IF NOT EXISTS games_status_idx ON games(status)');
     sqlite.run('CREATE INDEX IF NOT EXISTS games_monitored_idx ON games(monitored)');
@@ -163,6 +174,7 @@ function initializeSchema() {
     sqlite.run('CREATE INDEX IF NOT EXISTS library_files_ignored_idx ON library_files(ignored)');
     sqlite.run('CREATE INDEX IF NOT EXISTS game_updates_game_id_idx ON game_updates(game_id)');
     sqlite.run('CREATE INDEX IF NOT EXISTS game_updates_status_idx ON game_updates(status)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS game_embeddings_title_hash_idx ON game_embeddings(title_hash)');
 
     logger.info('Schema initialized successfully');
   }

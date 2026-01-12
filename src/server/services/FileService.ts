@@ -736,19 +736,45 @@ export class FileService {
    */
   async scanLibrary(libraryId?: number): Promise<LibraryFolder[]> {
     try {
-      // Check if we have cached data for this library
-      const cachedFiles = libraryId !== undefined
-        ? await libraryFileRepository.findByLibraryId(libraryId)
-        : await libraryFileRepository.findAll();
-
-      if (cachedFiles.length > 0) {
-        logger.info(`Using cached library data: ${cachedFiles.length} files`);
-        return this.getCachedLibraryFiles(libraryId);
+      // If scanning a specific library, check if it has cached data
+      if (libraryId !== undefined) {
+        const cachedFiles = await libraryFileRepository.findByLibraryId(libraryId);
+        if (cachedFiles.length > 0) {
+          logger.info(`Using cached library data for library ${libraryId}: ${cachedFiles.length} files`);
+          return this.getCachedLibraryFiles(libraryId);
+        }
+        // No cached data for this library, scan it
+        logger.info(`No cached data for library ${libraryId}, performing fresh scan`);
+        return this.refreshLibraryScan(libraryId);
       }
 
-      // No cached data, perform fresh scan
-      logger.info('No cached data, performing fresh scan');
-      return this.refreshLibraryScan(libraryId);
+      // Scanning all libraries - check if ALL libraries have been scanned
+      const allLibraries = await libraryService.getAllLibraries();
+      const cachedFiles = await libraryFileRepository.findAll();
+
+      // Get unique library IDs from cached files
+      const cachedLibraryIds = new Set(cachedFiles.map(f => f.libraryId).filter(id => id !== null));
+
+      // Check if any library is missing from cache
+      const uncachedLibraries = allLibraries.filter(lib => !cachedLibraryIds.has(lib.id));
+
+      if (uncachedLibraries.length > 0) {
+        // Some libraries haven't been scanned yet - scan them
+        logger.info(`Found ${uncachedLibraries.length} uncached libraries, scanning them: ${uncachedLibraries.map(l => l.name).join(', ')}`);
+        for (const library of uncachedLibraries) {
+          await this.refreshLibraryScan(library.id);
+        }
+      }
+
+      // Return all cached files (including newly scanned ones)
+      if (cachedFiles.length > 0 || uncachedLibraries.length > 0) {
+        logger.info(`Returning cached library data for all libraries`);
+        return this.getCachedLibraryFiles();
+      }
+
+      // No libraries configured or all empty
+      logger.info('No cached data, performing fresh scan of all libraries');
+      return this.refreshLibraryScan();
     } catch (error) {
       logger.error('Failed to scan library:', error);
       return [];
@@ -1091,9 +1117,13 @@ export class FileService {
    */
   async organizeLooseFile(filePath: string, folderName: string): Promise<MoveResult> {
     try {
-      // Security: Validate that the file path is within the library
-      const libraryPath = await this.getLibraryPath();
-      validatePathWithinBase(filePath, libraryPath, 'organizeLooseFile');
+      // Security: Validate that the file path is within ANY configured library
+      const libraries = await this.getAllLibraries();
+      const isWithinAnyLibrary = libraries.some(lib => isPathWithinBase(filePath, lib.path));
+      if (!isWithinAnyLibrary) {
+        logger.warn(`Path traversal attempt in organizeLooseFile: "${filePath}" is not within any configured library`);
+        return { success: false, error: 'Access denied: path is outside all configured libraries' };
+      }
 
       // Validate folder name doesn't contain path separators or invalid characters
       if (folderName.includes('/') || folderName.includes('\\') || folderName.includes('..')) {

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { getGameDetailPath } from '../../utils/slug';
+import { getCoverUrl } from '../../utils/images';
 import StoreIcon from '../StoreIcon';
 import { EyeIcon, EyeSlashIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, GamepadIcon } from '../Icons';
 import type { Game, SortColumn } from './types';
@@ -132,7 +133,7 @@ export function LibraryTableView({
                     style={{ viewTransitionName: `game-cover-${game.id}` }}
                   >
                     {game.coverUrl ? (
-                      <img src={game.coverUrl} alt="" className="w-full h-full object-cover" />
+                      <img src={getCoverUrl(game.id, game.coverUrl)} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-500">
                         <GamepadIcon className="w-4 h-4" />

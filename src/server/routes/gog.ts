@@ -3,6 +3,7 @@ import { GogClient, GogGame } from '../integrations/gog/GogClient';
 import { settingsService } from '../services/SettingsService';
 import { gameService } from '../services/GameService';
 import { gameStoreRepository } from '../repositories/GameStoreRepository';
+import { gameEventRepository } from '../repositories/GameEventRepository';
 import { IGDBClient } from '../integrations/igdb/IGDBClient';
 import type { NewGame } from '../db/schema';
 import type { GogImportSSEEvent } from '../../shared/types';
@@ -340,6 +341,13 @@ router.post('/import', async (c) => {
 
         const newGame = await gameService.createGame(gameData);
         await gameStoreRepository.addGameToStore(newGame.id, gogStore.id, String(gogGame.id));
+        // Record import event
+        await gameEventRepository.createGogImportEvent(newGame.id, {
+          gogId: gogGame.id,
+          gogTitle: gogGame.title,
+          matchedTitle: igdbData.title,
+          igdbId: igdbData.igdbId,
+        });
         imported++;
       } catch (gameError) {
         errors.push(`Failed to import ${gogGame.title}: ${gameError instanceof Error ? gameError.message : 'Unknown error'}`);
@@ -501,6 +509,13 @@ router.post('/import-stream', async (c) => {
 
               const newGame = await gameService.createGame(gameData);
               await gameStoreRepository.addGameToStore(newGame.id, gogStore.id, String(gogGame.id));
+              // Record import event
+              await gameEventRepository.createGogImportEvent(newGame.id, {
+                gogId: gogGame.id,
+                gogTitle: gogGame.title,
+                matchedTitle: igdbData.title,
+                igdbId: igdbData.igdbId,
+              });
               imported++;
               send({ type: 'progress', current, total, game: igdbData.title, status: 'imported' });
             } catch (gameError) {

@@ -105,6 +105,7 @@ export interface Filters {
   genres: string[];
   gameModes: string[];
   libraryId: number | 'all';
+  stores: string[];
 }
 
 export interface SteamGame {

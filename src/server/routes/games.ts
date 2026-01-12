@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { gameService } from '../services/GameService';
 import { gameStoreRepository } from '../repositories/GameStoreRepository';
+import { gameEventRepository } from '../repositories/GameEventRepository';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode, NotFoundError, ValidationError } from '../utils/errors';
 
@@ -258,6 +259,23 @@ games.get('/:id/history', async (c) => {
     return c.json({ success: true, data: history });
   } catch (error) {
     logger.error('Failed to get game history:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// GET /api/v1/games/:id/events - Get game events (imports, rematch, etc.)
+games.get('/:id/events', async (c) => {
+  const id = parseInt(c.req.param('id'));
+  if (isNaN(id)) {
+    return c.json({ success: false, error: 'Invalid game ID', code: ErrorCode.VALIDATION_ERROR }, 400);
+  }
+  logger.info(`GET /api/v1/games/${id}/events`);
+
+  try {
+    const events = await gameEventRepository.getByGameId(id);
+    return c.json({ success: true, data: events });
+  } catch (error) {
+    logger.error('Failed to get game events:', error);
     return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });

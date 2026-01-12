@@ -4,6 +4,7 @@ import StoreIcon, { GameStoreInfo } from './StoreIcon';
 import ConfirmModal from './ConfirmModal';
 import { EyeIcon, EyeSlashIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, GamepadIcon, RefreshIcon } from './Icons';
 import { getGameDetailPath } from '../utils/slug';
+import { getCoverUrl } from '../utils/images';
 
 interface Game {
   id: number;
@@ -64,12 +65,12 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
         >
           {game.coverUrl ? (
             <img
-              src={game.coverUrl}
+              src={getCoverUrl(game.id, game.coverUrl)}
               alt={game.title}
               className="w-full h-full object-cover"
               loading={priority ? 'eager' : 'lazy'}
               decoding="async"
-              fetchPriority={priority ? 'high' : 'auto'}
+              fetchpriority={priority ? 'high' : 'auto'}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-500 text-4xl">

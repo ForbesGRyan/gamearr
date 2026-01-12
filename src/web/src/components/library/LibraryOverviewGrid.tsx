@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import StoreIcon from '../StoreIcon';
 import { EyeIcon, EyeSlashIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, GamepadIcon } from '../Icons';
 import { getGameDetailPath } from '../../utils/slug';
+import { getCoverUrl } from '../../utils/images';
 import type { Game, SimilarGame } from './types';
 
 interface LibraryOverviewGridProps {
@@ -55,7 +56,7 @@ export function LibraryOverviewGrid({
                   style={{ viewTransitionName: `game-cover-${game.id}` }}
                 >
                   {game.coverUrl ? (
-                    <img src={game.coverUrl} alt="" className="w-full h-full object-cover" />
+                    <img src={getCoverUrl(game.id, game.coverUrl)} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-500">
                       <GamepadIcon className="w-10 h-10" />

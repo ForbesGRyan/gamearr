@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { getGameDetailPath } from '../../utils/slug';
+import { getCoverUrl } from '../../utils/images';
 import { MobileCard, MobileCardButton } from '../MobileCard';
 import StoreIcon from '../StoreIcon';
 import type { Game } from './types';
@@ -42,7 +43,7 @@ export function LibraryMobileView({
             key={game.id}
             title={game.title}
             subtitle={game.platform}
-            image={game.coverUrl}
+            image={getCoverUrl(game.id, game.coverUrl)}
             status={statusInfo}
             onClick={() => navigate(getGameDetailPath(game.platform, game.title))}
             fields={[
