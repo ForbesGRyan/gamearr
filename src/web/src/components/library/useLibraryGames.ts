@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import { getGameDetailPath } from '../../utils/slug';
-import type { Game, ViewMode, SortColumn, SortDirection, Filters, LibraryInfo } from './types';
+import type { Game, ViewMode, SortColumn, SortDirection, Filters, LibraryInfo, StatusFilter, MonitoredFilter } from './types';
 
 // Extended game type with pre-parsed JSON fields
 interface GameWithParsedFields extends Game {
@@ -20,28 +20,54 @@ function safeParseJsonArray(json: string | null | undefined): string[] {
   }
 }
 
+// URL param helpers
+function parseArrayParam(value: string | null): string[] {
+  if (!value) return [];
+  return value.split(',').filter(Boolean);
+}
+
+function serializeArrayParam(arr: string[]): string | null {
+  return arr.length > 0 ? arr.join(',') : null;
+}
+
+const DEFAULT_FILTERS: Filters = {
+  status: 'all',
+  monitored: 'all',
+  genres: [],
+  gameModes: [],
+  libraryId: 'all',
+  stores: [],
+};
+
 export function useLibraryGames() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Core state - games with pre-parsed JSON fields for performance
   const [games, setGames] = useState<GameWithParsedFields[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    const saved = localStorage.getItem('library-view-mode');
-    return (saved as ViewMode) || 'posters';
-  });
-  const [sortColumn, setSortColumn] = useState<SortColumn>('title');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [filters, setFilters] = useState<Filters>({
-    status: 'all',
-    monitored: 'all',
-    genres: [],
-    gameModes: [],
-    libraryId: 'all',
-  });
-  const [searchQuery, setSearchQuery] = useState('');
+  // View mode from URL param with localStorage fallback
+  const urlViewMode = searchParams.get('view');
+  const viewMode: ViewMode = (urlViewMode && ['posters', 'table', 'overview'].includes(urlViewMode))
+    ? (urlViewMode as ViewMode)
+    : ((localStorage.getItem('library-view-mode') as ViewMode) || 'posters');
   const [libraries, setLibraries] = useState<LibraryInfo[]>([]);
+
+  // URL-synced state - derive initial values from URL params
+  const sortColumn = (searchParams.get('sort') as SortColumn) || 'title';
+  const sortDirection = (searchParams.get('dir') as SortDirection) || 'asc';
+  const searchQuery = searchParams.get('q') || '';
+  const currentPage = parseInt(searchParams.get('page') || '1', 10) || 1;
+
+  const filters: Filters = useMemo(() => ({
+    status: (searchParams.get('status') as StatusFilter) || 'all',
+    monitored: (searchParams.get('monitored') as MonitoredFilter) || 'all',
+    genres: parseArrayParam(searchParams.get('genres')),
+    gameModes: parseArrayParam(searchParams.get('modes')),
+    libraryId: searchParams.get('library') ? parseInt(searchParams.get('library')!, 10) : 'all',
+    stores: parseArrayParam(searchParams.get('stores')),
+  }), [searchParams]);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -53,28 +79,79 @@ export function useLibraryGames() {
   const [selectedGameIds, setSelectedGameIds] = useState<Set<number>>(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
+  // Pagination state (pageSize still uses localStorage, page is in URL)
   const [pageSize, setPageSize] = useState<number>(() => {
     const saved = localStorage.getItem('library-page-size');
     return saved ? parseInt(saved, 10) : 25;
   });
 
-  // View mode handler
+  // Helper to update URL params without losing other params
+  const updateUrlParams = useCallback((updates: Record<string, string | null>) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null || value === '') {
+          next.delete(key);
+        } else {
+          next.set(key, value);
+        }
+      }
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  // URL-synced setters
+  const setSortColumn = useCallback((column: SortColumn) => {
+    updateUrlParams({ sort: column === 'title' ? null : column });
+  }, [updateUrlParams]);
+
+  const setSortDirection = useCallback((dir: SortDirection) => {
+    updateUrlParams({ dir: dir === 'asc' ? null : dir });
+  }, [updateUrlParams]);
+
+  // Combined sort setter for dropdowns that set both at once
+  const setSort = useCallback((column: SortColumn, direction: SortDirection) => {
+    updateUrlParams({
+      sort: column === 'title' ? null : column,
+      dir: direction === 'asc' ? null : direction,
+    });
+  }, [updateUrlParams]);
+
+  const setSearchQuery = useCallback((query: string) => {
+    updateUrlParams({ q: query || null, page: null }); // Reset page on search
+  }, [updateUrlParams]);
+
+  const setCurrentPage = useCallback((page: number) => {
+    updateUrlParams({ page: page === 1 ? null : String(page) });
+  }, [updateUrlParams]);
+
+  const setFilters = useCallback((newFilters: Filters) => {
+    updateUrlParams({
+      status: newFilters.status === 'all' ? null : newFilters.status,
+      monitored: newFilters.monitored === 'all' ? null : newFilters.monitored,
+      genres: serializeArrayParam(newFilters.genres),
+      modes: serializeArrayParam(newFilters.gameModes),
+      library: newFilters.libraryId === 'all' ? null : String(newFilters.libraryId),
+      stores: serializeArrayParam(newFilters.stores),
+      page: null, // Reset page on filter change
+    });
+  }, [updateUrlParams]);
+
+  // View mode handler - updates URL and localStorage
   const handleViewModeChange = useCallback((mode: ViewMode) => {
-    setViewMode(mode);
+    updateUrlParams({ view: mode === 'posters' ? null : mode });
     localStorage.setItem('library-view-mode', mode);
-  }, []);
+  }, [updateUrlParams]);
 
   // Sort handler
   const handleSort = useCallback((column: SortColumn) => {
     if (sortColumn === column) {
-      setSortDirection((prev) => prev === 'asc' ? 'desc' : 'asc');
+      const newDir = sortDirection === 'asc' ? 'desc' : 'asc';
+      updateUrlParams({ dir: newDir === 'asc' ? null : newDir });
     } else {
-      setSortColumn(column);
-      setSortDirection('asc');
+      updateUrlParams({ sort: column === 'title' ? null : column, dir: null });
     }
-  }, [sortColumn]);
+  }, [sortColumn, sortDirection, updateUrlParams]);
 
   // Computed values - uses pre-parsed fields for performance
   const allGenres = useMemo((): string[] => {
@@ -91,6 +168,17 @@ export function useLibraryGames() {
       game.parsedGameModes.forEach((m) => modeSet.add(m));
     });
     return Array.from(modeSet).sort();
+  }, [games]);
+
+  const allStores = useMemo((): string[] => {
+    const storeSet = new Set<string>();
+    games.forEach((game) => {
+      // Collect from stores array (new format)
+      game.stores?.forEach((s) => storeSet.add(s.name));
+      // Also include legacy store field for backwards compatibility
+      if (game.store) storeSet.add(game.store);
+    });
+    return Array.from(storeSet).sort();
   }, [games]);
 
   const filteredAndSortedGames = useMemo((): GameWithParsedFields[] => {
@@ -134,6 +222,16 @@ export function useLibraryGames() {
 
     if (filters.libraryId !== 'all') {
       filtered = filtered.filter((game) => game.libraryId === filters.libraryId);
+    }
+
+    if (filters.stores.length > 0) {
+      filtered = filtered.filter((game) => {
+        // Check stores array (new format)
+        const gameStoreNames = game.stores?.map((s) => s.name) || [];
+        // Also check legacy store field
+        if (game.store) gameStoreNames.push(game.store);
+        return filters.stores.some((s) => gameStoreNames.includes(s));
+      });
     }
 
     return [...filtered].sort((a, b) => {
@@ -183,6 +281,7 @@ export function useLibraryGames() {
     if (filters.libraryId !== 'all') count++;
     count += filters.genres.length;
     count += filters.gameModes.length;
+    count += filters.stores.length;
     return count;
   }, [searchQuery, filters]);
 
@@ -273,19 +372,22 @@ export function useLibraryGames() {
     setPageSize(newSize);
     setCurrentPage(1);
     localStorage.setItem('library-page-size', newSize.toString());
-  }, []);
+  }, [setCurrentPage]);
 
   // Clear filters
   const clearFilters = useCallback(() => {
-    setSearchQuery('');
-    setFilters({
-      status: 'all',
-      monitored: 'all',
-      genres: [],
-      gameModes: [],
-      libraryId: 'all',
+    // Clear all filter-related URL params in one update
+    updateUrlParams({
+      q: null,
+      status: null,
+      monitored: null,
+      genres: null,
+      modes: null,
+      library: null,
+      stores: null,
+      page: null,
     });
-  }, []);
+  }, [updateUrlParams]);
 
   // Bulk selection helpers
   const toggleGameSelection = useCallback((gameId: number) => {
@@ -352,9 +454,8 @@ export function useLibraryGames() {
     loadLibraries();
   }, [loadGames, loadLibraries]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, filters, sortColumn, sortDirection]);
+  // Note: Page reset on filter/search change is handled in setFilters/setSearchQuery
+  // by clearing the page param in the URL update
 
   return {
     // State
@@ -394,6 +495,7 @@ export function useLibraryGames() {
     // Computed
     allGenres,
     allGameModes,
+    allStores,
     filteredAndSortedGames,
     paginatedGames,
     activeFilterCount,
@@ -417,5 +519,6 @@ export function useLibraryGames() {
     setFilters,
     setSortColumn,
     setSortDirection,
+    setSort,
   };
 }

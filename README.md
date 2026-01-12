@@ -4,6 +4,8 @@ Automated game library management for self-hosters. Part of the *arr ecosystem.
 
 Gamearr monitors your wanted games, automatically searches for releases via Prowlarr, downloads them through qBittorrent, and organizes your library - just like Radarr does for movies.
 
+![Gamearr Library](screenshots/02-library-posters.png)
+
 ## Features
 
 - **IGDB Integration** - Search and add games with full metadata (cover art, year, platforms, descriptions)

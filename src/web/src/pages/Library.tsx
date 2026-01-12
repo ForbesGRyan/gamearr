@@ -88,6 +88,7 @@ function Library() {
     totalPages,
     allGenres,
     allGameModes,
+    allStores,
     filteredAndSortedGames,
     paginatedGames,
     activeFilterCount,
@@ -107,8 +108,7 @@ function Library() {
     loadGames,
     setSearchQuery,
     setFilters,
-    setSortColumn,
-    setSortDirection,
+    setSort,
   } = useLibraryGames();
 
   // Match folder modal state
@@ -748,14 +748,12 @@ function Library() {
           onSearchChange={setSearchQuery}
           sortColumn={sortColumn}
           sortDirection={sortDirection}
-          onSortChange={(col, dir) => {
-            setSortColumn(col);
-            setSortDirection(dir);
-          }}
+          onSortChange={setSort}
           filters={filters}
           onFiltersChange={setFilters}
           allGenres={allGenres}
           allGameModes={allGameModes}
+          allStores={allStores}
           activeFilterCount={activeFilterCount}
           filteredCount={filteredAndSortedGames.length}
           totalCount={games.length}
@@ -777,6 +775,19 @@ function Library() {
             <LibraryEmptyState onAddGame={() => setIsModalOpen(true)} />
           ) : (
             <>
+              {/* Pagination - Top */}
+              {filteredAndSortedGames.length > 0 && (
+                <LibraryPagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  pageSize={pageSize}
+                  totalItems={filteredAndSortedGames.length}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={handlePageSizeChange}
+                  itemLabel="games"
+                />
+              )}
+
               {viewMode === 'posters' && (
                 <LibraryPosterGrid
                   games={paginatedGames}
@@ -827,19 +838,6 @@ function Library() {
                   onDelete={(game) => setGameToDelete(game)}
                 />
               )}
-
-              {/* Pagination */}
-              {filteredAndSortedGames.length > 0 && (
-                <LibraryPagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  pageSize={pageSize}
-                  totalItems={filteredAndSortedGames.length}
-                  onPageChange={setCurrentPage}
-                  onPageSizeChange={handlePageSizeChange}
-                  itemLabel="games"
-                />
-              )}
             </>
           )}
         </>
@@ -884,6 +882,7 @@ function Library() {
           isLoaded={isHealthLoaded}
           duplicates={visibleDuplicates}
           looseFiles={looseFiles}
+          libraries={libraries}
           organizingFile={organizingFile}
           onOrganizeFile={handleOrganizeFile}
           onDismissDuplicate={handleDismissDuplicate}
