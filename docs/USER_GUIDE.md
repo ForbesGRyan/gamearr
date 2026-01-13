@@ -7,8 +7,10 @@ Complete guide to using Gamearr for managing your game library.
 - [Overview](#overview)
 - [Navigation](#navigation)
 - [Library Management](#library-management)
+- [Game Details](#game-details)
 - [Searching and Downloading](#searching-and-downloading)
 - [Library Import](#library-import)
+- [Steam and GOG Integration](#steam-and-gog-integration)
 - [Library Health](#library-health)
 - [Activity Monitoring](#activity-monitoring)
 - [Discover New Games](#discover-new-games)
@@ -112,6 +114,40 @@ Switch between three view modes using the buttons in the toolbar:
 
 ---
 
+## Game Details
+
+Click on any game to view its detailed information page.
+
+### Tabs
+
+| Tab | Description |
+|-----|-------------|
+| **Info** | Overview with cover art, summary, and quick actions |
+| **Metadata** | Full game metadata (platforms, genres, themes, ratings) |
+| **Releases** | Available torrent releases for the game |
+| **Updates** | Available updates, DLC, and better quality releases |
+| **History** | Download history and completed releases |
+| **Events** | Audit log of all actions taken on this game |
+
+### Quick Actions
+
+From the game detail page:
+- **Search Releases** - Find available torrents
+- **Toggle Monitoring** - Enable/disable automatic searching
+- **Edit** - Modify game information
+- **Delete** - Remove from library
+
+### Event Log
+
+The Events tab tracks all activity:
+- Game added to library
+- Downloads started and completed
+- Status changes
+- Metadata updates
+- Manual actions
+
+---
+
 ## Searching and Downloading
 
 ### Manual Search
@@ -198,13 +234,50 @@ For folders that aren't games:
 2. The folder is hidden from the import list
 3. Use **Show Ignored** to manage ignored folders
 
+---
+
+## Steam and GOG Integration
+
+Import games from your existing digital libraries.
+
 ### Steam Import
 
-Import games from your Steam library:
-1. Click **Import from Steam**
-2. Enter your Steam ID and API key
-3. Select games to import
-4. Click **Import Selected**
+1. Configure Steam in **Settings > Metadata**:
+   - Enter your Steam API Key
+   - Enter your Steam ID (numeric ID)
+   - Click **Test Connection**
+2. Go to **Library** > **Scan** tab
+3. Click **Import from Steam**
+4. Filter options:
+   - **Minimum playtime** - Filter by hours played
+   - **Search** - Filter by game name
+5. Select games to import (checkboxes)
+6. Click **Import Selected**
+
+Imported games are marked with their Steam ownership and automatically matched to IGDB metadata.
+
+### GOG Import
+
+1. Configure GOG in **Settings > Metadata**:
+   - Click **Connect to GOG**
+   - Authenticate with your GOG account in the popup
+   - Connection status shows when linked
+2. Go to **Library** > **Scan** tab
+3. Click **Import from GOG**
+4. Select games to import
+5. Click **Import Selected**
+
+GOG games are marked as DRM-free and linked to your GOG library.
+
+### Multi-Store Ownership
+
+When adding games, you can select multiple stores where you own the game:
+- Steam
+- GOG
+- Epic
+- Other
+
+This helps track which games you already own across platforms.
 
 ---
 
@@ -321,50 +394,86 @@ Set per-game update behavior:
 
 ## Settings
 
+Access settings via the gear icon in the navigation bar. Settings are organized into six tabs.
+
+### General Tab
+
+**Automation Settings:**
+- RSS Sync Interval (5-1440 minutes, default: 15)
+- Search Scheduler Interval (5-1440 minutes, default: 15)
+- Minimum Quality Score for auto-grab (0-500, default: 100)
+- Minimum Seeders for auto-grab (0-100, default: 5)
+
+### Libraries Tab
+
+**Multi-Library Support:**
+Configure multiple library paths for game storage:
+- Add new library paths
+- Set default library for downloads
+- Remove unused libraries
+
+Each library can have its own organization settings.
+
 ### Indexers Tab
 
 **Prowlarr Configuration:**
-- URL and API key
-- Test connection
-- Select categories to search
+- Prowlarr URL (e.g., `http://localhost:9696`)
+- Prowlarr API Key
+- Category Selection - Choose which indexer categories to search
+- Test Connection button
 
 ### Downloads Tab
 
 **qBittorrent Configuration:**
-- Host URL
-- Credentials
-- Download category
-- Test connection
+- Host URL (e.g., `http://localhost:8080`)
+- Username and Password
+- Download Category (filters which torrents Gamearr manages)
+- Dry-Run Mode - Test configuration without starting downloads
+- Test Connection button
 
 ### Metadata Tab
 
-**IGDB Configuration:**
-- Client ID and Secret
-- Test connection
+**IGDB Configuration (Required):**
+- Client ID (from Twitch Developer Console)
+- Client Secret
+- Test Connection button
 
 **Steam Configuration (Optional):**
-- API Key
-- Steam ID
+- Steam API Key
+- Steam ID (numeric)
+- Test Connection button
 
-### General Tab
+**GOG Configuration (Optional):**
+- Connect to GOG button (OAuth login)
+- Connection status display
+- Disconnect option
 
-**Library:**
-- Library path (where games are stored)
+### Updates Tab
 
-**Behavior:**
-- Dry-Run Mode - Test without downloading
-
-**Automation:**
-- RSS Sync Interval (5-1440 minutes)
-- Search Scheduler Interval (5-1440 minutes)
-- Minimum Quality Score for auto-grab (0-500)
-- Minimum Seeders for auto-grab (0-100)
+**Update Checking:**
+- Enable/disable update checking
+- Check schedule (Hourly, Daily, Weekly)
+- Default update policy:
+  - **Notify** - Show in Updates page (default)
+  - **Auto** - Automatically download updates
+  - **Ignore** - Don't check for updates
 
 ---
 
 ## Automation
 
-Gamearr runs background jobs automatically. All intervals and thresholds are configurable in **Settings > General > Automation Settings**.
+Gamearr runs background jobs automatically. All intervals and thresholds are configurable in Settings.
+
+### Background Jobs
+
+| Job | Interval | Description |
+|-----|----------|-------------|
+| **RSS Sync** | 15 min (configurable) | Fetches latest releases from indexers |
+| **Search Scheduler** | 15 min (configurable) | Actively searches for wanted games |
+| **Download Monitor** | 30 seconds | Syncs download progress from qBittorrent |
+| **Update Checker** | Hourly/Daily/Weekly | Monitors for game updates |
+| **Metadata Refresh** | 5 minutes | Backfills missing game metadata |
+| **Log Rotation** | Daily | Rotates and compresses old logs |
 
 ### RSS Sync
 
@@ -404,11 +513,33 @@ Go to **Settings > General** to adjust:
 - Raise the minimum seeders for more reliable downloads
 - Increase intervals if you have limited API calls
 
-### Download Monitor (Every 30 seconds)
+### Update Checker
 
+Configure in **Settings > Updates**:
+- **Schedule:** Hourly, Daily, or Weekly
+- **Default Policy:** Notify, Auto, or Ignore
+- Checks for new versions, DLC, and better quality releases
+
+### Download Monitor
+
+- Runs every 30 seconds
 - Syncs download progress from qBittorrent
-- Updates game status when complete
+- Updates game/release status when complete
 - Moves to "Downloaded" when finished
+
+### Metadata Refresh
+
+- Runs every 5 minutes
+- Automatically fills in missing game metadata
+- Fetches cover art and details from IGDB
+
+### Logging
+
+Gamearr maintains comprehensive logs:
+- Stored in `data/logs/` directory
+- Automatic daily rotation
+- 30-day retention with compression
+- Useful for troubleshooting
 
 ---
 

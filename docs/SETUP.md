@@ -9,6 +9,8 @@ Complete guide to setting up Gamearr and its dependencies.
 - [IGDB Setup](#igdb-setup)
 - [Prowlarr Setup](#prowlarr-setup)
 - [qBittorrent Setup](#qbittorrent-setup)
+- [Steam Setup (Optional)](#steam-setup-optional)
+- [GOG Setup (Optional)](#gog-setup-optional)
 - [Gamearr Installation](#gamearr-installation)
 - [Configuration](#configuration)
 - [Verifying Setup](#verifying-setup)
@@ -178,6 +180,53 @@ Note the category IDs for game-related categories:
 
 ---
 
+## Steam Setup (Optional)
+
+Steam integration lets you import your existing Steam library into Gamearr.
+
+### Step 1: Get Steam API Key
+
+1. Go to [Steam Web API Key](https://steamcommunity.com/dev/apikey)
+2. Log in with your Steam account
+3. Enter a domain name (can be `localhost` for personal use)
+4. Click **Register**
+5. Copy your API key
+
+### Step 2: Find Your Steam ID
+
+Your Steam ID is the numeric ID for your account:
+
+1. Go to your Steam profile page
+2. The URL contains your ID: `steamcommunity.com/profiles/[YOUR_STEAM_ID]`
+3. Or use a service like [SteamID.io](https://steamid.io/)
+4. Copy the numeric Steam ID (e.g., `76561198012345678`)
+
+> **Note:** If you have a custom URL, you'll need to convert it to the numeric ID.
+
+---
+
+## GOG Setup (Optional)
+
+GOG integration uses OAuth to connect your GOG account.
+
+### How It Works
+
+1. In Gamearr settings, click **Connect to GOG**
+2. A browser window opens to GOG's login page
+3. Log in and authorize Gamearr
+4. You're redirected back with the connection complete
+
+No manual API keys needed - the OAuth flow handles authentication automatically.
+
+### Privacy Note
+
+GOG connection only grants read access to your library. Gamearr cannot:
+- Make purchases
+- Modify your account
+- Access payment information
+
+---
+
 ## Gamearr Installation
 
 ### Step 1: Clone Repository
@@ -233,7 +282,27 @@ bun run build
 
 ## Configuration
 
-Open Gamearr at `http://localhost:3000` and go to **Settings**.
+Open Gamearr at `http://localhost:3000` (development) or `http://localhost:7878` (production) and go to **Settings**.
+
+### General Tab
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| RSS Sync Interval | How often to check for new releases | 15 min |
+| Search Interval | How often to search for wanted games | 15 min |
+| Minimum Quality Score | Auto-grab threshold | 100 |
+| Minimum Seeders | Required seeders for auto-grab | 5 |
+
+### Libraries Tab
+
+Configure your game storage locations:
+
+| Setting | Description | Example |
+|---------|-------------|---------|
+| Library Path | Where games are stored | `C:\Games` or `/mnt/games` |
+| Default | Mark as default for new downloads | Yes/No |
+
+You can add multiple library paths for different drives or locations.
 
 ### Indexers Tab
 
@@ -253,24 +322,38 @@ Click **Test Connection** to verify.
 | Username | Web UI username | `admin` |
 | Password | Web UI password | `********` |
 | Category | Download category | `gamearr` |
+| Dry-Run Mode | Test without downloading | Off |
 
 Click **Test Connection** to verify.
 
 ### Metadata Tab
+
+**IGDB (Required):**
 
 | Setting | Value | Example |
 |---------|-------|---------|
 | IGDB Client ID | From Twitch console | `abc123xyz` |
 | IGDB Client Secret | From Twitch console | `secret123` |
 
-Click **Test Connection** to verify.
+**Steam (Optional):**
 
-### General Tab
+| Setting | Value | Example |
+|---------|-------|---------|
+| Steam API Key | From Steam | `ABC123...` |
+| Steam ID | Your numeric ID | `76561198012345678` |
 
-| Setting | Description |
-|---------|-------------|
-| Library Path | Where your games are stored |
-| Dry-Run Mode | Test without downloading |
+**GOG (Optional):**
+- Click **Connect to GOG** to authenticate via OAuth
+
+Click **Test Connection** for each service to verify.
+
+### Updates Tab
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Enable Update Checking | Monitor for game updates | On |
+| Check Schedule | How often to check | Daily |
+| Default Policy | Action for new updates | Notify |
 
 ---
 
@@ -278,12 +361,14 @@ Click **Test Connection** to verify.
 
 ### 1. Check System Health
 
-Go to `http://localhost:3000` and click the status indicator in the header, or visit `/api/v1/system/health`.
+Go to `http://localhost:3000` (development) or `http://localhost:7878` (production) and check the status indicator in the header.
 
 All services should show green:
 - **IGDB:** Connected
 - **Prowlarr:** Connected
 - **qBittorrent:** Connected
+- **Steam:** Connected (if configured)
+- **GOG:** Connected (if configured)
 
 ### 2. Test Search
 
@@ -301,9 +386,23 @@ All services should show green:
 
 ### 4. Test Download (Dry-Run)
 
-1. Enable **Dry-Run Mode** in Settings
+1. Enable **Dry-Run Mode** in Settings > Downloads
 2. Click **Grab** on a release
 3. Check the logs - it should say "DRY-RUN: Would grab..."
+
+### 5. Test Steam Import (Optional)
+
+1. Go to **Library** > **Scan** tab
+2. Click **Import from Steam**
+3. Your Steam library should appear
+4. Try importing a game
+
+### 6. Test GOG Import (Optional)
+
+1. Go to **Library** > **Scan** tab
+2. Click **Import from GOG**
+3. Your GOG library should appear
+4. Try importing a game
 
 ---
 
@@ -333,13 +432,36 @@ All services should show green:
 - Verify category filters match your indexers
 - Try searching in Prowlarr directly
 
+### "Steam connection failed"
+
+- Verify your Steam API key is valid
+- Check your Steam ID is the numeric ID (not custom URL)
+- Ensure your Steam profile is public (for library access)
+
+### "GOG connection failed"
+
+- Try disconnecting and reconnecting
+- Clear browser cookies if OAuth popup fails
+- Check if GOG services are available
+
 ### Database errors
 
 ```bash
-# Reset database
+# Reset database (Windows)
+del data\gamearr.db
+bun run db:push
+
+# Reset database (macOS/Linux)
 rm data/gamearr.db
 bun run db:push
 ```
+
+### Logs location
+
+Gamearr logs are stored in `data/logs/`:
+- `gamearr.log` - Current log file
+- `gamearr.log.1.gz` - Previous day (compressed)
+- Logs rotate daily with 30-day retention
 
 ---
 
