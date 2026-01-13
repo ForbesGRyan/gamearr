@@ -10,8 +10,9 @@ const IndexersTab = lazy(() => import('../components/settings/IndexersTab'));
 const DownloadsTab = lazy(() => import('../components/settings/DownloadsTab'));
 const MetadataTab = lazy(() => import('../components/settings/MetadataTab'));
 const UpdatesTab = lazy(() => import('../components/settings/UpdatesTab'));
+const SystemTab = lazy(() => import('../components/settings/SystemTab'));
 
-type SettingsTab = 'general' | 'libraries' | 'indexers' | 'downloads' | 'metadata' | 'updates';
+type SettingsTab = 'general' | 'libraries' | 'indexers' | 'downloads' | 'metadata' | 'updates' | 'system';
 
 // Loading fallback component
 function TabLoading() {
@@ -26,7 +27,7 @@ function Settings() {
   // Tab state with URL params
   const [searchParams, setSearchParams] = useSearchParams();
   // Valid tabs for validation
-  const validTabs: SettingsTab[] = ['general', 'libraries', 'indexers', 'downloads', 'metadata', 'updates'];
+  const validTabs: SettingsTab[] = ['general', 'libraries', 'indexers', 'downloads', 'metadata', 'updates', 'system'];
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
     const tabParam = searchParams.get('tab');
@@ -280,6 +281,15 @@ function Settings() {
         </svg>
       ),
     },
+    {
+      id: 'system',
+      label: 'System',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+        </svg>
+      ),
+    },
   ];
 
   return (
@@ -407,6 +417,10 @@ function Settings() {
               setDefaultUpdatePolicy={setDefaultUpdatePolicy}
               showSaveMessage={showSaveMessage}
             />
+          )}
+
+          {activeTab === 'system' && (
+            <SystemTab showSaveMessage={showSaveMessage} />
           )}
         </Suspense>
       </div>

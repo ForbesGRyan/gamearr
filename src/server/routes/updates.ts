@@ -5,6 +5,7 @@ import { updateService } from '../services/UpdateService';
 import { updateCheckJob } from '../jobs/UpdateCheckJob';
 import { gameService } from '../services/GameService';
 import { gameRepository } from '../repositories/GameRepository';
+import { settingsService } from '../services/SettingsService';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
 
@@ -93,6 +94,19 @@ updates.post('/check', async (c) => {
   logger.info('POST /api/v1/updates/check');
 
   try {
+    // Check if update checking is enabled
+    const enabledSetting = await settingsService.getSetting('update_check_enabled');
+    const isEnabled = enabledSetting === null || enabledSetting === 'true';
+
+    if (!isEnabled) {
+      logger.info('Update checking is disabled, skipping manual check');
+      return c.json({
+        success: false,
+        error: 'Update checking is disabled in settings',
+        code: ErrorCode.VALIDATION_ERROR,
+      }, 400);
+    }
+
     const result = await updateCheckJob.triggerCheck();
     return c.json({ success: true, data: result });
   } catch (error) {
@@ -161,6 +175,19 @@ updates.post('/games/:id/check', async (c) => {
   logger.info(`POST /api/v1/updates/games/${id}/check`);
 
   try {
+    // Check if update checking is enabled
+    const enabledSetting = await settingsService.getSetting('update_check_enabled');
+    const isEnabled = enabledSetting === null || enabledSetting === 'true';
+
+    if (!isEnabled) {
+      logger.info('Update checking is disabled, skipping game update check');
+      return c.json({
+        success: false,
+        error: 'Update checking is disabled in settings',
+        code: ErrorCode.VALIDATION_ERROR,
+      }, 400);
+    }
+
     const updates = await updateService.checkGameForUpdates(id);
     return c.json({
       success: true,

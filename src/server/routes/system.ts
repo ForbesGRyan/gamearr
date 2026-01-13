@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { spawn } from 'child_process';
-import { existsSync, statSync } from 'fs';
+import { existsSync, statSync, readdirSync, readFileSync } from 'fs';
+import { join, basename } from 'path';
 import { logger } from '../utils/logger';
 import { APP_VERSION } from '../utils/version';
 import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
@@ -99,11 +100,143 @@ system.get('/health', async (c) => {
   return c.json({ success: true, data: health }, statusCode);
 });
 
-// GET /api/v1/system/logs - Get recent logs
+// Helper function to format bytes
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}
+
+// GET /api/v1/system/logs - List all log files
 system.get('/logs', async (c) => {
   logger.info('GET /api/v1/system/logs');
-  // TODO: Implement log retrieval
-  return c.json({ success: true, data: [] });
+
+  try {
+    const logDir = logger.getLogDir();
+
+    if (!existsSync(logDir)) {
+      return c.json({
+        success: true,
+        data: { files: [] },
+      });
+    }
+
+    const files = readdirSync(logDir)
+      .filter((file) => file.startsWith('gamearr-') && (file.endsWith('.log') || file.includes('.log.')))
+      .map((file) => {
+        const filePath = join(logDir, file);
+        const stats = statSync(filePath);
+        return {
+          name: file,
+          size: stats.size,
+          sizeFormatted: formatBytes(stats.size),
+          modified: Math.floor(stats.mtimeMs),
+        };
+      })
+      .sort((a, b) => b.modified - a.modified); // Most recent first
+
+    return c.json({
+      success: true,
+      data: { files },
+    });
+  } catch (error) {
+    logger.error('Failed to list log files:', error);
+    return c.json({
+      success: false,
+      error: 'Failed to list log files',
+    }, 500);
+  }
+});
+
+// GET /api/v1/system/logs/:filename - Get log file content
+system.get('/logs/:filename', async (c) => {
+  const filename = c.req.param('filename');
+  logger.info(`GET /api/v1/system/logs/${filename}`);
+
+  try {
+    // Validate filename to prevent path traversal
+    const safeFilename = basename(filename);
+    if (safeFilename !== filename || !filename.startsWith('gamearr-')) {
+      return c.json({
+        success: false,
+        error: 'Invalid filename',
+      }, 400);
+    }
+
+    const logDir = logger.getLogDir();
+    const filePath = join(logDir, safeFilename);
+
+    if (!existsSync(filePath)) {
+      return c.json({
+        success: false,
+        error: 'Log file not found',
+      }, 404);
+    }
+
+    const content = readFileSync(filePath, 'utf-8');
+    const lines = content.split('\n');
+    const totalLines = lines.length;
+
+    // Return last 1000 lines by default for viewing
+    const lastLines = lines.slice(-1000).join('\n');
+
+    return c.json({
+      success: true,
+      data: {
+        content: lastLines,
+        totalLines,
+      },
+    });
+  } catch (error) {
+    logger.error(`Failed to read log file ${filename}:`, error);
+    return c.json({
+      success: false,
+      error: 'Failed to read log file',
+    }, 500);
+  }
+});
+
+// GET /api/v1/system/logs/:filename/download - Download log file
+system.get('/logs/:filename/download', async (c) => {
+  const filename = c.req.param('filename');
+  logger.info(`GET /api/v1/system/logs/${filename}/download`);
+
+  try {
+    // Validate filename to prevent path traversal
+    const safeFilename = basename(filename);
+    if (safeFilename !== filename || !filename.startsWith('gamearr-')) {
+      return c.json({
+        success: false,
+        error: 'Invalid filename',
+      }, 400);
+    }
+
+    const logDir = logger.getLogDir();
+    const filePath = join(logDir, safeFilename);
+
+    if (!existsSync(filePath)) {
+      return c.json({
+        success: false,
+        error: 'Log file not found',
+      }, 404);
+    }
+
+    const content = readFileSync(filePath);
+
+    c.header('Content-Type', 'application/octet-stream');
+    c.header('Content-Disposition', `attachment; filename="${safeFilename}"`);
+    c.header('Content-Length', content.length.toString());
+
+    return c.body(content);
+  } catch (error) {
+    logger.error(`Failed to download log file ${filename}:`, error);
+    return c.json({
+      success: false,
+      error: 'Failed to download log file',
+    }, 500);
+  }
 });
 
 // GET /api/v1/system/setup-status - Check if initial setup is complete

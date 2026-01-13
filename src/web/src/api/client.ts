@@ -369,6 +369,18 @@ export interface LooseFile {
   size: number;
 }
 
+export interface LogFile {
+  name: string;
+  size: number;
+  sizeFormatted: string;
+  modified: number;
+}
+
+export interface LogFileContent {
+  content: string;
+  totalLines: number;
+}
+
 export interface Library {
   id: number;
   name: string;
@@ -996,6 +1008,41 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ path }),
     });
+  }
+
+  // Logs
+  async getLogFiles(): Promise<ApiResponse<{ files: LogFile[] }>> {
+    return this.request<{ files: LogFile[] }>('/system/logs');
+  }
+
+  async getLogFileContent(filename: string): Promise<ApiResponse<LogFileContent>> {
+    return this.request<LogFileContent>(`/system/logs/${encodeURIComponent(filename)}`);
+  }
+
+  async downloadLogFile(filename: string): Promise<void> {
+    const authToken = getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(`${API_BASE}/system/logs/${encodeURIComponent(filename)}/download`, {
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error('Download failed');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   }
 }
 
