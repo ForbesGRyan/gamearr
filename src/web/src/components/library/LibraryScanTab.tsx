@@ -439,6 +439,19 @@ export function LibraryScanTab({
             </div>
           )}
 
+          {/* Pagination - Top */}
+          {filteredAndSortedFolders.length > 0 && (
+            <LibraryPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalItems={filteredAndSortedFolders.length}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={handlePageSizeChange}
+              itemLabel="folders"
+            />
+          )}
+
           <div className="space-y-3">
             {paginatedFolders.map((folder) => {
               const suggestion = autoMatchSuggestions[folder.path];
@@ -590,15 +603,6 @@ export function LibraryScanTab({
               );
             })}
           </div>
-          <LibraryPagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            pageSize={pageSize}
-            totalItems={filteredAndSortedFolders.length}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={handlePageSizeChange}
-            itemLabel="folders"
-          />
         </div>
       )}
     </>
