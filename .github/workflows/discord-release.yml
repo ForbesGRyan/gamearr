@@ -1,8 +1,9 @@
 name: Discord Release Notification
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   notify:
@@ -13,5 +14,5 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           curl -H "Content-Type: application/json" \
-            -d "{\"embeds\": [{\"title\": \"🎮 Gamearr ${{ github.event.release.tag_name }} Released\", \"description\": \"${{ github.event.release.name }}\", \"url\": \"${{ github.event.release.html_url }}\", \"color\": 5814783}]}" \
+            -d "{\"embeds\": [{\"title\": \"🎮 Gamearr ${{ github.ref_name }} Released\", \"description\": \"A new version has been released.\", \"url\": \"https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}\", \"color\": 5814783}]}" \
             $DISCORD_WEBHOOK
