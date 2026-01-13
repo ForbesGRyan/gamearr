@@ -1,0 +1,17 @@
+name: Discord Release Notification
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Discord notification
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          curl -H "Content-Type: application/json" \
+            -d "{\"embeds\": [{\"title\": \"🎮 Gamearr ${{ github.event.release.tag_name }} Released\", \"description\": \"${{ github.event.release.name }}\", \"url\": \"${{ github.event.release.html_url }}\", \"color\": 5814783}]}" \
+            $DISCORD_WEBHOOK
