@@ -1,4 +1,4 @@
-import { useEffect, useState, Suspense, lazy } from 'react';
+import { useState, Suspense, lazy } from 'react';
 import {
   createBrowserRouter,
   RouterProvider,
@@ -10,7 +10,6 @@ import {
 import { GamepadIcon } from './components/Icons';
 import { NavDropdown } from './components/NavDropdown';
 import { MobileNav } from './components/MobileNav';
-import { startBackgroundPreload } from './hooks/usePreloadCache';
 import { api } from './api/client';
 
 // Lazy load all page components for faster initial load
@@ -267,11 +266,6 @@ const router = createBrowserRouter([
 ]);
 
 function App() {
-  // Start background preloading of Discover page data
-  useEffect(() => {
-    startBackgroundPreload();
-  }, []);
-
   return <RouterProvider router={router} />;
 }
 
