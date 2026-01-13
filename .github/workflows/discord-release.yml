@@ -9,10 +9,35 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 ${{ github.ref_name }}^ 2>/dev/null || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            # Get commits between tags, format as bullet points
+            CHANGES=$(git log --pretty=format:"• %s" $PREV_TAG..${{ github.ref_name }} --no-merges | grep -E "^• (feat|fix|docs|chore|refactor|perf|test|style):" | head -10)
+          else
+            # First tag, get recent commits
+            CHANGES=$(git log --pretty=format:"• %s" -10 --no-merges | grep -E "^• (feat|fix|docs|chore|refactor|perf|test|style):" | head -10)
+          fi
+
+          # Escape for JSON
+          CHANGES=$(echo "$CHANGES" | sed 's/"/\\"/g' | tr '\n' '\\' | sed 's/\\/\\n/g' | sed 's/\\n$//')
+
+          echo "changes=$CHANGES" >> $GITHUB_OUTPUT
+
       - name: Discord notification
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          CHANGES: ${{ steps.changelog.outputs.changes }}
         run: |
           curl -H "Content-Type: application/json" \
-            -d "{\"embeds\": [{\"title\": \"🎮 Gamearr ${{ github.ref_name }} Released\", \"description\": \"A new version has been released.\", \"url\": \"https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}\", \"color\": 5814783}]}" \
+            -d "{\"embeds\": [{\"title\": \"🎮 Gamearr ${{ github.ref_name }} Released\", \"description\": \"$CHANGES\", \"url\": \"https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}\", \"color\": 5814783}]}" \
             $DISCORD_WEBHOOK
