@@ -144,6 +144,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
             <NavItem to="/settings?tab=downloads" label="Downloads" onClick={onClose} />
             <NavItem to="/settings?tab=metadata" label="Metadata" onClick={onClose} />
             <NavItem to="/settings?tab=updates" label="Updates" onClick={onClose} />
+            <NavItem to="/settings?tab=system" label="System" onClick={onClose} />
           </NavGroup>
         </nav>
       </div>

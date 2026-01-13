@@ -190,6 +190,7 @@ function MainLayout() {
                     { label: 'Downloads', to: '/settings?tab=downloads', tab: 'downloads' },
                     { label: 'Metadata', to: '/settings?tab=metadata', tab: 'metadata' },
                     { label: 'Updates', to: '/settings?tab=updates', tab: 'updates' },
+                    { label: 'System', to: '/settings?tab=system', tab: 'system' },
                   ]}
                 />
               </nav>
