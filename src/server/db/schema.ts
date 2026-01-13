@@ -234,6 +234,21 @@ export const gameEmbeddings = sqliteTable('game_embeddings', {
   titleHashIdx: index('game_embeddings_title_hash_idx').on(table.titleHash),
 }));
 
+// API cache table for trending games and top torrents
+export const apiCache = sqliteTable('api_cache', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  cacheKey: text('cache_key').notNull().unique(),
+  cacheType: text('cache_type', { enum: ['trending_games', 'top_torrents', 'popularity_types'] }).notNull(),
+  data: text('data').notNull(), // JSON blob
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, (table) => ({
+  cacheKeyIdx: index('api_cache_key_idx').on(table.cacheKey),
+  expiresAtIdx: index('api_cache_expires_at_idx').on(table.expiresAt),
+}));
+
 // Type exports
 export type Library = typeof libraries.$inferSelect;
 export type NewLibrary = typeof libraries.$inferInsert;
@@ -270,3 +285,6 @@ export type NewGameEmbedding = typeof gameEmbeddings.$inferInsert;
 
 export type GameEvent = typeof gameEvents.$inferSelect;
 export type NewGameEvent = typeof gameEvents.$inferInsert;
+
+export type ApiCache = typeof apiCache.$inferSelect;
+export type NewApiCache = typeof apiCache.$inferInsert;

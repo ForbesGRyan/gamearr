@@ -35,6 +35,9 @@ const SETTINGS_KEYS = {
   SEARCH_SCHEDULER_INTERVAL: 'search_scheduler_interval',
   AUTO_GRAB_MIN_SCORE: 'auto_grab_min_score',
   AUTO_GRAB_MIN_SEEDERS: 'auto_grab_min_seeders',
+  // Cache settings
+  TRENDING_GAMES_CACHE_INTERVAL: 'trending_games_cache_interval',
+  TOP_TORRENTS_CACHE_INTERVAL: 'top_torrents_cache_interval',
 };
 
 // Map settings keys to their environment variable fallbacks
@@ -231,6 +234,42 @@ export class SettingsService {
     logger.info(`Setting auto-grab minimum seeders: ${validSeeders}`);
     await settingsRepository.setJSON(SETTINGS_KEYS.AUTO_GRAB_MIN_SEEDERS, validSeeders);
     this.invalidateCache(SETTINGS_KEYS.AUTO_GRAB_MIN_SEEDERS);
+  }
+
+  /**
+   * Get trending games cache refresh interval in minutes
+   */
+  async getTrendingGamesCacheInterval(): Promise<number> {
+    const interval = await this.getCachedJSON<number>(SETTINGS_KEYS.TRENDING_GAMES_CACHE_INTERVAL);
+    return interval ?? 15; // Default: 15 minutes
+  }
+
+  /**
+   * Set trending games cache refresh interval in minutes
+   */
+  async setTrendingGamesCacheInterval(minutes: number): Promise<void> {
+    const validMinutes = Math.max(5, Math.min(60, minutes)); // 5 mins to 1 hour
+    logger.info(`Setting trending games cache interval: ${validMinutes} minutes`);
+    await settingsRepository.setJSON(SETTINGS_KEYS.TRENDING_GAMES_CACHE_INTERVAL, validMinutes);
+    this.invalidateCache(SETTINGS_KEYS.TRENDING_GAMES_CACHE_INTERVAL);
+  }
+
+  /**
+   * Get top torrents cache refresh interval in minutes
+   */
+  async getTopTorrentsCacheInterval(): Promise<number> {
+    const interval = await this.getCachedJSON<number>(SETTINGS_KEYS.TOP_TORRENTS_CACHE_INTERVAL);
+    return interval ?? 5; // Default: 5 minutes
+  }
+
+  /**
+   * Set top torrents cache refresh interval in minutes
+   */
+  async setTopTorrentsCacheInterval(minutes: number): Promise<void> {
+    const validMinutes = Math.max(1, Math.min(30, minutes)); // 1 min to 30 mins
+    logger.info(`Setting top torrents cache interval: ${validMinutes} minutes`);
+    await settingsRepository.setJSON(SETTINGS_KEYS.TOP_TORRENTS_CACHE_INTERVAL, validMinutes);
+    this.invalidateCache(SETTINGS_KEYS.TOP_TORRENTS_CACHE_INTERVAL);
   }
 
   /**

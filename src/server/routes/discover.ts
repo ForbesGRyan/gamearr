@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { igdbClient } from '../integrations/igdb/IGDBClient';
 import { gameService } from '../services/GameService';
+import { cacheService } from '../services/CacheService';
 import { logger } from '../utils/logger';
 import { routeHandler } from '../utils/errors';
 
@@ -9,8 +10,17 @@ const discover = new Hono();
 // GET /api/v1/discover/popularity-types - Get available popularity types
 discover.get('/popularity-types', routeHandler(async () => {
   logger.info('GET /api/v1/discover/popularity-types');
-  const types = await igdbClient.getPopularityTypes();
-  return { success: true, data: types };
+
+  // Try cache first
+  const cached = await cacheService.getPopularityTypes();
+  if (cached) {
+    logger.debug('Returning cached popularity types');
+    return { success: true, data: cached, cached: true };
+  }
+
+  // Cache miss - fetch directly and cache
+  const types = await cacheService.refreshPopularityTypes();
+  return { success: true, data: types, cached: false };
 }, 'Get popularity types', logger.error.bind(logger)));
 
 // GET /api/v1/discover/popular - Get popular games by type
@@ -33,6 +43,24 @@ discover.get('/popular', routeHandler(async (c) => {
 
   logger.info(`GET /api/v1/discover/popular?type=${type}&limit=${limit}`);
 
+  // Try cache first
+  const cached = await cacheService.getTrendingGames(type);
+  if (cached) {
+    logger.debug(`Returning cached trending games (type: ${type})`);
+    const results = cached.slice(0, limit);
+    return {
+      success: true,
+      data: results,
+      meta: {
+        popularityType: type,
+        totalResults: results.length,
+        cached: true,
+      },
+    };
+  }
+
+  // Cache miss - fetch directly
+  logger.debug(`Cache miss for trending games type ${type}, fetching from IGDB`);
   const popularGames = await igdbClient.getPopularGames(type, limit);
 
   // Get all games in library to check which popular games are already added
@@ -50,6 +78,7 @@ discover.get('/popular', routeHandler(async (c) => {
     meta: {
       popularityType: type,
       totalResults: results.length,
+      cached: false,
     },
   };
 }, 'Get popular games', logger.error.bind(logger)));

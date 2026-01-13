@@ -10,6 +10,10 @@ interface GeneralTabProps {
   setAutoGrabMinScore: (value: number) => void;
   autoGrabMinSeeders: number;
   setAutoGrabMinSeeders: (value: number) => void;
+  trendingCacheInterval: number;
+  setTrendingCacheInterval: (value: number) => void;
+  torrentsCacheInterval: number;
+  setTorrentsCacheInterval: (value: number) => void;
   showSaveMessage: (type: 'success' | 'error', text: string) => void;
 }
 
@@ -22,6 +26,10 @@ export default function GeneralTab({
   setAutoGrabMinScore,
   autoGrabMinSeeders,
   setAutoGrabMinSeeders,
+  trendingCacheInterval,
+  setTrendingCacheInterval,
+  torrentsCacheInterval,
+  setTorrentsCacheInterval,
   showSaveMessage,
 }: GeneralTabProps) {
   const [isSavingAutomation, setIsSavingAutomation] = useState(false);
@@ -34,6 +42,8 @@ export default function GeneralTab({
         api.updateSetting('search_scheduler_interval', searchSchedulerInterval),
         api.updateSetting('auto_grab_min_score', autoGrabMinScore),
         api.updateSetting('auto_grab_min_seeders', autoGrabMinSeeders),
+        api.updateSetting('trending_games_cache_interval', trendingCacheInterval),
+        api.updateSetting('top_torrents_cache_interval', torrentsCacheInterval),
       ]);
 
       const allSuccessful = results.every((r) => r.success);
@@ -47,7 +57,7 @@ export default function GeneralTab({
     } finally {
       setIsSavingAutomation(false);
     }
-  }, [rssSyncInterval, searchSchedulerInterval, autoGrabMinScore, autoGrabMinSeeders, showSaveMessage]);
+  }, [rssSyncInterval, searchSchedulerInterval, autoGrabMinScore, autoGrabMinSeeders, trendingCacheInterval, torrentsCacheInterval, showSaveMessage]);
 
   return (
     <>
@@ -140,13 +150,64 @@ export default function GeneralTab({
         <div className="mt-4 p-3 bg-gray-700 rounded text-sm text-gray-300">
           <strong>Current auto-grab criteria:</strong> Score {'>='} {autoGrabMinScore} AND Seeders {'>='} {autoGrabMinSeeders}
         </div>
+      </div>
+
+      {/* Cache Settings */}
+      <div className="bg-gray-800 rounded-lg p-4 md:p-6">
+        <h3 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 flex items-center gap-2">
+          <svg className="w-5 h-5 md:w-6 md:h-6 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+          </svg>
+          Cache Settings
+        </h3>
+        <p className="text-gray-400 mb-4 text-sm md:text-base">
+          Configure how often Gamearr refreshes cached data for the Discover page.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+          {/* Trending Games Cache Interval */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              Trending Games Cache (minutes)
+            </label>
+            <input
+              type="number"
+              min={5}
+              max={60}
+              value={trendingCacheInterval}
+              onChange={(e) => setTrendingCacheInterval(Math.max(5, Math.min(60, parseInt(e.target.value) || 15)))}
+              className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              How often to refresh trending games from IGDB (5-60 min)
+            </p>
+          </div>
+
+          {/* Top Torrents Cache Interval */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              Top Torrents Cache (minutes)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={30}
+              value={torrentsCacheInterval}
+              onChange={(e) => setTorrentsCacheInterval(Math.max(1, Math.min(30, parseInt(e.target.value) || 5)))}
+              className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              How often to refresh top torrents from Prowlarr (1-30 min)
+            </p>
+          </div>
+        </div>
 
         <button
           onClick={handleSaveAutomation}
           disabled={isSavingAutomation}
           className="mt-4 w-full md:w-auto bg-green-600 hover:bg-green-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
         >
-          {isSavingAutomation ? 'Saving...' : 'Save Automation Settings'}
+          {isSavingAutomation ? 'Saving...' : 'Save Settings'}
         </button>
       </div>
     </>

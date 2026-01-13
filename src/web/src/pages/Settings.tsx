@@ -88,6 +88,10 @@ function Settings() {
   const [autoGrabMinScore, setAutoGrabMinScore] = useState(100);
   const [autoGrabMinSeeders, setAutoGrabMinSeeders] = useState(5);
 
+  // Cache settings
+  const [trendingCacheInterval, setTrendingCacheInterval] = useState(15);
+  const [torrentsCacheInterval, setTorrentsCacheInterval] = useState(5);
+
   // Update check settings
   const [updateCheckEnabled, setUpdateCheckEnabled] = useState(true);
   const [updateCheckSchedule, setUpdateCheckSchedule] = useState<'hourly' | 'daily' | 'weekly'>('daily');
@@ -142,6 +146,8 @@ function Settings() {
         searchIntervalRes,
         minScoreRes,
         minSeedersRes,
+        trendingCacheRes,
+        torrentsCacheRes,
       ] = await Promise.all([
         api.getSetting('prowlarr_url'),
         api.getSetting('prowlarr_api_key'),
@@ -161,6 +167,8 @@ function Settings() {
         api.getSetting('search_scheduler_interval'),
         api.getSetting('auto_grab_min_score'),
         api.getSetting('auto_grab_min_seeders'),
+        api.getSetting('trending_games_cache_interval'),
+        api.getSetting('top_torrents_cache_interval'),
       ]);
 
       if (prowlarrUrlRes.success && prowlarrUrlRes.data) setProwlarrUrl(prowlarrUrlRes.data as string);
@@ -181,6 +189,8 @@ function Settings() {
       if (searchIntervalRes.success && searchIntervalRes.data !== undefined) setSearchSchedulerInterval(searchIntervalRes.data as number);
       if (minScoreRes.success && minScoreRes.data !== undefined) setAutoGrabMinScore(minScoreRes.data as number);
       if (minSeedersRes.success && minSeedersRes.data !== undefined) setAutoGrabMinSeeders(minSeedersRes.data as number);
+      if (trendingCacheRes.success && trendingCacheRes.data !== undefined) setTrendingCacheInterval(trendingCacheRes.data as number);
+      if (torrentsCacheRes.success && torrentsCacheRes.data !== undefined) setTorrentsCacheInterval(torrentsCacheRes.data as number);
     } catch (err) {
       setLoadError('Failed to load settings. Please refresh the page.');
       console.error('Failed to load settings:', err);
@@ -359,6 +369,10 @@ function Settings() {
               setAutoGrabMinScore={setAutoGrabMinScore}
               autoGrabMinSeeders={autoGrabMinSeeders}
               setAutoGrabMinSeeders={setAutoGrabMinSeeders}
+              trendingCacheInterval={trendingCacheInterval}
+              setTrendingCacheInterval={setTrendingCacheInterval}
+              torrentsCacheInterval={torrentsCacheInterval}
+              setTorrentsCacheInterval={setTorrentsCacheInterval}
               showSaveMessage={showSaveMessage}
             />
           )}

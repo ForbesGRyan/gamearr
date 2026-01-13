@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { indexerService } from '../services/IndexerService';
+import { cacheService } from '../services/CacheService';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
 
@@ -75,6 +76,29 @@ indexers.get('/torrents', async (c) => {
   logger.info(`GET /api/v1/indexers/torrents - query: ${query}, limit: ${limit}, maxAge: ${maxAgeDays} days`);
 
   try {
+    // Use cache for default query only
+    if (query === 'game') {
+      const cached = await cacheService.getTopTorrents();
+      if (cached) {
+        logger.debug('Returning cached top torrents');
+        // Apply age filter and limit to cached data
+        const now = new Date();
+        const cutoffDate = new Date(now.getTime() - maxAgeDays * 24 * 60 * 60 * 1000);
+
+        const filtered = cached.filter(release => {
+          const publishDate = new Date(release.publishedAt);
+          return publishDate >= cutoffDate;
+        });
+
+        return c.json({
+          success: true,
+          data: filtered.slice(0, limit),
+          cached: true,
+        });
+      }
+    }
+
+    // Cache miss or custom query - fetch directly
     const releases = await indexerService.manualSearch(query);
 
     // Filter by age
@@ -92,7 +116,8 @@ indexers.get('/torrents', async (c) => {
     // Return top N results
     return c.json({
       success: true,
-      data: sorted.slice(0, limit)
+      data: sorted.slice(0, limit),
+      cached: false,
     });
   } catch (error) {
     logger.error('Failed to fetch torrents:', error);
