@@ -309,6 +309,40 @@ function runMigrations() {
 
 runMigrations();
 
+// Seed default stores
+function seedDefaultStores() {
+  const defaultStores = [
+    { name: 'Steam', slug: 'steam' },
+    { name: 'GOG', slug: 'gog' },
+    { name: 'Epic Games', slug: 'epic' },
+    { name: 'Origin', slug: 'origin' },
+    { name: 'Ubisoft Connect', slug: 'ubisoft' },
+    { name: 'Xbox', slug: 'xbox' },
+    { name: 'PlayStation', slug: 'playstation' },
+    { name: 'Nintendo', slug: 'nintendo' },
+    { name: 'itch.io', slug: 'itch' },
+    { name: 'Humble Bundle', slug: 'humble' },
+    { name: 'Amazon Games', slug: 'amazon' },
+    { name: 'Battle.net', slug: 'battlenet' },
+  ];
+
+  for (const store of defaultStores) {
+    const exists = sqlite.query(
+      'SELECT id FROM stores WHERE slug = ?'
+    ).get(store.slug);
+
+    if (!exists) {
+      logger.info(`Seeding store: ${store.name} (${store.slug})`);
+      sqlite.run(
+        'INSERT INTO stores (name, slug) VALUES (?, ?)',
+        [store.name, store.slug]
+      );
+    }
+  }
+}
+
+seedDefaultStores();
+
 // Create Drizzle instance
 export const db = drizzle(sqlite, { schema });
 
