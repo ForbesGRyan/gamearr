@@ -75,8 +75,8 @@ export class SemanticSearchService {
         }
       }
 
-      // Generate missing embeddings
-      if (gamesToEmbed.length > 0) {
+      // Generate missing embeddings (only if embedding service is available)
+      if (gamesToEmbed.length > 0 && embeddingService.isAvailable()) {
         logger.info(`Generating embeddings for ${gamesToEmbed.length} games...`);
 
         // Process in batches
@@ -86,6 +86,10 @@ export class SemanticSearchService {
           const titles = batch.map((g) => g.title);
 
           const embeddings = await embeddingService.embedBatch(titles);
+          if (embeddings.length === 0) {
+            logger.warn('Embedding service unavailable, skipping embedding generation');
+            break;
+          }
 
           // Save to database and cache
           for (let j = 0; j < batch.length; j++) {
@@ -106,6 +110,8 @@ export class SemanticSearchService {
 
           logger.info(`Processed ${Math.min(i + batchSize, gamesToEmbed.length)}/${gamesToEmbed.length} embeddings`);
         }
+      } else if (gamesToEmbed.length > 0) {
+        logger.info(`Skipping embedding generation for ${gamesToEmbed.length} games (embedding service unavailable)`);
       }
 
       this.cacheWarmed = true;
@@ -121,8 +127,9 @@ export class SemanticSearchService {
   /**
    * Get or generate embedding for a game title
    * Caches the result in memory and database
+   * Returns null if embedding service is unavailable
    */
-  async getOrCreateEmbedding(gameId: number, title: string): Promise<number[]> {
+  async getOrCreateEmbedding(gameId: number, title: string): Promise<number[] | null> {
     const titleHash = this.hashTitle(title);
 
     // Check memory cache first
@@ -146,6 +153,7 @@ export class SemanticSearchService {
 
     // Generate new embedding
     const embedding = await embeddingService.embed(title);
+    if (!embedding) return null;
 
     // Save to database
     await gameEmbeddingRepository.upsert(gameId, titleHash, embedding);
@@ -164,6 +172,7 @@ export class SemanticSearchService {
   /**
    * Re-rank IGDB search results by semantic similarity to the query
    * Returns results sorted by combined IGDB rank + semantic similarity
+   * Returns original order if embedding service is unavailable
    */
   async rerankIGDBResults(
     query: string,
@@ -174,10 +183,18 @@ export class SemanticSearchService {
     try {
       // Generate query embedding
       const queryEmbedding = await embeddingService.embed(query);
+      if (!queryEmbedding) {
+        // Embedding service unavailable, return original order
+        return results;
+      }
 
       // Generate embeddings for all result titles
       const titles = results.map((r) => r.title);
       const embeddings = await embeddingService.embedBatch(titles);
+      if (embeddings.length === 0) {
+        // Embedding service unavailable, return original order
+        return results;
+      }
 
       // Calculate similarity scores
       const scored = results.map((result, index) => {
@@ -209,6 +226,7 @@ export class SemanticSearchService {
   /**
    * Find the best IGDB match for a game name
    * Returns the result with highest semantic similarity, or null if no good match
+   * Returns null if embedding service is unavailable
    */
   async findBestMatch(
     gameName: string,
@@ -219,8 +237,11 @@ export class SemanticSearchService {
 
     try {
       const queryEmbedding = await embeddingService.embed(gameName);
+      if (!queryEmbedding) return null;
+
       const titles = igdbResults.map((r) => r.title);
       const embeddings = await embeddingService.embedBatch(titles);
+      if (embeddings.length === 0) return null;
 
       let bestMatch: { result: GameSearchResult; similarity: number } | null = null;
 
