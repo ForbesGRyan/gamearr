@@ -2,6 +2,8 @@
 
 Automated game library management for self-hosters. Part of the *arr ecosystem.
 
+[![Discord](https://img.shields.io/discord/1328457062691831828?color=5865F2&label=Discord&logo=discord&logoColor=white)](https://discord.gg/rd2gRszhbj)
+
 Gamearr monitors your wanted games, automatically searches for releases via Prowlarr, downloads them through qBittorrent, and organizes your library - just like Radarr does for movies.
 
 ![Gamearr Library](screenshots/02-library-posters.png)
