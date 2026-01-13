@@ -347,6 +347,13 @@ export interface IgdbRematchEventData {
   newCoverUrl?: string;
 }
 
+export interface FolderMatchedEventData {
+  folderPath: string;
+  folderName: string;
+  matchedTitle: string;
+  igdbId: number;
+}
+
 export interface PopularityType {
   id: number;
   name: string;
@@ -385,6 +392,7 @@ export interface LogFile {
   size: number;
   sizeFormatted: string;
   modified: number;
+  viewable: boolean;
 }
 
 export interface LogFileContent {

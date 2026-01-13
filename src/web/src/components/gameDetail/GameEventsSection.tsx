@@ -4,6 +4,7 @@ import {
   SteamImportEventData,
   GogImportEventData,
   IgdbRematchEventData,
+  FolderMatchedEventData,
 } from '../../api/client';
 import { MobileCard } from '../MobileCard';
 
@@ -153,6 +154,15 @@ function GameEventsSection({ events }: GameEventsSectionProps) {
               <div className="text-xs text-gray-500 mt-0.5">
                 IGDB: {rematchData.previousIgdbId} {'->'} {rematchData.newIgdbId}
               </div>
+            </div>
+          );
+        }
+        case 'folder_matched': {
+          const folderData = data as FolderMatchedEventData;
+          return (
+            <div className="text-sm text-gray-400 mt-1">
+              <span className="text-gray-500">Folder:</span>{' '}
+              <span className="text-gray-300 font-mono text-xs">{folderData.folderName}</span>
             </div>
           );
         }

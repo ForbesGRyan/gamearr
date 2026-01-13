@@ -128,11 +128,14 @@ system.get('/logs', async (c) => {
       .map((file) => {
         const filePath = join(logDir, file);
         const stats = statSync(filePath);
+        // Only plain .log files are viewable (not gzipped ones like .log.gz or .log.1.gz)
+        const viewable = file.endsWith('.log');
         return {
           name: file,
           size: stats.size,
           sizeFormatted: formatBytes(stats.size),
           modified: Math.floor(stats.mtimeMs),
+          viewable,
         };
       })
       .sort((a, b) => b.modified - a.modified); // Most recent first

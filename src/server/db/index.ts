@@ -209,6 +209,18 @@ function initializeSchema() {
       )
     `);
 
+    // Create api_cache table for server-side caching
+    sqlite.run(`
+      CREATE TABLE IF NOT EXISTS api_cache (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cache_key TEXT NOT NULL UNIQUE,
+        cache_type TEXT NOT NULL,
+        data TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+
     // Create indexes
     sqlite.run('CREATE INDEX IF NOT EXISTS games_status_idx ON games(status)');
     sqlite.run('CREATE INDEX IF NOT EXISTS games_monitored_idx ON games(monitored)');
@@ -232,6 +244,8 @@ function initializeSchema() {
     sqlite.run('CREATE INDEX IF NOT EXISTS game_events_game_id_idx ON game_events(game_id)');
     sqlite.run('CREATE INDEX IF NOT EXISTS game_events_event_type_idx ON game_events(event_type)');
     sqlite.run('CREATE INDEX IF NOT EXISTS game_embeddings_title_hash_idx ON game_embeddings(title_hash)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS api_cache_key_idx ON api_cache(cache_key)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS api_cache_expires_at_idx ON api_cache(expires_at)');
 
     logger.info('Schema initialized successfully');
   }
@@ -319,6 +333,23 @@ function runMigrations() {
   // Add index for slug if column exists
   if (columnExists('games', 'slug')) {
     sqlite.run('CREATE INDEX IF NOT EXISTS games_slug_idx ON games(slug)');
+  }
+
+  // Create api_cache table if missing (server-side caching for discover data)
+  if (!tableExists('api_cache')) {
+    logger.info('Migration: Creating api_cache table');
+    sqlite.run(`
+      CREATE TABLE api_cache (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cache_key TEXT NOT NULL UNIQUE,
+        cache_type TEXT NOT NULL,
+        data TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+    sqlite.run('CREATE INDEX IF NOT EXISTS api_cache_key_idx ON api_cache(cache_key)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS api_cache_expires_at_idx ON api_cache(expires_at)');
   }
 
   // Create game_folders table if missing (multiple folders per game support)

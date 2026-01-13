@@ -154,12 +154,14 @@ export default function SystemTab({ showSaveMessage }: SystemTabProps) {
                     </td>
                     <td className="py-3 text-right">
                       <div className="flex gap-2 justify-end">
-                        <button
-                          onClick={() => handleViewLog(file.name)}
-                          className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 rounded transition"
-                        >
-                          View
-                        </button>
+                        {file.viewable && (
+                          <button
+                            onClick={() => handleViewLog(file.name)}
+                            className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 rounded transition"
+                          >
+                            View
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDownloadLog(file.name)}
                           className="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 rounded transition"

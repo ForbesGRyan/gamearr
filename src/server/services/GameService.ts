@@ -152,6 +152,14 @@ export class GameService {
   }
 
   /**
+   * Enrich a single game with stores (fetches folders automatically)
+   */
+  private async enrichGameWithStores(game: Game, storesInfo: GameStoreInfo[]): Promise<GameWithStores> {
+    const foldersInfo = await gameFolderRepository.getFoldersForGame(game.id);
+    return this.enrichGame(game, storesInfo, foldersInfo);
+  }
+
+  /**
    * Enrich multiple games with their stores and folders (batch operation)
    */
   private async enrichGames(games: Game[]): Promise<GameWithStores[]> {

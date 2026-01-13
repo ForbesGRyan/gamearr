@@ -8,6 +8,7 @@ import { libraryService } from './LibraryService';
 import { gameRepository } from '../repositories/GameRepository';
 import { libraryFileRepository } from '../repositories/LibraryFileRepository';
 import { gameFolderRepository } from '../repositories/GameFolderRepository';
+import { gameEventRepository } from '../repositories/GameEventRepository';
 import type { Game, LibraryFile, Library } from '../db/schema';
 
 export interface MoveResult {
@@ -888,6 +889,17 @@ export class FileService {
         logger.info(`Created folder entry for game ${gameId}: ${folderPath} (primary: ${isPrimary})`);
       } else {
         logger.info(`Folder entry already exists: ${folderPath}`);
+      }
+
+      // Create folder matched event
+      const game = await gameRepository.findById(gameId);
+      if (game) {
+        await gameEventRepository.createFolderMatchedEvent(gameId, {
+          folderPath,
+          folderName,
+          matchedTitle: game.title,
+          igdbId: game.igdbId,
+        });
       }
 
       logger.info(`Successfully matched folder to game ${gameId} (library: ${detectedLibraryId || 'none'})`);
