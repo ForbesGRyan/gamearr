@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { settingsService } from '../services/SettingsService';
 import { downloadService } from '../services/DownloadService';
 import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
+import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
+import { igdbClient } from '../integrations/igdb/IGDBClient';
 import { ALL_CATEGORIES, DEFAULT_CATEGORIES, CATEGORY_GROUPS } from '../../shared/categories';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
@@ -359,6 +361,39 @@ settings.put('/:key', zValidator('json', settingValueSchema), async (c) => {
     // Store non-strings as JSON, strings as-is
     const valueToStore = typeof value === 'string' ? value : JSON.stringify(value);
     await settingsService.setSetting(key, valueToStore);
+
+    // Reconfigure integration clients when their settings change
+    if (key === 'igdb_client_id' || key === 'igdb_client_secret') {
+      const clientId = await settingsService.getSetting('igdb_client_id');
+      const clientSecret = await settingsService.getSetting('igdb_client_secret');
+      if (clientId && clientSecret) {
+        igdbClient.configure({ clientId, clientSecret });
+        logger.info('IGDB client reconfigured with new credentials');
+      }
+    }
+
+    if (key === 'prowlarr_url' || key === 'prowlarr_api_key') {
+      const url = await settingsService.getSetting('prowlarr_url');
+      const apiKey = await settingsService.getSetting('prowlarr_api_key');
+      if (url && apiKey) {
+        prowlarrClient.configure({ url, apiKey });
+        logger.info('Prowlarr client reconfigured with new settings');
+      }
+    }
+
+    if (key.startsWith('qbittorrent_')) {
+      const host = await settingsService.getSetting('qbittorrent_host');
+      const username = await settingsService.getSetting('qbittorrent_username');
+      const password = await settingsService.getSetting('qbittorrent_password');
+      if (host) {
+        qbittorrentClient.configure({
+          host,
+          username: username || '',
+          password: password || '',
+        });
+        logger.info('qBittorrent client reconfigured with new settings');
+      }
+    }
 
     return c.json({
       success: true,
