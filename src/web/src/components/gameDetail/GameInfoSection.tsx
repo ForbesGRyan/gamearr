@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, Game, Library, SearchResult } from '../../api/client';
 import StoreSelector from '../StoreSelector';
 import ConfirmModal from '../ConfirmModal';
-import { FolderOpenIcon, PencilIcon, CloseIcon } from '../Icons';
+import { PencilIcon, CloseIcon } from '../Icons';
 
 interface GameInfoSectionProps {
   game: Game;
@@ -53,12 +53,6 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
     await api.updateGameStores(game.id, stores);
     setSaving(false);
     onUpdate();
-  };
-
-  const handleOpenFolder = async () => {
-    if (game.folderPath) {
-      await api.openFolder(game.folderPath);
-    }
   };
 
   const handleSearchRematch = async () => {
@@ -224,18 +218,9 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
       {game.folderPath && (
         <div className="bg-gray-800 rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-4">Installation</h3>
-          <div className="flex items-center gap-2">
-            <span className="flex-1 bg-gray-700 px-4 py-2 rounded font-mono text-sm text-gray-300 truncate">
-              {game.folderPath}
-            </span>
-            <button
-              onClick={handleOpenFolder}
-              className="flex items-center gap-2 bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded transition"
-            >
-              <FolderOpenIcon className="w-5 h-5" />
-              Open
-            </button>
-          </div>
+          <span className="block bg-gray-700 px-4 py-2 rounded font-mono text-sm text-gray-300 truncate">
+            {game.folderPath}
+          </span>
           {game.installedVersion && (
             <p className="text-sm text-gray-400 mt-2">
               Installed version: <span className="text-gray-200">{game.installedVersion}</span>
