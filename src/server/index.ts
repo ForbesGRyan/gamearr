@@ -60,23 +60,10 @@ const app = new Hono();
 // Middleware
 app.use('*', honoLogger());
 
-// CORS configuration - restrict to known origins in production
-const corsOrigins = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
-  : process.env.NODE_ENV === 'production'
-    ? [] // No external origins in production by default (same-origin only)
-    : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'];
-
+// CORS configuration - allow all origins (standard for self-hosted *arr apps)
+// CSRF middleware provides protection for state-changing requests
 app.use('/api/*', cors({
-  origin: (origin) => {
-    // Allow same-origin requests (no Origin header)
-    if (!origin) return null;
-    // Allow configured origins
-    if (corsOrigins.length === 0) return null; // Same-origin only
-    if (corsOrigins.includes(origin)) return origin;
-    return null; // Deny other origins
-  },
-  credentials: true,
+  origin: '*',
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
   maxAge: 86400, // 24 hours

@@ -23,20 +23,11 @@ const EXEMPT_PATHS = new Set([
 ]);
 
 /**
- * Get allowed origins from environment or defaults
+ * Get allowed development origins
  */
-function getAllowedOrigins(): Set<string> {
+function getDevOrigins(): Set<string> {
   const origins = new Set<string>();
 
-  // Add configured CORS origins
-  if (process.env.CORS_ORIGINS) {
-    process.env.CORS_ORIGINS.split(',')
-      .map(o => o.trim())
-      .filter(o => o.length > 0)
-      .forEach(o => origins.add(o));
-  }
-
-  // Add development origins
   if (process.env.NODE_ENV !== 'production') {
     origins.add('http://localhost:3000');
     origins.add('http://localhost:5173');
@@ -62,12 +53,13 @@ function getSameOrigin(c: Context): string | null {
 /**
  * CSRF protection middleware
  *
- * For state-changing requests:
- * 1. Requires Origin header to be present
- * 2. Validates Origin against allowed origins or same-origin
+ * For state-changing requests, validates that the request comes from:
+ * 1. Same origin (matches Host header)
+ * 2. Development origins (localhost in dev mode)
+ * 3. API clients with auth headers (X-API-Key, Authorization)
  */
 export function csrfProtection() {
-  const allowedOrigins = getAllowedOrigins();
+  const devOrigins = getDevOrigins();
 
   return async (c: Context, next: Next) => {
     const method = c.req.method;
@@ -83,42 +75,34 @@ export function csrfProtection() {
       return next();
     }
 
+    // Allow requests with API authentication headers
+    // These can't be sent by simple cross-origin requests without CORS preflight
+    const apiKey = c.req.header('x-api-key');
+    const authHeader = c.req.header('authorization');
+    if (apiKey || authHeader) {
+      return next();
+    }
+
     // Get the Origin header
     const origin = c.req.header('origin');
+    const sameOrigin = getSameOrigin(c);
 
-    // Same-origin requests may not include Origin header
-    // But for security, we prefer requests to include it
+    // No Origin header - check Referer as fallback
     if (!origin) {
-      // Check for Referer as fallback (less reliable but commonly sent)
       const referer = c.req.header('referer');
       if (referer) {
         try {
-          const refererUrl = new URL(referer);
-          const refererOrigin = refererUrl.origin;
-          const sameOrigin = getSameOrigin(c);
-
-          // Allow if referer matches same origin or allowed origins
-          if (refererOrigin === sameOrigin || allowedOrigins.has(refererOrigin)) {
+          const refererOrigin = new URL(referer).origin;
+          if (refererOrigin === sameOrigin || devOrigins.has(refererOrigin)) {
             return next();
           }
         } catch {
-          // Invalid referer URL, continue to check
+          // Invalid referer URL
         }
       }
 
-      // For API requests without Origin/Referer, check for custom header
-      // This is common for programmatic API access (curl, scripts, etc.)
-      const apiKey = c.req.header('x-api-key');
-      const authHeader = c.req.header('authorization');
-
-      // If using API authentication headers, allow the request
-      // These can't be sent by simple cross-origin requests without CORS preflight
-      if (apiKey || authHeader) {
-        return next();
-      }
-
-      // No origin, no referer, no API auth - suspicious request
-      logger.warn(`CSRF: Blocked request without origin/referer to ${method} ${path}`);
+      // No origin/referer - block the request
+      logger.warn(`CSRF: Blocked request without origin to ${method} ${path}`);
       return c.json(
         {
           success: false,
@@ -129,22 +113,19 @@ export function csrfProtection() {
       );
     }
 
-    // Check if origin is allowed
-    const sameOrigin = getSameOrigin(c);
-    const isAllowed = origin === sameOrigin || allowedOrigins.has(origin);
-
-    if (!isAllowed) {
-      logger.warn(`CSRF: Blocked request from unauthorized origin: ${origin} to ${method} ${path}`);
-      return c.json(
-        {
-          success: false,
-          error: 'Request blocked: unauthorized origin',
-          code: 'CSRF_ERROR',
-        },
-        403
-      );
+    // Check if origin is same-origin or dev origin
+    if (origin === sameOrigin || devOrigins.has(origin)) {
+      return next();
     }
 
-    return next();
+    logger.warn(`CSRF: Blocked request from origin: ${origin} to ${method} ${path}`);
+    return c.json(
+      {
+        success: false,
+        error: 'Request blocked: unauthorized origin',
+        code: 'CSRF_ERROR',
+      },
+      403
+    );
   };
 }
