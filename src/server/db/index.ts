@@ -103,6 +103,19 @@ function initializeSchema() {
       )
     `);
 
+    // Create game_folders table (multiple folders per game: base game, updates, DLC)
+    sqlite.run(`
+      CREATE TABLE IF NOT EXISTS game_folders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+        folder_path TEXT NOT NULL,
+        version TEXT,
+        quality TEXT,
+        is_primary INTEGER NOT NULL DEFAULT 0,
+        added_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+
     // Create releases table
     sqlite.run(`
       CREATE TABLE IF NOT EXISTS releases (
@@ -203,6 +216,8 @@ function initializeSchema() {
     sqlite.run('CREATE INDEX IF NOT EXISTS games_slug_idx ON games(slug)');
     sqlite.run('CREATE INDEX IF NOT EXISTS game_stores_game_id_idx ON game_stores(game_id)');
     sqlite.run('CREATE INDEX IF NOT EXISTS game_stores_store_id_idx ON game_stores(store_id)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS game_folders_game_id_idx ON game_folders(game_id)');
+    sqlite.run('CREATE UNIQUE INDEX IF NOT EXISTS game_folders_folder_path_unique ON game_folders(folder_path)');
     sqlite.run('CREATE INDEX IF NOT EXISTS releases_game_id_idx ON releases(game_id)');
     sqlite.run('CREATE INDEX IF NOT EXISTS releases_status_idx ON releases(status)');
     sqlite.run('CREATE INDEX IF NOT EXISTS releases_torrent_hash_idx ON releases(torrent_hash)');
@@ -304,6 +319,47 @@ function runMigrations() {
   // Add index for slug if column exists
   if (columnExists('games', 'slug')) {
     sqlite.run('CREATE INDEX IF NOT EXISTS games_slug_idx ON games(slug)');
+  }
+
+  // Create game_folders table if missing (multiple folders per game support)
+  if (!tableExists('game_folders')) {
+    logger.info('Migration: Creating game_folders table');
+    sqlite.run(`
+      CREATE TABLE game_folders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+        folder_path TEXT NOT NULL,
+        version TEXT,
+        quality TEXT,
+        is_primary INTEGER NOT NULL DEFAULT 0,
+        added_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+    sqlite.run('CREATE INDEX IF NOT EXISTS game_folders_game_id_idx ON game_folders(game_id)');
+    sqlite.run('CREATE UNIQUE INDEX IF NOT EXISTS game_folders_folder_path_unique ON game_folders(folder_path)');
+
+    // Migrate existing games with folder_path to game_folders table
+    logger.info('Migration: Migrating existing game folders to game_folders table');
+    const gamesWithFolders = sqlite.query(`
+      SELECT id, folder_path, installed_version, installed_quality
+      FROM games
+      WHERE folder_path IS NOT NULL AND folder_path != ''
+    `).all() as Array<{ id: number; folder_path: string; installed_version: string | null; installed_quality: string | null }>;
+
+    for (const game of gamesWithFolders) {
+      // Check if folder entry already exists (shouldn't, but be safe)
+      const exists = sqlite.query(
+        'SELECT id FROM game_folders WHERE folder_path = ?'
+      ).get(game.folder_path);
+
+      if (!exists) {
+        sqlite.run(
+          'INSERT INTO game_folders (game_id, folder_path, version, quality, is_primary) VALUES (?, ?, ?, ?, 1)',
+          [game.id, game.folder_path, game.installed_version, game.installed_quality]
+        );
+      }
+    }
+    logger.info(`Migration: Migrated ${gamesWithFolders.length} game folder(s)`);
   }
 }
 

@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { gameService } from '../services/GameService';
 import { gameStoreRepository } from '../repositories/GameStoreRepository';
+import { gameFolderRepository } from '../repositories/GameFolderRepository';
 import { gameEventRepository } from '../repositories/GameEventRepository';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode, NotFoundError, ValidationError } from '../utils/errors';
@@ -354,6 +355,157 @@ games.put('/:id/stores', zValidator('json', updateStoresSchema), async (c) => {
     return c.json({ success: true, data: updatedGame });
   } catch (error) {
     logger.error('Failed to update game stores:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// ============================================
+// Game Folders endpoints
+// ============================================
+
+const addFolderSchema = z.object({
+  folderPath: z.string().min(1),
+  version: z.string().optional(),
+  quality: z.string().optional(),
+  isPrimary: z.boolean().optional(),
+});
+
+const updateFolderSchema = z.object({
+  version: z.string().optional(),
+  quality: z.string().optional(),
+});
+
+// GET /api/v1/games/:id/folders - List folders for a game
+games.get(':id/folders', async (c) => {
+  const id = parseInt(c.req.param('id'));
+  if (isNaN(id)) {
+    return c.json({ success: false, error: 'Invalid game ID', code: ErrorCode.VALIDATION_ERROR }, 400);
+  }
+  logger.info(`GET /api/v1/games/${id}/folders`);
+
+  try {
+    const folders = await gameFolderRepository.getFoldersForGame(id);
+    return c.json({ success: true, data: folders });
+  } catch (error) {
+    logger.error('Failed to get game folders:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// POST /api/v1/games/:id/folders - Add a folder to a game
+games.post(':id/folders', zValidator('json', addFolderSchema), async (c) => {
+  const id = parseInt(c.req.param('id'));
+  if (isNaN(id)) {
+    return c.json({ success: false, error: 'Invalid game ID', code: ErrorCode.VALIDATION_ERROR }, 400);
+  }
+  logger.info(`POST /api/v1/games/${id}/folders`);
+
+  try {
+    // Verify game exists
+    const game = await gameService.getGameById(id);
+    if (!game) {
+      return c.json({ success: false, error: 'Game not found', code: ErrorCode.NOT_FOUND }, 404);
+    }
+
+    const { folderPath, version, quality, isPrimary } = c.req.valid('json');
+
+    // Check if folder path already exists
+    const existingFolder = await gameFolderRepository.getFolderByPath(folderPath);
+    if (existingFolder) {
+      return c.json({
+        success: false,
+        error: 'Folder path already exists',
+        code: ErrorCode.CONFLICT,
+      }, 409);
+    }
+
+    const folder = await gameFolderRepository.addFolder(id, folderPath, {
+      version,
+      quality,
+      isPrimary,
+    });
+
+    return c.json({ success: true, data: folder });
+  } catch (error) {
+    logger.error('Failed to add game folder:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// PUT /api/v1/games/:id/folders/:folderId - Update a folder
+games.put(':id/folders/:folderId', zValidator('json', updateFolderSchema), async (c) => {
+  const gameId = parseInt(c.req.param('id'));
+  const folderId = parseInt(c.req.param('folderId'));
+  if (isNaN(gameId) || isNaN(folderId)) {
+    return c.json({ success: false, error: 'Invalid ID', code: ErrorCode.VALIDATION_ERROR }, 400);
+  }
+  logger.info(`PUT /api/v1/games/${gameId}/folders/${folderId}`);
+
+  try {
+    // Verify folder exists and belongs to game
+    const folder = await gameFolderRepository.getFolderById(folderId);
+    if (!folder || folder.gameId !== gameId) {
+      return c.json({ success: false, error: 'Folder not found', code: ErrorCode.NOT_FOUND }, 404);
+    }
+
+    const updates = c.req.valid('json');
+    const updatedFolder = await gameFolderRepository.updateFolder(folderId, updates);
+
+    return c.json({ success: true, data: updatedFolder });
+  } catch (error) {
+    logger.error('Failed to update game folder:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// DELETE /api/v1/games/:id/folders/:folderId - Remove a folder
+games.delete(':id/folders/:folderId', async (c) => {
+  const gameId = parseInt(c.req.param('id'));
+  const folderId = parseInt(c.req.param('folderId'));
+  if (isNaN(gameId) || isNaN(folderId)) {
+    return c.json({ success: false, error: 'Invalid ID', code: ErrorCode.VALIDATION_ERROR }, 400);
+  }
+  logger.info(`DELETE /api/v1/games/${gameId}/folders/${folderId}`);
+
+  try {
+    // Verify folder exists and belongs to game
+    const folder = await gameFolderRepository.getFolderById(folderId);
+    if (!folder || folder.gameId !== gameId) {
+      return c.json({ success: false, error: 'Folder not found', code: ErrorCode.NOT_FOUND }, 404);
+    }
+
+    await gameFolderRepository.removeFolder(folderId);
+
+    return c.json({ success: true, data: { deleted: true } });
+  } catch (error) {
+    logger.error('Failed to delete game folder:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// POST /api/v1/games/:id/folders/:folderId/primary - Set a folder as primary
+games.post(':id/folders/:folderId/primary', async (c) => {
+  const gameId = parseInt(c.req.param('id'));
+  const folderId = parseInt(c.req.param('folderId'));
+  if (isNaN(gameId) || isNaN(folderId)) {
+    return c.json({ success: false, error: 'Invalid ID', code: ErrorCode.VALIDATION_ERROR }, 400);
+  }
+  logger.info(`POST /api/v1/games/${gameId}/folders/${folderId}/primary`);
+
+  try {
+    // Verify folder exists and belongs to game
+    const folder = await gameFolderRepository.getFolderById(folderId);
+    if (!folder || folder.gameId !== gameId) {
+      return c.json({ success: false, error: 'Folder not found', code: ErrorCode.NOT_FOUND }, 404);
+    }
+
+    await gameFolderRepository.setPrimaryFolder(gameId, folderId);
+
+    // Return updated folder
+    const updatedFolder = await gameFolderRepository.getFolderById(folderId);
+    return c.json({ success: true, data: updatedFolder });
+  } catch (error) {
+    logger.error('Failed to set primary folder:', error);
     return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });

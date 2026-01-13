@@ -93,6 +93,24 @@ export const gameStores = sqliteTable('game_stores', {
   storeIdIdx: index('game_stores_store_id_idx').on(table.storeId),
 }));
 
+// Game folders table - supports multiple folders per game (base game, updates, DLC)
+export const gameFolders = sqliteTable('game_folders', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  gameId: integer('game_id')
+    .notNull()
+    .references(() => games.id, { onDelete: 'cascade' }),
+  folderPath: text('folder_path').notNull(),
+  version: text('version'), // e.g., "v1.2.3", "Update 5"
+  quality: text('quality'), // e.g., "GOG", "Scene", "Steam"
+  isPrimary: integer('is_primary', { mode: 'boolean' }).notNull().default(false),
+  addedAt: integer('added_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, (table) => ({
+  gameIdIdx: index('game_folders_game_id_idx').on(table.gameId),
+  folderPathUnique: unique().on(table.folderPath),
+}));
+
 export const releases = sqliteTable('releases', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   gameId: integer('game_id')
@@ -228,6 +246,9 @@ export type NewGame = typeof games.$inferInsert;
 
 export type GameStore = typeof gameStores.$inferSelect;
 export type NewGameStore = typeof gameStores.$inferInsert;
+
+export type GameFolder = typeof gameFolders.$inferSelect;
+export type NewGameFolder = typeof gameFolders.$inferInsert;
 
 export type Release = typeof releases.$inferSelect;
 export type NewRelease = typeof releases.$inferInsert;

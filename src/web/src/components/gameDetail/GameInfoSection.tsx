@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, Game, Library, SearchResult } from '../../api/client';
 import StoreSelector from '../StoreSelector';
 import ConfirmModal from '../ConfirmModal';
-import { PencilIcon, CloseIcon } from '../Icons';
+import { PencilIcon, CloseIcon, TrashIcon } from '../Icons';
 
 interface GameInfoSectionProps {
   game: Game;
@@ -38,6 +38,33 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
   const [isSearchingRematch, setIsSearchingRematch] = useState(false);
   const [selectedRematch, setSelectedRematch] = useState<SearchResult | null>(null);
   const [isRematching, setIsRematching] = useState(false);
+
+  // Folder management state
+  const [deletingFolderId, setDeletingFolderId] = useState<number | null>(null);
+  const [settingPrimaryId, setSettingPrimaryId] = useState<number | null>(null);
+
+  const handleDeleteFolder = async (folderId: number) => {
+    try {
+      const response = await api.deleteGameFolder(game.id, folderId);
+      if (response.success) {
+        onUpdate();
+      }
+    } finally {
+      setDeletingFolderId(null);
+    }
+  };
+
+  const handleSetPrimary = async (folderId: number) => {
+    setSettingPrimaryId(folderId);
+    try {
+      const response = await api.setFolderAsPrimary(game.id, folderId);
+      if (response.success) {
+        onUpdate();
+      }
+    } finally {
+      setSettingPrimaryId(null);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -214,21 +241,62 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
         </div>
       </div>
 
-      {/* Folder Path */}
-      {game.folderPath && (
+      {/* Installed Folders */}
+      {game.folders && game.folders.length > 0 && (
         <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-lg font-semibold mb-4">Installation</h3>
-          <span className="block bg-gray-700 px-4 py-2 rounded font-mono text-sm text-gray-300 truncate">
-            {game.folderPath}
-          </span>
-          {game.installedVersion && (
-            <p className="text-sm text-gray-400 mt-2">
-              Installed version: <span className="text-gray-200">{game.installedVersion}</span>
-              {game.installedQuality && (
-                <span className="ml-2 bg-gray-700 px-2 py-0.5 rounded text-xs">{game.installedQuality}</span>
-              )}
-            </p>
-          )}
+          <h3 className="text-lg font-semibold mb-4">Installed Folders</h3>
+          <div className="space-y-2">
+            {game.folders.map((folder) => (
+              <div
+                key={folder.id}
+                className="flex items-center gap-3 bg-gray-700 rounded p-3"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm text-gray-300 truncate block">
+                      {folder.folderPath}
+                    </span>
+                    {folder.isPrimary && (
+                      <span className="bg-blue-600 text-xs px-2 py-0.5 rounded shrink-0">
+                        Primary
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                    {folder.version && (
+                      <span>Version: <span className="text-gray-300">{folder.version}</span></span>
+                    )}
+                    {folder.quality && (
+                      <span className="bg-gray-600 px-2 py-0.5 rounded">{folder.quality}</span>
+                    )}
+                    <span>Added: {new Date(folder.addedAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {!folder.isPrimary && (
+                    <button
+                      onClick={() => handleSetPrimary(folder.id)}
+                      disabled={settingPrimaryId === folder.id}
+                      className="text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded transition disabled:opacity-50"
+                      title="Set as primary folder"
+                    >
+                      {settingPrimaryId === folder.id ? 'Setting...' : 'Set Primary'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setDeletingFolderId(folder.id)}
+                    className="text-gray-400 hover:text-red-400 transition p-1"
+                    title="Remove folder"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-3">
+            The primary folder is used for the game's displayed status and version.
+          </p>
         </div>
       )}
 
@@ -352,6 +420,18 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
         variant="info"
         onConfirm={handleConfirmRematch}
         onCancel={() => setSelectedRematch(null)}
+      />
+
+      {/* Delete Folder Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deletingFolderId !== null}
+        title="Remove Folder"
+        message="Remove this folder from the game? The actual files will not be deleted."
+        confirmText="Remove"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={() => deletingFolderId && handleDeleteFolder(deletingFolderId)}
+        onCancel={() => setDeletingFolderId(null)}
       />
     </div>
   );

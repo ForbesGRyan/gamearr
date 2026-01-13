@@ -2,6 +2,7 @@ import { gameRepository, type PaginationParams, type PaginatedResult } from '../
 import { releaseRepository } from '../repositories/ReleaseRepository';
 import { downloadHistoryRepository } from '../repositories/DownloadHistoryRepository';
 import { gameStoreRepository } from '../repositories/GameStoreRepository';
+import { gameFolderRepository } from '../repositories/GameFolderRepository';
 import { gameEventRepository } from '../repositories/GameEventRepository';
 import { igdbClient } from '../integrations/igdb/IGDBClient';
 import { indexerService } from './IndexerService';
@@ -12,7 +13,7 @@ import { imageCacheService } from './ImageCacheService';
 import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
 import type { Game, NewGame, Release, DownloadHistory } from '../db/schema';
 import type { GameSearchResult } from '../integrations/igdb/types';
-import type { GameWithStores, GameStoreInfo } from '../../shared/types';
+import type { GameWithStores, GameStoreInfo, GameFolderInfo } from '../../shared/types';
 import { logger } from '../utils/logger';
 import { NotConfiguredError, NotFoundError, ConflictError } from '../utils/errors';
 
@@ -140,29 +141,43 @@ export class GameService {
   }
 
   /**
-   * Enrich a single game with its stores from the junction table
+   * Enrich a single game with its stores and folders
    */
-  private enrichGameWithStores(game: Game, storesInfo: GameStoreInfo[]): GameWithStores {
+  private enrichGame(game: Game, storesInfo: GameStoreInfo[], foldersInfo: GameFolderInfo[]): GameWithStores {
     return {
       ...game,
       stores: storesInfo,
+      folders: foldersInfo,
     };
   }
 
   /**
-   * Enrich multiple games with their stores (batch operation)
+   * Enrich multiple games with their stores and folders (batch operation)
    */
-  private async enrichGamesWithStores(games: Game[]): Promise<GameWithStores[]> {
+  private async enrichGames(games: Game[]): Promise<GameWithStores[]> {
     if (games.length === 0) {
       return [];
     }
 
     const gameIds = games.map(g => g.id);
-    const storeMap = await gameStoreRepository.getStoreInfoForGames(gameIds);
+
+    // Fetch stores and folders in parallel
+    const [storeMap, folderMap] = await Promise.all([
+      gameStoreRepository.getStoreInfoForGames(gameIds),
+      gameFolderRepository.getFoldersForGames(gameIds),
+    ]);
 
     return games.map(game => ({
       ...game,
       stores: storeMap.get(game.id) || [],
+      folders: (folderMap.get(game.id) || []).map(f => ({
+        id: f.id,
+        folderPath: f.folderPath,
+        version: f.version,
+        quality: f.quality,
+        isPrimary: f.isPrimary,
+        addedAt: f.addedAt,
+      })),
     }));
   }
 
@@ -171,7 +186,7 @@ export class GameService {
    */
   async getAllGames(): Promise<GameWithStores[]> {
     const games = await gameRepository.findAll();
-    return this.enrichGamesWithStores(games);
+    return this.enrichGames(games);
   }
 
   /**
@@ -179,7 +194,7 @@ export class GameService {
    */
   async getGamesPaginated(params: PaginationParams = {}): Promise<PaginatedResult<GameWithStores>> {
     const result = await gameRepository.findAllPaginated(params);
-    const enrichedItems = await this.enrichGamesWithStores(result.items);
+    const enrichedItems = await this.enrichGames(result.items);
     return {
       ...result,
       items: enrichedItems,
@@ -197,7 +212,7 @@ export class GameService {
       return [];
     }
     const games = await gameStoreRepository.getGamesForStore(store.id);
-    return this.enrichGamesWithStores(games);
+    return this.enrichGames(games);
   }
 
   /**
@@ -208,8 +223,19 @@ export class GameService {
     if (!game) {
       return undefined;
     }
-    const storesInfo = await gameStoreRepository.getStoreInfoForGame(id);
-    return this.enrichGameWithStores(game, storesInfo);
+    const [storesInfo, folders] = await Promise.all([
+      gameStoreRepository.getStoreInfoForGame(id),
+      gameFolderRepository.getFoldersForGame(id),
+    ]);
+    const foldersInfo: GameFolderInfo[] = folders.map(f => ({
+      id: f.id,
+      folderPath: f.folderPath,
+      version: f.version,
+      quality: f.quality,
+      isPrimary: f.isPrimary,
+      addedAt: f.addedAt,
+    }));
+    return this.enrichGame(game, storesInfo, foldersInfo);
   }
 
   /**
@@ -217,7 +243,7 @@ export class GameService {
    */
   async getMonitoredGames(): Promise<GameWithStores[]> {
     const games = await gameRepository.findMonitored();
-    return this.enrichGamesWithStores(games);
+    return this.enrichGames(games);
   }
 
   /**

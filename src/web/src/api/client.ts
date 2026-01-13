@@ -125,6 +125,16 @@ export interface GameStoreInfo {
   storeGameId?: string | null;
 }
 
+// Folder info for games (from game_folders table)
+export interface GameFolder {
+  id: number;
+  folderPath: string;
+  version?: string | null;
+  quality?: string | null;
+  isPrimary: boolean;
+  addedAt: string;
+}
+
 // Response data types
 export interface Game {
   id: number;
@@ -137,8 +147,9 @@ export interface Game {
   platform: string;
   store?: string | null; // Legacy field, kept for backwards compatibility
   stores: GameStoreInfo[]; // New stores array from junction table
+  folders: GameFolder[]; // Game folder paths (base game, updates, DLC)
   steamName?: string | null;
-  folderPath?: string | null;
+  folderPath?: string | null; // Legacy field, use folders array instead
   libraryId?: number | null;
   updateAvailable?: boolean;
   installedVersion?: string | null;
@@ -511,6 +522,44 @@ class ApiClient {
     return this.request<Game>(`/games/${id}/stores`, {
       method: 'PUT',
       body: JSON.stringify({ stores }),
+    });
+  }
+
+  // Game Folders
+  async getGameFolders(gameId: number): Promise<ApiResponse<GameFolder[]>> {
+    return this.request<GameFolder[]>(`/games/${gameId}/folders`);
+  }
+
+  async addGameFolder(
+    gameId: number,
+    folder: { folderPath: string; version?: string; quality?: string; isPrimary?: boolean }
+  ): Promise<ApiResponse<GameFolder>> {
+    return this.request<GameFolder>(`/games/${gameId}/folders`, {
+      method: 'POST',
+      body: JSON.stringify(folder),
+    });
+  }
+
+  async updateGameFolder(
+    gameId: number,
+    folderId: number,
+    updates: { version?: string; quality?: string }
+  ): Promise<ApiResponse<GameFolder>> {
+    return this.request<GameFolder>(`/games/${gameId}/folders/${folderId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteGameFolder(gameId: number, folderId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    return this.request<{ deleted: boolean }>(`/games/${gameId}/folders/${folderId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async setFolderAsPrimary(gameId: number, folderId: number): Promise<ApiResponse<GameFolder>> {
+    return this.request<GameFolder>(`/games/${gameId}/folders/${folderId}/primary`, {
+      method: 'POST',
     });
   }
 

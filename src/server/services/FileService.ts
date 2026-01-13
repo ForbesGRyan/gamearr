@@ -7,6 +7,7 @@ import { settingsService } from './SettingsService';
 import { libraryService } from './LibraryService';
 import { gameRepository } from '../repositories/GameRepository';
 import { libraryFileRepository } from '../repositories/LibraryFileRepository';
+import { gameFolderRepository } from '../repositories/GameFolderRepository';
 import type { Game, LibraryFile, Library } from '../db/schema';
 
 export interface MoveResult {
@@ -870,6 +871,24 @@ export class FileService {
       }
 
       await gameRepository.update(gameId, gameUpdate);
+
+      // Create folder entry in gameFolders table
+      // Check if this folder already exists for this game
+      const existingFolder = await gameFolderRepository.getFolderByPath(folderPath);
+      if (!existingFolder) {
+        // Check if game already has any folders
+        const existingFolders = await gameFolderRepository.getFoldersForGame(gameId);
+        const isPrimary = existingFolders.length === 0; // First folder is primary
+
+        await gameFolderRepository.addFolder(gameId, folderPath, {
+          version: installedVersion || undefined,
+          quality: undefined, // Quality can be set manually later
+          isPrimary,
+        });
+        logger.info(`Created folder entry for game ${gameId}: ${folderPath} (primary: ${isPrimary})`);
+      } else {
+        logger.info(`Folder entry already exists: ${folderPath}`);
+      }
 
       logger.info(`Successfully matched folder to game ${gameId} (library: ${detectedLibraryId || 'none'})`);
       return true;

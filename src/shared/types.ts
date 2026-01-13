@@ -61,6 +61,16 @@ export interface GameStoreInfo {
   storeGameId?: string | null;
 }
 
+// Folder info for API responses (from game_folders table)
+export interface GameFolderInfo {
+  id: number;
+  folderPath: string;
+  version?: string | null;
+  quality?: string | null;
+  isPrimary: boolean;
+  addedAt: Date;
+}
+
 // Game with stores array for API responses
 export interface GameWithStores {
   id: number;
@@ -91,6 +101,7 @@ export interface GameWithStores {
   updateAvailable?: boolean | null;
   addedAt: Date;
   stores: GameStoreInfo[];
+  folders: GameFolderInfo[];
 }
 
 // API response types
