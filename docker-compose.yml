@@ -2,33 +2,44 @@ services:
   gamearr:
     build: .
     # Or use the pre-built image:
-    # image: ghcr.io/yourusername/gamearr:latest
+    # image: ghcr.io/forbesgryan/gamearr:latest
     container_name: gamearr
-    network_mode: host
+    ports:
+      - "7878:7878"
     volumes:
-      # Configuration and database
+      # Configuration and database (persistent storage)
       - ./config:/config
       # Your game library (where completed games are organized)
-      - smb_data:/library
+      - /path/to/games:/library
       # Download client's completed downloads folder
       - /path/to/downloads:/downloads
     environment:
       - TZ=America/New_York
       - PORT=7878
       - DATA_PATH=/config
+      # Optional: Disable semantic search if ONNX fails
+      # - DISABLE_SEMANTIC_SEARCH=true
     restart: unless-stopped
-    # Uncomment if your download client is on another Docker network
-    # networks:
-    #   - arr-network
 
-# Uncomment to join an existing network with your other *arr apps
+# Example: Using an SMB/CIFS network share for your library
+# services:
+#   gamearr:
+#     volumes:
+#       - smb_library:/library
+#
+# volumes:
+#   smb_library:
+#     driver_opts:
+#       type: cifs
+#       o: "username=YOUR_USER,password=YOUR_PASS,uid=1000,gid=1000"
+#       device: "//192.168.1.100/games"
+
+# Example: Joining an existing network with other *arr apps
+# services:
+#   gamearr:
+#     networks:
+#       - arr-network
+#
 # networks:
 #   arr-network:
 #     external: true
-
-volumes:
-  smb_data:
-    driver_opts:
-      type: cifs
-      o: "username=ryan,password=1purpleelephant,uid=3000,gid=3000"
-      device: "//192.168.1.59/data"

@@ -45,12 +45,25 @@ function initializeSchema() {
       )
     `);
 
+    // Create stores table (Steam, GOG, Epic, etc.)
+    sqlite.run(`
+      CREATE TABLE IF NOT EXISTS stores (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        slug TEXT NOT NULL UNIQUE,
+        icon_url TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+
     // Create games table
     sqlite.run(`
       CREATE TABLE IF NOT EXISTS games (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         igdb_id INTEGER NOT NULL UNIQUE,
         title TEXT NOT NULL,
+        slug TEXT,
         year INTEGER,
         platform TEXT NOT NULL,
         store TEXT,
@@ -74,6 +87,19 @@ function initializeSchema() {
         last_update_check INTEGER,
         update_available INTEGER DEFAULT 0,
         added_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+
+    // Create game_stores junction table (many-to-many: games <-> stores)
+    sqlite.run(`
+      CREATE TABLE IF NOT EXISTS game_stores (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+        store_id INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+        store_game_id TEXT,
+        store_name TEXT,
+        added_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        UNIQUE(game_id, store_id)
       )
     `);
 
@@ -148,6 +174,17 @@ function initializeSchema() {
       )
     `);
 
+    // Create game_events table for tracking game lifecycle events
+    sqlite.run(`
+      CREATE TABLE IF NOT EXISTS game_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+        event_type TEXT NOT NULL,
+        data TEXT,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+
     // Create game_embeddings table for semantic search
     sqlite.run(`
       CREATE TABLE IF NOT EXISTS game_embeddings (
@@ -163,6 +200,9 @@ function initializeSchema() {
     sqlite.run('CREATE INDEX IF NOT EXISTS games_status_idx ON games(status)');
     sqlite.run('CREATE INDEX IF NOT EXISTS games_monitored_idx ON games(monitored)');
     sqlite.run('CREATE INDEX IF NOT EXISTS games_library_id_idx ON games(library_id)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS games_slug_idx ON games(slug)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS game_stores_game_id_idx ON game_stores(game_id)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS game_stores_store_id_idx ON game_stores(store_id)');
     sqlite.run('CREATE INDEX IF NOT EXISTS releases_game_id_idx ON releases(game_id)');
     sqlite.run('CREATE INDEX IF NOT EXISTS releases_status_idx ON releases(status)');
     sqlite.run('CREATE INDEX IF NOT EXISTS releases_torrent_hash_idx ON releases(torrent_hash)');
@@ -174,6 +214,8 @@ function initializeSchema() {
     sqlite.run('CREATE INDEX IF NOT EXISTS library_files_ignored_idx ON library_files(ignored)');
     sqlite.run('CREATE INDEX IF NOT EXISTS game_updates_game_id_idx ON game_updates(game_id)');
     sqlite.run('CREATE INDEX IF NOT EXISTS game_updates_status_idx ON game_updates(status)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS game_events_game_id_idx ON game_events(game_id)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS game_events_event_type_idx ON game_events(event_type)');
     sqlite.run('CREATE INDEX IF NOT EXISTS game_embeddings_title_hash_idx ON game_embeddings(title_hash)');
 
     logger.info('Schema initialized successfully');
@@ -182,6 +224,90 @@ function initializeSchema() {
 
 // Run schema initialization
 initializeSchema();
+
+// Run migrations for existing databases
+function runMigrations() {
+  // Helper to check if table exists
+  const tableExists = (table: string): boolean => {
+    const result = sqlite.query(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
+    ).get(table);
+    return !!result;
+  };
+
+  // Helper to check if column exists
+  const columnExists = (table: string, column: string): boolean => {
+    const result = sqlite.query(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    return result.some((col) => col.name === column);
+  };
+
+  // Helper to add column if missing
+  const addColumnIfMissing = (table: string, column: string, definition: string) => {
+    if (!columnExists(table, column)) {
+      logger.info(`Migration: Adding ${column} column to ${table}`);
+      sqlite.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
+  };
+
+  // Create stores table if missing
+  if (!tableExists('stores')) {
+    logger.info('Migration: Creating stores table');
+    sqlite.run(`
+      CREATE TABLE stores (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        slug TEXT NOT NULL UNIQUE,
+        icon_url TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+  }
+
+  // Create game_stores table if missing
+  if (!tableExists('game_stores')) {
+    logger.info('Migration: Creating game_stores table');
+    sqlite.run(`
+      CREATE TABLE game_stores (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+        store_id INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+        store_game_id TEXT,
+        store_name TEXT,
+        added_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        UNIQUE(game_id, store_id)
+      )
+    `);
+    sqlite.run('CREATE INDEX IF NOT EXISTS game_stores_game_id_idx ON game_stores(game_id)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS game_stores_store_id_idx ON game_stores(store_id)');
+  }
+
+  // Create game_events table if missing
+  if (!tableExists('game_events')) {
+    logger.info('Migration: Creating game_events table');
+    sqlite.run(`
+      CREATE TABLE game_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+        event_type TEXT NOT NULL,
+        data TEXT,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+    sqlite.run('CREATE INDEX IF NOT EXISTS game_events_game_id_idx ON game_events(game_id)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS game_events_event_type_idx ON game_events(event_type)');
+  }
+
+  // Games table migrations
+  addColumnIfMissing('games', 'slug', 'TEXT');
+
+  // Add index for slug if column exists
+  if (columnExists('games', 'slug')) {
+    sqlite.run('CREATE INDEX IF NOT EXISTS games_slug_idx ON games(slug)');
+  }
+}
+
+runMigrations();
 
 // Create Drizzle instance
 export const db = drizzle(sqlite, { schema });

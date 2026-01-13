@@ -39,15 +39,20 @@ function getDevOrigins(): Set<string> {
 }
 
 /**
- * Extract origin from the Host header for same-origin requests
+ * Check if origin matches the Host header (same-origin check)
+ * Compares just the host portion, ignoring protocol differences
  */
-function getSameOrigin(c: Context): string | null {
+function isSameOrigin(c: Context, origin: string): boolean {
   const host = c.req.header('host');
-  if (!host) return null;
+  if (!host) return false;
 
-  // Determine protocol (assume https in production, http otherwise)
-  const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-  return `${protocol}://${host}`;
+  try {
+    const originUrl = new URL(origin);
+    // Compare host (includes port if present)
+    return originUrl.host === host;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -85,7 +90,6 @@ export function csrfProtection() {
 
     // Get the Origin header
     const origin = c.req.header('origin');
-    const sameOrigin = getSameOrigin(c);
 
     // No Origin header - check Referer as fallback
     if (!origin) {
@@ -93,7 +97,7 @@ export function csrfProtection() {
       if (referer) {
         try {
           const refererOrigin = new URL(referer).origin;
-          if (refererOrigin === sameOrigin || devOrigins.has(refererOrigin)) {
+          if (isSameOrigin(c, refererOrigin) || devOrigins.has(refererOrigin)) {
             return next();
           }
         } catch {
@@ -114,7 +118,7 @@ export function csrfProtection() {
     }
 
     // Check if origin is same-origin or dev origin
-    if (origin === sameOrigin || devOrigins.has(origin)) {
+    if (isSameOrigin(c, origin) || devOrigins.has(origin)) {
       return next();
     }
 

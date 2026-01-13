@@ -54,9 +54,9 @@ ENV DATA_PATH=/config
 # Expose port
 EXPOSE 7878
 
-# Health check
+# Health check (uses PORT env var)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:7878/api/v1/system/status || exit 1
+    CMD curl -f http://localhost:${PORT:-7878}/api/v1/system/status || exit 1
 
 # Run the application
 CMD ["/app/gamearr"]
