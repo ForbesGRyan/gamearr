@@ -49,9 +49,20 @@ class Logger {
   }
 
   /**
-   * Get the log directory path (logs/ alongside the executable)
+   * Get the log directory path
+   * Priority: DATA_PATH env var > LOG_PATH env var > executable directory (prod) > cwd (dev)
    */
   private getLogDirectory(): string {
+    // If DATA_PATH is set (Docker/container), use it for logs
+    if (process.env.DATA_PATH) {
+      return join(process.env.DATA_PATH, 'logs');
+    }
+
+    // Allow explicit LOG_PATH override
+    if (process.env.LOG_PATH) {
+      return process.env.LOG_PATH;
+    }
+
     // In production (compiled binary), use directory of executable
     // In development, use project root
     const baseDir = process.env.NODE_ENV === 'production'
