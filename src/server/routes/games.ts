@@ -18,6 +18,12 @@ const addGameSchema = z.object({
   libraryId: z.number().optional(),
   status: z.enum(['wanted', 'downloading', 'downloaded']).optional(),
   platform: z.string().optional(),
+  // Optional import source info for event tracking
+  importSource: z.object({
+    type: z.enum(['download']),
+    torrentName: z.string(),
+    torrentHash: z.string(),
+  }).optional(),
 });
 
 const updateGameSchema = z.object({
@@ -98,8 +104,25 @@ games.post('/', zValidator('json', addGameSchema), async (c) => {
   logger.info('POST /api/v1/games');
 
   try {
-    const { igdbId, monitored, store, libraryId, status, platform } = c.req.valid('json');
+    const { igdbId, monitored, store, libraryId, status, platform, importSource } = c.req.valid('json');
     const game = await gameService.addGameFromIGDB(igdbId, monitored, store, libraryId, status, platform);
+
+    // Create event based on import source
+    if (importSource?.type === 'download') {
+      await gameEventRepository.createDownloadImportEvent(game.id, {
+        torrentName: importSource.torrentName,
+        torrentHash: importSource.torrentHash,
+        matchedTitle: game.title,
+        igdbId: game.igdbId,
+      });
+    } else {
+      // Default to manual import event if no source specified
+      await gameEventRepository.createManualImportEvent(game.id, {
+        igdbId: game.igdbId,
+        title: game.title,
+      });
+    }
+
     return c.json({ success: true, data: game }, 201);
   } catch (error) {
     logger.error('Failed to add game:', error);

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { gameService } from '../services/GameService';
 import { indexerService } from '../services/IndexerService';
 import { downloadService } from '../services/DownloadService';
+import { gameRepository } from '../repositories/GameRepository';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
 
@@ -39,7 +40,19 @@ search.get('/games', async (c) => {
 
   try {
     const results = await gameService.searchIGDB(query);
-    return c.json({ success: true, data: results });
+
+    // Check which games already exist in the library
+    const igdbIds = results.map(r => r.igdbId);
+    const existingGames = await gameRepository.findByIgdbIds(igdbIds);
+    const existingMap = new Map(existingGames.map(g => [g.igdbId, g.id]));
+
+    // Enrich results with existingGameId if they're already in the library
+    const enrichedResults = results.map(result => ({
+      ...result,
+      existingGameId: existingMap.get(result.igdbId) || null,
+    }));
+
+    return c.json({ success: true, data: enrichedResults });
   } catch (error) {
     logger.error('IGDB search failed:', error);
     return c.json(formatErrorResponse(error), getHttpStatusCode(error));

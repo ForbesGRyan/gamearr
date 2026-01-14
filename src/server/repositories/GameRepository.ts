@@ -114,6 +114,17 @@ export class GameRepository {
   }
 
   /**
+   * Get games by multiple IGDB IDs (batch lookup)
+   */
+  async findByIgdbIds(igdbIds: number[]): Promise<Game[]> {
+    if (igdbIds.length === 0) return [];
+    return db
+      .select(gameFields)
+      .from(games)
+      .where(inArray(games.igdbId, igdbIds));
+  }
+
+  /**
    * Get games by slug (may return multiple if same title exists for different platforms)
    */
   async findBySlug(slug: string): Promise<Game[]> {

@@ -39,12 +39,20 @@ export interface ManualImportEventData {
   title: string;
 }
 
+export interface DownloadImportEventData {
+  torrentName: string;
+  torrentHash: string;
+  matchedTitle: string;
+  igdbId: number;
+}
+
 export type GameEventData =
   | SteamImportEventData
   | GogImportEventData
   | IgdbRematchEventData
   | FolderMatchedEventData
-  | ManualImportEventData;
+  | ManualImportEventData
+  | DownloadImportEventData;
 
 class GameEventRepository {
   /**
@@ -122,6 +130,20 @@ class GameEventRepository {
     return this.create({
       gameId,
       eventType: 'imported_manual',
+      data: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Create a download import event (imported from Activity page / download client)
+   */
+  async createDownloadImportEvent(
+    gameId: number,
+    data: DownloadImportEventData
+  ): Promise<GameEvent> {
+    return this.create({
+      gameId,
+      eventType: 'imported_download',
       data: JSON.stringify(data),
     });
   }

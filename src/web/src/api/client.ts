@@ -67,6 +67,11 @@ export interface AddGameRequest {
   gameModes?: string;
   libraryId?: number;
   store?: string | null;
+  importSource?: {
+    type: 'download';
+    torrentName: string;
+    torrentHash: string;
+  };
 }
 
 export interface UpdateGameRequest {
@@ -206,6 +211,7 @@ export interface SearchResult {
   developer?: string;
   publisher?: string;
   gameModes?: string[];
+  existingGameId?: number | null;
 }
 
 export interface SystemStatus {
@@ -312,6 +318,7 @@ export type GameEventType =
   | 'imported_steam'
   | 'imported_gog'
   | 'imported_manual'
+  | 'imported_download'
   | 'igdb_rematch'
   | 'folder_matched'
   | 'status_changed';
@@ -327,6 +334,13 @@ export interface GameEvent {
 export interface SteamImportEventData {
   steamAppId: number;
   steamName: string;
+  matchedTitle: string;
+  igdbId: number;
+}
+
+export interface DownloadImportEventData {
+  torrentName: string;
+  torrentHash: string;
   matchedTitle: string;
   igdbId: number;
 }

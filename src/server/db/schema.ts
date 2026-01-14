@@ -207,7 +207,7 @@ export const gameEvents = sqliteTable('game_events', {
     .notNull()
     .references(() => games.id, { onDelete: 'cascade' }),
   eventType: text('event_type', {
-    enum: ['imported_steam', 'imported_gog', 'imported_manual', 'igdb_rematch', 'folder_matched', 'status_changed']
+    enum: ['imported_steam', 'imported_gog', 'imported_manual', 'imported_download', 'igdb_rematch', 'folder_matched', 'status_changed']
   }).notNull(),
   data: text('data'), // JSON object with event-specific data
   createdAt: integer('created_at', { mode: 'timestamp' })

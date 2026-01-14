@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { api, Download, Library, SearchResult } from '../api/client';
 import { CloseIcon, GamepadIcon } from './Icons';
 
@@ -158,6 +159,12 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
         status: 'downloaded',
         monitored: true,
         libraryId: selectedLibraryId || undefined,
+        // Track that this was imported from download client
+        importSource: download ? {
+          type: 'download' as const,
+          torrentName: download.name,
+          torrentHash: download.hash,
+        } : undefined,
       });
 
       if (response.success) {
@@ -310,15 +317,25 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
                       )}
                     </div>
 
-                    {/* Import Button */}
+                    {/* Import/View Button */}
                     <div className="flex-shrink-0 flex items-center">
-                      <button
-                        onClick={() => handleImportGame(game)}
-                        disabled={isImporting}
-                        className="bg-green-600 hover:bg-green-700 px-4 py-2 min-h-[44px] rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
-                      >
-                        {isImporting ? 'Importing...' : 'Import'}
-                      </button>
+                      {game.existingGameId ? (
+                        <Link
+                          to={`/games/${game.existingGameId}`}
+                          onClick={onClose}
+                          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 min-h-[44px] rounded transition text-white text-center"
+                        >
+                          View in Library
+                        </Link>
+                      ) : (
+                        <button
+                          onClick={() => handleImportGame(game)}
+                          disabled={isImporting}
+                          className="bg-green-600 hover:bg-green-700 px-4 py-2 min-h-[44px] rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                        >
+                          {isImporting ? 'Importing...' : 'Import'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
