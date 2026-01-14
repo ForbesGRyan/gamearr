@@ -246,22 +246,20 @@ function Library() {
     }
   }, []);
 
-  // Load tab counts on mount (lightweight)
+  // Load scan count on mount (lightweight), but load full health data
+  // so we can accurately compute visible count (excluding dismissed duplicates)
   useEffect(() => {
-    const loadCounts = async () => {
-      const [scanRes, healthRes] = await Promise.all([
-        api.getLibraryScanCount(),
-        api.getLibraryHealthCount(),
-      ]);
+    const loadInitialData = async () => {
+      // Load scan count (lightweight)
+      const scanRes = await api.getLibraryScanCount();
       if (scanRes.success && scanRes.data) {
         setScanCount(scanRes.data.count);
       }
-      if (healthRes.success && healthRes.data) {
-        setHealthCount(healthRes.data.count);
-      }
+      // Load full health data so badge count excludes dismissed duplicates
+      loadHealthData();
     };
-    loadCounts();
-  }, []);
+    loadInitialData();
+  }, [loadHealthData]);
 
   // Load full data only when tab is visited
   useEffect(() => {
