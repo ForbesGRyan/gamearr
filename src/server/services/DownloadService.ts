@@ -374,10 +374,10 @@ export class DownloadService {
           return match.hash;
         }
 
-        logger.debug(`Hash lookup attempt ${attempt + 1}/${maxRetries} failed for release ${releaseId}, retrying...`);
+        logger.debug(`Hash lookup attempt ${attempt + 1}/${TORRENT_DISCOVERY_MAX_RETRIES} failed for release ${releaseId}, retrying...`);
       }
 
-      logger.warn(`Could not find torrent hash for release ${releaseId} after ${maxRetries} attempts`);
+      logger.warn(`Could not find torrent hash for release ${releaseId} after ${TORRENT_DISCOVERY_MAX_RETRIES} attempts`);
       return null;
     } catch (error) {
       logger.error(`Failed to find/store hash for release ${releaseId}:`, error);
