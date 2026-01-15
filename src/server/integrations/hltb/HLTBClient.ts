@@ -167,7 +167,7 @@ export class HLTBClient {
 
   /**
    * Discover the API endpoint from the HLTB homepage
-   * The endpoint is extracted from JavaScript on the page
+   * Parses Next.js script bundles (_app-*.js) to find the search API endpoint
    */
   private async discoverApiEndpoint(): Promise<string> {
     // Return cached endpoint if still valid
@@ -178,6 +178,7 @@ export class HLTBClient {
     try {
       logger.debug('Discovering HLTB API endpoint...');
 
+      // Step 1: Fetch the homepage to find script URLs
       const response = await fetch(HLTB_BASE_URL, {
         method: 'GET',
         headers: {
@@ -193,33 +194,61 @@ export class HLTBClient {
 
       const html = await response.text();
 
-      // Look for the API endpoint in the JavaScript
-      // Pattern matches: fetch("/api/...", { ... method: "POST" ... })
-      const pattern = /fetch\s*\(\s*["']\/api\/([a-zA-Z0-9_/]+)["'][^)]*method:\s*["']POST["']/gi;
-      const matches = [...html.matchAll(pattern)];
+      // Step 2: Find Next.js app script URLs (look for _app- or _next/static)
+      const scriptPattern = /src=["']([^"']*_app-[^"']*\.js)["']/gi;
+      const scriptMatches = [...html.matchAll(scriptPattern)];
 
-      if (matches.length > 0) {
-        // Use the first POST endpoint found (usually the search endpoint)
-        const endpoint = `api/${matches[0][1]}`;
-        this.apiEndpoint = endpoint;
-        this.apiEndpointExpiry = Date.now() + HLTBClient.API_ENDPOINT_TTL;
-        logger.debug(`Discovered HLTB API endpoint: ${endpoint}`);
-        return endpoint;
-      }
+      // Also look for other Next.js patterns
+      const nextScriptPattern = /src=["'](\/_next\/static\/chunks\/[^"']*\.js)["']/gi;
+      const nextScriptMatches = [...html.matchAll(nextScriptPattern)];
 
-      // Try alternative pattern for newer HLTB versions
-      const altPattern = /["']\/api\/([a-zA-Z0-9_/]+)["']/gi;
-      const altMatches = [...html.matchAll(altPattern)];
+      const allScripts = [...scriptMatches, ...nextScriptMatches].map(m => m[1]);
 
-      for (const match of altMatches) {
-        const endpoint = match[1];
-        // Look for search-related endpoints
-        if (endpoint.includes('search') || endpoint.includes('find')) {
-          const fullEndpoint = `api/${endpoint}`;
-          this.apiEndpoint = fullEndpoint;
-          this.apiEndpointExpiry = Date.now() + HLTBClient.API_ENDPOINT_TTL;
-          logger.debug(`Discovered HLTB API endpoint (alt): ${fullEndpoint}`);
-          return fullEndpoint;
+      logger.debug(`Found ${allScripts.length} potential script files`);
+
+      // Step 3: Fetch each script and look for the API endpoint
+      for (const scriptPath of allScripts.slice(0, 5)) { // Limit to first 5 scripts
+        try {
+          const scriptUrl = scriptPath.startsWith('http')
+            ? scriptPath
+            : `${HLTB_BASE_URL}${scriptPath.startsWith('/') ? '' : '/'}${scriptPath}`;
+
+          const scriptResponse = await fetch(scriptUrl, {
+            headers: { 'User-Agent': this.getRandomUserAgent() },
+          });
+
+          if (!scriptResponse.ok) continue;
+
+          const jsContent = await scriptResponse.text();
+
+          // Look for fetch("/api/...", { method: "POST" })
+          const apiPattern = /fetch\s*\(\s*["']\/api\/([a-zA-Z0-9_/]+)["'][^)]*method:\s*["']POST["']/gi;
+          const apiMatches = [...jsContent.matchAll(apiPattern)];
+
+          for (const match of apiMatches) {
+            const endpoint = match[1];
+            // Skip 'find' endpoints, prefer 'search' related ones
+            if (!endpoint.includes('find')) {
+              const fullEndpoint = `api/${endpoint}`;
+              this.apiEndpoint = fullEndpoint;
+              this.apiEndpointExpiry = Date.now() + HLTBClient.API_ENDPOINT_TTL;
+              logger.debug(`Discovered HLTB API endpoint from JS: ${fullEndpoint}`);
+              return fullEndpoint;
+            }
+          }
+
+          // Alternative pattern: look for any /api/ paths with search
+          const altPattern = /["']\/api\/(search[^"']*|s[^"']*)["']/gi;
+          const altMatches = [...jsContent.matchAll(altPattern)];
+          if (altMatches.length > 0) {
+            const fullEndpoint = `api/${altMatches[0][1]}`;
+            this.apiEndpoint = fullEndpoint;
+            this.apiEndpointExpiry = Date.now() + HLTBClient.API_ENDPOINT_TTL;
+            logger.debug(`Discovered HLTB API endpoint (alt): ${fullEndpoint}`);
+            return fullEndpoint;
+          }
+        } catch (e) {
+          // Continue to next script
         }
       }
 
