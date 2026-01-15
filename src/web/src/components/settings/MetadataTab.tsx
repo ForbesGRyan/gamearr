@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { api } from '../../api/client';
+import { useToast } from '../../contexts/ToastContext';
 
 interface ConnectionTestResult {
   status: 'idle' | 'testing' | 'success' | 'error';
@@ -18,7 +19,6 @@ interface MetadataTabProps {
   setSteamId: (id: string) => void;
   gogRefreshToken: string;
   setGogRefreshToken: (token: string) => void;
-  showSaveMessage: (type: 'success' | 'error', text: string) => void;
 }
 
 export default function MetadataTab({
@@ -32,8 +32,8 @@ export default function MetadataTab({
   setSteamId,
   gogRefreshToken,
   setGogRefreshToken,
-  showSaveMessage,
 }: MetadataTabProps) {
+  const { addToast } = useToast();
   const [isSavingIgdb, setIsSavingIgdb] = useState(false);
   const [isSavingSteam, setIsSavingSteam] = useState(false);
   const [isSavingGog, setIsSavingGog] = useState(false);
@@ -53,7 +53,7 @@ export default function MetadataTab({
 
   const handleSaveIgdb = useCallback(async () => {
     if (!igdbClientId.trim() || !igdbClientSecret.trim()) {
-      showSaveMessage('error', 'Both IGDB Client ID and Secret are required');
+      addToast('Both IGDB Client ID and Secret are required', 'error');
       return;
     }
 
@@ -63,13 +63,13 @@ export default function MetadataTab({
         api.updateSetting('igdb_client_id', igdbClientId.trim()),
         api.updateSetting('igdb_client_secret', igdbClientSecret.trim()),
       ]);
-      showSaveMessage('success', 'IGDB settings saved!');
+      addToast('IGDB settings saved!', 'success');
     } catch {
-      showSaveMessage('error', 'Failed to save IGDB settings');
+      addToast('Failed to save IGDB settings', 'error');
     } finally {
       setIsSavingIgdb(false);
     }
-  }, [igdbClientId, igdbClientSecret, showSaveMessage]);
+  }, [igdbClientId, igdbClientSecret, addToast]);
 
   const handleSaveSteam = useCallback(async () => {
     setIsSavingSteam(true);
@@ -78,13 +78,13 @@ export default function MetadataTab({
         api.updateSetting('steam_api_key', steamApiKey),
         api.updateSetting('steam_id', steamId),
       ]);
-      showSaveMessage('success', 'Steam settings saved!');
+      addToast('Steam settings saved!', 'success');
     } catch {
-      showSaveMessage('error', 'Failed to save Steam settings');
+      addToast('Failed to save Steam settings', 'error');
     } finally {
       setIsSavingSteam(false);
     }
-  }, [steamApiKey, steamId, showSaveMessage]);
+  }, [steamApiKey, steamId, addToast]);
 
   const testSteamConnection = useCallback(async () => {
     setSteamTest({ status: 'testing' });
@@ -104,13 +104,13 @@ export default function MetadataTab({
     setIsSavingGog(true);
     try {
       await api.updateSetting('gog_refresh_token', gogRefreshToken);
-      showSaveMessage('success', 'GOG settings saved!');
+      addToast('GOG settings saved!', 'success');
     } catch {
-      showSaveMessage('error', 'Failed to save GOG settings');
+      addToast('Failed to save GOG settings', 'error');
     } finally {
       setIsSavingGog(false);
     }
-  }, [gogRefreshToken, showSaveMessage]);
+  }, [gogRefreshToken, addToast]);
 
   const testGogConnection = useCallback(async () => {
     setGogTest({ status: 'testing' });
@@ -150,17 +150,17 @@ export default function MetadataTab({
         setIsGogLoggingIn(false);
       } else {
         setIsGogLoggingIn(false);
-        showSaveMessage('error', response.error || 'Failed to get GOG login URL');
+        addToast(response.error || 'Failed to get GOG login URL', 'error');
       }
     } catch {
       setIsGogLoggingIn(false);
-      showSaveMessage('error', 'Failed to start GOG login');
+      addToast('Failed to start GOG login', 'error');
     }
-  }, [showSaveMessage]);
+  }, [addToast]);
 
   const handleGogCodeSubmit = useCallback(async () => {
     if (!gogCode.trim()) {
-      showSaveMessage('error', 'Please paste the URL or code');
+      addToast('Please paste the URL or code', 'error');
       return;
     }
 
@@ -191,20 +191,20 @@ export default function MetadataTab({
           message: response.data?.username ? `Connected as ${response.data.username}` : 'Connected successfully!',
           username: response.data?.username,
         });
-        showSaveMessage('success', `Connected to GOG${response.data?.username ? ` as ${response.data.username}` : ''}`);
+        addToast(`Connected to GOG${response.data?.username ? ` as ${response.data.username}` : ''}`, 'success');
         setShowGogCodeInput(false);
         setGogCode('');
         // Reload to get updated token
         window.location.reload();
       } else {
-        showSaveMessage('error', response.error || 'Failed to connect to GOG');
+        addToast(response.error || 'Failed to connect to GOG', 'error');
       }
     } catch {
-      showSaveMessage('error', 'Failed to exchange code');
+      addToast('Failed to exchange code', 'error');
     } finally {
       setIsExchangingCode(false);
     }
-  }, [gogCode, showSaveMessage]);
+  }, [gogCode, addToast]);
 
   const handleGogLogout = useCallback(async () => {
     setIsSavingGog(true);
@@ -212,13 +212,13 @@ export default function MetadataTab({
       await api.updateSetting('gog_refresh_token', '');
       setGogRefreshToken('');
       setGogTest({ status: 'idle' });
-      showSaveMessage('success', 'Disconnected from GOG');
+      addToast('Disconnected from GOG', 'success');
     } catch {
-      showSaveMessage('error', 'Failed to disconnect from GOG');
+      addToast('Failed to disconnect from GOG', 'error');
     } finally {
       setIsSavingGog(false);
     }
-  }, [setGogRefreshToken, showSaveMessage]);
+  }, [setGogRefreshToken, addToast]);
 
   return (
     <>

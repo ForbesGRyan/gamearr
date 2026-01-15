@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { api } from '../../api/client';
+import { useToast } from '../../contexts/ToastContext';
 
 interface UpdatesTabProps {
   updateCheckEnabled: boolean;
@@ -8,7 +9,6 @@ interface UpdatesTabProps {
   setUpdateCheckSchedule: (schedule: 'hourly' | 'daily' | 'weekly') => void;
   defaultUpdatePolicy: 'notify' | 'auto' | 'ignore';
   setDefaultUpdatePolicy: (policy: 'notify' | 'auto' | 'ignore') => void;
-  showSaveMessage: (type: 'success' | 'error', text: string) => void;
 }
 
 export default function UpdatesTab({
@@ -18,8 +18,8 @@ export default function UpdatesTab({
   setUpdateCheckSchedule,
   defaultUpdatePolicy,
   setDefaultUpdatePolicy,
-  showSaveMessage,
 }: UpdatesTabProps) {
+  const { addToast } = useToast();
   const [isSavingUpdateSettings, setIsSavingUpdateSettings] = useState(false);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
 
@@ -31,13 +31,13 @@ export default function UpdatesTab({
         api.updateSetting('update_check_schedule', updateCheckSchedule),
         api.updateSetting('default_update_policy', defaultUpdatePolicy),
       ]);
-      showSaveMessage('success', 'Update check settings saved!');
+      addToast('Update check settings saved!', 'success');
     } catch {
-      showSaveMessage('error', 'Failed to save update check settings');
+      addToast('Failed to save update check settings', 'error');
     } finally {
       setIsSavingUpdateSettings(false);
     }
-  }, [updateCheckEnabled, updateCheckSchedule, defaultUpdatePolicy, showSaveMessage]);
+  }, [updateCheckEnabled, updateCheckSchedule, defaultUpdatePolicy, addToast]);
 
   const handleCheckUpdatesNow = useCallback(async () => {
     setIsCheckingUpdates(true);
@@ -45,16 +45,16 @@ export default function UpdatesTab({
       const response = await api.checkAllUpdates();
       if (response.success && response.data) {
         const { checked, updatesFound } = response.data as { checked: number; updatesFound: number };
-        showSaveMessage('success', `Checked ${checked} games, found ${updatesFound} updates`);
+        addToast(`Checked ${checked} games, found ${updatesFound} updates`, 'success');
       } else {
-        showSaveMessage('error', response.error || 'Failed to check for updates');
+        addToast(response.error || 'Failed to check for updates', 'error');
       }
     } catch {
-      showSaveMessage('error', 'Failed to check for updates');
+      addToast('Failed to check for updates', 'error');
     } finally {
       setIsCheckingUpdates(false);
     }
-  }, [showSaveMessage]);
+  }, [addToast]);
 
   return (
     <>

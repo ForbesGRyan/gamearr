@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { api } from '../../api/client';
+import { useToast } from '../../contexts/ToastContext';
 
 interface GeneralTabProps {
   rssSyncInterval: number;
@@ -14,7 +15,6 @@ interface GeneralTabProps {
   setTrendingCacheInterval: (value: number) => void;
   torrentsCacheInterval: number;
   setTorrentsCacheInterval: (value: number) => void;
-  showSaveMessage: (type: 'success' | 'error', text: string) => void;
 }
 
 export default function GeneralTab({
@@ -30,8 +30,8 @@ export default function GeneralTab({
   setTrendingCacheInterval,
   torrentsCacheInterval,
   setTorrentsCacheInterval,
-  showSaveMessage,
 }: GeneralTabProps) {
+  const { addToast } = useToast();
   const [isSavingAutomation, setIsSavingAutomation] = useState(false);
 
   const handleSaveAutomation = useCallback(async () => {
@@ -48,16 +48,16 @@ export default function GeneralTab({
 
       const allSuccessful = results.every((r) => r.success);
       if (allSuccessful) {
-        showSaveMessage('success', 'Automation settings saved! Changes will take effect on next job run.');
+        addToast('Automation settings saved! Changes will take effect on next job run.', 'success');
       } else {
-        showSaveMessage('error', 'Some settings failed to save');
+        addToast('Some settings failed to save', 'error');
       }
     } catch {
-      showSaveMessage('error', 'Failed to save automation settings');
+      addToast('Failed to save automation settings', 'error');
     } finally {
       setIsSavingAutomation(false);
     }
-  }, [rssSyncInterval, searchSchedulerInterval, autoGrabMinScore, autoGrabMinSeeders, trendingCacheInterval, torrentsCacheInterval, showSaveMessage]);
+  }, [rssSyncInterval, searchSchedulerInterval, autoGrabMinScore, autoGrabMinSeeders, trendingCacheInterval, torrentsCacheInterval, addToast]);
 
   return (
     <>

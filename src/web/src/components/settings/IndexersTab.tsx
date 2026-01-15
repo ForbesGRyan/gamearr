@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { api } from '../../api/client';
 import IndexerStatus from '../IndexerStatus';
 import CategorySelector from '../CategorySelector';
+import { useToast } from '../../contexts/ToastContext';
 
 interface ConnectionTestResult {
   status: 'idle' | 'testing' | 'success' | 'error';
@@ -13,7 +14,6 @@ interface IndexersTabProps {
   setProwlarrUrl: (url: string) => void;
   prowlarrApiKey: string;
   setProwlarrApiKey: (key: string) => void;
-  showSaveMessage: (type: 'success' | 'error', text: string) => void;
 }
 
 export default function IndexersTab({
@@ -21,14 +21,14 @@ export default function IndexersTab({
   setProwlarrUrl,
   prowlarrApiKey,
   setProwlarrApiKey,
-  showSaveMessage,
 }: IndexersTabProps) {
+  const { addToast } = useToast();
   const [prowlarrTest, setProwlarrTest] = useState<ConnectionTestResult>({ status: 'idle' });
   const [isSavingProwlarr, setIsSavingProwlarr] = useState(false);
 
   const handleSaveProwlarr = useCallback(async () => {
     if (!prowlarrUrl.trim()) {
-      showSaveMessage('error', 'Prowlarr URL is required');
+      addToast('Prowlarr URL is required', 'error');
       return;
     }
 
@@ -38,13 +38,13 @@ export default function IndexersTab({
         api.updateSetting('prowlarr_url', prowlarrUrl.trim()),
         api.updateSetting('prowlarr_api_key', prowlarrApiKey),
       ]);
-      showSaveMessage('success', 'Prowlarr settings saved!');
+      addToast('Prowlarr settings saved!', 'success');
     } catch {
-      showSaveMessage('error', 'Failed to save Prowlarr settings');
+      addToast('Failed to save Prowlarr settings', 'error');
     } finally {
       setIsSavingProwlarr(false);
     }
-  }, [prowlarrUrl, prowlarrApiKey, showSaveMessage]);
+  }, [prowlarrUrl, prowlarrApiKey, addToast]);
 
   const testProwlarrConnection = useCallback(async () => {
     setProwlarrTest({ status: 'testing' });

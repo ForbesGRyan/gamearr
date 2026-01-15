@@ -11,6 +11,8 @@ import { GamepadIcon } from './components/Icons';
 import { NavDropdown } from './components/NavDropdown';
 import { MobileNav } from './components/MobileNav';
 import { api } from './api/client';
+import { ToastProvider } from './contexts/ToastContext';
+import ToastContainer from './components/ToastContainer';
 
 // Lazy load all page components for faster initial load
 // Library is eagerly fetched since it's the default route
@@ -212,6 +214,7 @@ function MainLayout() {
 function RootLayout() {
   return (
     <SetupGuard>
+      <ToastContainer />
       <Outlet />
     </SetupGuard>
   );
@@ -266,7 +269,11 @@ const router = createBrowserRouter([
 ]);
 
 function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <ToastProvider>
+      <RouterProvider router={router} />
+    </ToastProvider>
+  );
 }
 
 export default App;

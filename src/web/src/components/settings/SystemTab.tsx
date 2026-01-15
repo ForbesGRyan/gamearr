@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import { api, type LogFile } from '../../api/client';
+import { useToast } from '../../contexts/ToastContext';
 
-interface SystemTabProps {
-  showSaveMessage: (type: 'success' | 'error', text: string) => void;
-}
-
-export default function SystemTab({ showSaveMessage }: SystemTabProps) {
+export default function SystemTab() {
+  const { addToast } = useToast();
   const [version, setVersion] = useState<string>('');
   const [uptime, setUptime] = useState<number>(0);
   const [logFiles, setLogFiles] = useState<LogFile[]>([]);
@@ -53,10 +51,10 @@ export default function SystemTab({ showSaveMessage }: SystemTabProps) {
         setLogContent(res.data.content);
         setLogTotalLines(res.data.totalLines);
       } else {
-        showSaveMessage('error', res.error || 'Failed to load log file');
+        addToast(res.error || 'Failed to load log file', 'error');
       }
     } catch (err) {
-      showSaveMessage('error', 'Failed to load log file');
+      addToast('Failed to load log file', 'error');
     } finally {
       setIsLoadingLog(false);
     }
@@ -66,7 +64,7 @@ export default function SystemTab({ showSaveMessage }: SystemTabProps) {
     try {
       await api.downloadLogFile(filename);
     } catch (err) {
-      showSaveMessage('error', 'Failed to download log file');
+      addToast('Failed to download log file', 'error');
     }
   };
 

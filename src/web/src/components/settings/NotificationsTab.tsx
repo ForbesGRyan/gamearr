@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { api } from '../../api/client';
+import { useToast } from '../../contexts/ToastContext';
 
 interface ConnectionTestResult {
   status: 'idle' | 'testing' | 'success' | 'error';
@@ -9,14 +10,13 @@ interface ConnectionTestResult {
 interface NotificationsTabProps {
   discordWebhookUrl: string;
   setDiscordWebhookUrl: (url: string) => void;
-  showSaveMessage: (type: 'success' | 'error', text: string) => void;
 }
 
 export default function NotificationsTab({
   discordWebhookUrl,
   setDiscordWebhookUrl,
-  showSaveMessage,
 }: NotificationsTabProps) {
+  const { addToast } = useToast();
   const [discordTest, setDiscordTest] = useState<ConnectionTestResult>({ status: 'idle' });
   const [isSavingDiscord, setIsSavingDiscord] = useState(false);
 
@@ -24,13 +24,13 @@ export default function NotificationsTab({
     setIsSavingDiscord(true);
     try {
       await api.updateSetting('discord_webhook_url', discordWebhookUrl.trim());
-      showSaveMessage('success', 'Discord settings saved!');
+      addToast('Discord settings saved!', 'success');
     } catch {
-      showSaveMessage('error', 'Failed to save Discord settings');
+      addToast('Failed to save Discord settings', 'error');
     } finally {
       setIsSavingDiscord(false);
     }
-  }, [discordWebhookUrl, showSaveMessage]);
+  }, [discordWebhookUrl, addToast]);
 
   const testDiscordConnection = useCallback(async () => {
     if (!discordWebhookUrl.trim()) {

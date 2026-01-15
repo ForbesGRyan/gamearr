@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { api } from '../../api/client';
 import QBittorrentCategorySelector from '../QBittorrentCategorySelector';
+import { useToast } from '../../contexts/ToastContext';
 
 interface ConnectionTestResult {
   status: 'idle' | 'testing' | 'success' | 'error';
@@ -16,7 +17,6 @@ interface DownloadsTabProps {
   setQbPassword: (password: string) => void;
   dryRun: boolean;
   setDryRun: (value: boolean) => void;
-  showSaveMessage: (type: 'success' | 'error', text: string) => void;
 }
 
 export default function DownloadsTab({
@@ -28,15 +28,15 @@ export default function DownloadsTab({
   setQbPassword,
   dryRun,
   setDryRun,
-  showSaveMessage,
 }: DownloadsTabProps) {
+  const { addToast } = useToast();
   const [qbTest, setQbTest] = useState<ConnectionTestResult>({ status: 'idle' });
   const [isSavingQb, setIsSavingQb] = useState(false);
   const [isSavingDryRun, setIsSavingDryRun] = useState(false);
 
   const handleSaveQb = useCallback(async () => {
     if (!qbHost.trim()) {
-      showSaveMessage('error', 'qBittorrent host is required');
+      addToast('qBittorrent host is required', 'error');
       return;
     }
 
@@ -47,13 +47,13 @@ export default function DownloadsTab({
         api.updateSetting('qbittorrent_username', qbUsername),
         api.updateSetting('qbittorrent_password', qbPassword),
       ]);
-      showSaveMessage('success', 'qBittorrent settings saved!');
+      addToast('qBittorrent settings saved!', 'success');
     } catch {
-      showSaveMessage('error', 'Failed to save qBittorrent settings');
+      addToast('Failed to save qBittorrent settings', 'error');
     } finally {
       setIsSavingQb(false);
     }
-  }, [qbHost, qbUsername, qbPassword, showSaveMessage]);
+  }, [qbHost, qbUsername, qbPassword, addToast]);
 
   const testQbConnection = useCallback(async () => {
     setQbTest({ status: 'testing' });
@@ -76,16 +76,16 @@ export default function DownloadsTab({
       const response = await api.updateSetting('dry_run', newValue);
       if (response.success) {
         setDryRun(newValue);
-        showSaveMessage('success', `Dry-run mode ${newValue ? 'enabled' : 'disabled'}`);
+        addToast(`Dry-run mode ${newValue ? 'enabled' : 'disabled'}`, 'success');
       } else {
-        showSaveMessage('error', 'Failed to update dry-run mode');
+        addToast('Failed to update dry-run mode', 'error');
       }
     } catch {
-      showSaveMessage('error', 'Failed to update dry-run mode');
+      addToast('Failed to update dry-run mode', 'error');
     } finally {
       setIsSavingDryRun(false);
     }
-  }, [dryRun, setDryRun, showSaveMessage]);
+  }, [dryRun, setDryRun, addToast]);
 
   return (
     <>

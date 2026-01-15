@@ -1,9 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, type Library, type CreateLibraryRequest, type UpdateLibraryRequest } from '../../api/client';
-
-interface LibrariesTabProps {
-  showSaveMessage: (type: 'success' | 'error', text: string) => void;
-}
+import { useToast } from '../../contexts/ToastContext';
 
 interface LibraryFormData {
   name: string;
@@ -25,7 +22,8 @@ const emptyFormData: LibraryFormData = {
   priority: 0,
 };
 
-export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
+export default function LibrariesTab() {
+  const { addToast } = useToast();
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +96,7 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
     e.preventDefault();
 
     if (!formData.name.trim() || !formData.path.trim()) {
-      showSaveMessage('error', 'Name and path are required');
+      addToast('Name and path are required', 'error');
       return;
     }
 
@@ -117,11 +115,11 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
         };
         const response = await api.updateLibrary(editingId, updateData);
         if (response.success) {
-          showSaveMessage('success', 'Library updated!');
+          addToast('Library updated!', 'success');
           await loadLibraries();
           resetForm();
         } else {
-          showSaveMessage('error', response.error || 'Failed to update library');
+          addToast(response.error || 'Failed to update library', 'error');
         }
       } else {
         // Create new library
@@ -136,19 +134,19 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
         };
         const response = await api.createLibrary(createData);
         if (response.success) {
-          showSaveMessage('success', 'Library created!');
+          addToast('Library created!', 'success');
           await loadLibraries();
           resetForm();
         } else {
-          showSaveMessage('error', response.error || 'Failed to create library');
+          addToast(response.error || 'Failed to create library', 'error');
         }
       }
     } catch {
-      showSaveMessage('error', 'Failed to save library');
+      addToast('Failed to save library', 'error');
     } finally {
       setIsSaving(false);
     }
-  }, [formData, editingId, showSaveMessage, loadLibraries]);
+  }, [formData, editingId, addToast, loadLibraries]);
 
   const handleEdit = useCallback((library: Library) => {
     setFormData({
@@ -170,18 +168,18 @@ export default function LibrariesTab({ showSaveMessage }: LibrariesTabProps) {
     try {
       const response = await api.deleteLibrary(id);
       if (response.success) {
-        showSaveMessage('success', 'Library deleted!');
+        addToast('Library deleted!', 'success');
         await loadLibraries();
         setDeletingId(null);
       } else {
-        showSaveMessage('error', response.error || 'Failed to delete library');
+        addToast(response.error || 'Failed to delete library', 'error');
       }
     } catch {
-      showSaveMessage('error', 'Failed to delete library');
+      addToast('Failed to delete library', 'error');
     } finally {
       setIsDeleting(false);
     }
-  }, [showSaveMessage, loadLibraries]);
+  }, [addToast, loadLibraries]);
 
   const resetForm = useCallback(() => {
     setFormData(emptyFormData);

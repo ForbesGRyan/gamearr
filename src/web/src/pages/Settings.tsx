@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef, Suspense, lazy, useCallback } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
-import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
 
 // Lazy load tab components
 const GeneralTab = lazy(() => import('../components/settings/GeneralTab'));
@@ -108,22 +107,9 @@ function Settings() {
   // Discord settings
   const [discordWebhookUrl, setDiscordWebhookUrl] = useState('');
 
-  // Global save message
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  // Timeout ref for cleanup
-  const saveMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   // Load all settings on mount
   useEffect(() => {
     loadAllSettings();
-
-    // Cleanup timeout on unmount
-    return () => {
-      if (saveMessageTimeoutRef.current) {
-        clearTimeout(saveMessageTimeoutRef.current);
-      }
-    };
   }, []);
 
   const loadAllSettings = async () => {
@@ -205,15 +191,6 @@ function Settings() {
       setIsLoading(false);
     }
   };
-
-  const showSaveMessage = useCallback((type: 'success' | 'error', text: string) => {
-    // Clear any existing timeout
-    if (saveMessageTimeoutRef.current) {
-      clearTimeout(saveMessageTimeoutRef.current);
-    }
-    setSaveMessage({ type, text });
-    saveMessageTimeoutRef.current = setTimeout(() => setSaveMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
-  }, []);
 
   // Loading state
   if (isLoading) {
@@ -325,17 +302,6 @@ function Settings() {
         <p className="text-gray-400 text-sm md:text-base">Configure Gamearr's integrations and preferences</p>
       </div>
 
-      {/* Global save message */}
-      {saveMessage && (
-        <div className={`mb-6 p-4 border rounded-lg ${
-          saveMessage.type === 'success'
-            ? 'bg-green-900 bg-opacity-50 border-green-700 text-green-200'
-            : 'bg-red-900 bg-opacity-50 border-red-700 text-red-200'
-        }`}>
-          {saveMessage.text}
-        </div>
-      )}
-
       {/* Mobile dropdown selector - visible only on small screens */}
       <div className="md:hidden mb-6">
         <label className="block text-sm text-gray-400 mb-2">Settings Section</label>
@@ -389,12 +355,11 @@ function Settings() {
               setTrendingCacheInterval={setTrendingCacheInterval}
               torrentsCacheInterval={torrentsCacheInterval}
               setTorrentsCacheInterval={setTorrentsCacheInterval}
-              showSaveMessage={showSaveMessage}
             />
           )}
 
           {activeTab === 'libraries' && (
-            <LibrariesTab showSaveMessage={showSaveMessage} />
+            <LibrariesTab />
           )}
 
           {activeTab === 'indexers' && (
@@ -403,7 +368,6 @@ function Settings() {
               setProwlarrUrl={setProwlarrUrl}
               prowlarrApiKey={prowlarrApiKey}
               setProwlarrApiKey={setProwlarrApiKey}
-              showSaveMessage={showSaveMessage}
             />
           )}
 
@@ -417,7 +381,6 @@ function Settings() {
               setQbPassword={setQbPassword}
               dryRun={dryRun}
               setDryRun={setDryRun}
-              showSaveMessage={showSaveMessage}
             />
           )}
 
@@ -433,7 +396,6 @@ function Settings() {
               setSteamId={setSteamId}
               gogRefreshToken={gogRefreshToken}
               setGogRefreshToken={setGogRefreshToken}
-              showSaveMessage={showSaveMessage}
             />
           )}
 
@@ -441,7 +403,6 @@ function Settings() {
             <NotificationsTab
               discordWebhookUrl={discordWebhookUrl}
               setDiscordWebhookUrl={setDiscordWebhookUrl}
-              showSaveMessage={showSaveMessage}
             />
           )}
 
@@ -453,12 +414,11 @@ function Settings() {
               setUpdateCheckSchedule={setUpdateCheckSchedule}
               defaultUpdatePolicy={defaultUpdatePolicy}
               setDefaultUpdatePolicy={setDefaultUpdatePolicy}
-              showSaveMessage={showSaveMessage}
             />
           )}
 
           {activeTab === 'system' && (
-            <SystemTab showSaveMessage={showSaveMessage} />
+            <SystemTab />
           )}
         </Suspense>
       </div>
