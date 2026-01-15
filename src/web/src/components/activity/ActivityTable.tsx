@@ -32,14 +32,36 @@ function SortableHeader({
   align = 'left',
 }: SortableHeaderProps) {
   const isActive = currentSortField === field;
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
+  // Determine aria-sort value
+  const ariaSort = isActive ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined;
+
   return (
     <th
       className={`px-4 py-3 font-medium cursor-pointer hover:bg-gray-600 select-none ${
         align === 'right' ? 'text-right' : ''
       }`}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      role="columnheader"
+      aria-sort={ariaSort}
     >
-      {label} {isActive && (sortDirection === 'asc' ? '\u2191' : '\u2193')}
+      {label}
+      {isActive && (
+        <>
+          {' '}
+          <span aria-hidden="true">{sortDirection === 'asc' ? '\u2191' : '\u2193'}</span>
+          <span className="sr-only">, sorted {sortDirection === 'asc' ? 'ascending' : 'descending'}</span>
+        </>
+      )}
     </th>
   );
 }

@@ -1,5 +1,7 @@
+import { useEffect, useCallback } from 'react';
 import { TorrentRelease, GameSearchResult } from './types';
 import { formatRelativeDate, formatBytes } from '../../utils/formatters';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface TorrentDetailsModalProps {
   torrent: TorrentRelease;
@@ -28,12 +30,36 @@ export default function TorrentDetailsModal({
   onSelectGame,
   onAddToLibrary,
 }: TorrentDetailsModalProps) {
+  const modalRef = useFocusTrap<HTMLDivElement>(true);
+
+  // Handle Escape key
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+    }
+  }, [onClose]);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleKeyDown]);
+
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="torrent-details-title"
+    >
+      <div
+        ref={modalRef}
+        className="bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+      >
         {/* Modal Header */}
         <div className="flex items-start justify-between p-4 border-b border-gray-700">
-          <h3 className="text-lg font-semibold text-white pr-4 break-words">
+          <h3 id="torrent-details-title" className="text-lg font-semibold text-white pr-4 break-words">
             {torrent.title}
           </h3>
           <button

@@ -108,6 +108,18 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
     }
   };
 
+  const handleSortKeyDown = (e: React.KeyboardEvent, field: SortField) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleSort(field);
+    }
+  };
+
+  const getAriaSortValue = (field: SortField): 'ascending' | 'descending' | undefined => {
+    if (sortField !== field) return undefined;
+    return sortDirection === 'asc' ? 'ascending' : 'descending';
+  };
+
   const getSortedReleases = () => {
     return [...availableReleases].sort((a, b) => {
       let aValue: string | number;
@@ -129,9 +141,19 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
 
   const getSortIcon = (field: SortField) => {
     if (sortField !== field) {
-      return <span className="text-gray-600 ml-1">&#x21C5;</span>;
+      return (
+        <>
+          <span className="text-gray-600 ml-1" aria-hidden="true">&#x21C5;</span>
+          <span className="sr-only">, not sorted</span>
+        </>
+      );
     }
-    return sortDirection === 'asc' ? <span className="ml-1">&uarr;</span> : <span className="ml-1">&darr;</span>;
+    return (
+      <>
+        <span className="ml-1" aria-hidden="true">{sortDirection === 'asc' ? '\u2191' : '\u2193'}</span>
+        <span className="sr-only">, sorted {sortDirection === 'asc' ? 'ascending' : 'descending'}</span>
+      </>
+    );
   };
 
   const sortedReleases = getSortedReleases();
@@ -210,30 +232,45 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
                   <tr>
                     <th
                       onClick={() => handleSort('title')}
+                      onKeyDown={(e) => handleSortKeyDown(e, 'title')}
+                      tabIndex={0}
+                      aria-sort={getAriaSortValue('title')}
                       className="text-left px-4 py-3 text-sm font-medium text-gray-300 cursor-pointer hover:text-white transition select-none"
                     >
                       Title{getSortIcon('title')}
                     </th>
                     <th
                       onClick={() => handleSort('indexer')}
+                      onKeyDown={(e) => handleSortKeyDown(e, 'indexer')}
+                      tabIndex={0}
+                      aria-sort={getAriaSortValue('indexer')}
                       className="text-left px-4 py-3 text-sm font-medium text-gray-300 cursor-pointer hover:text-white transition select-none"
                     >
                       Indexer{getSortIcon('indexer')}
                     </th>
                     <th
                       onClick={() => handleSort('size')}
+                      onKeyDown={(e) => handleSortKeyDown(e, 'size')}
+                      tabIndex={0}
+                      aria-sort={getAriaSortValue('size')}
                       className="text-right px-4 py-3 text-sm font-medium text-gray-300 cursor-pointer hover:text-white transition select-none"
                     >
                       Size{getSortIcon('size')}
                     </th>
                     <th
                       onClick={() => handleSort('seeders')}
+                      onKeyDown={(e) => handleSortKeyDown(e, 'seeders')}
+                      tabIndex={0}
+                      aria-sort={getAriaSortValue('seeders')}
                       className="text-right px-4 py-3 text-sm font-medium text-gray-300 cursor-pointer hover:text-white transition select-none"
                     >
                       Seeders{getSortIcon('seeders')}
                     </th>
                     <th
                       onClick={() => handleSort('publishedAt')}
+                      onKeyDown={(e) => handleSortKeyDown(e, 'publishedAt')}
+                      tabIndex={0}
+                      aria-sort={getAriaSortValue('publishedAt')}
                       className="text-right px-4 py-3 text-sm font-medium text-gray-300 cursor-pointer hover:text-white transition select-none"
                     >
                       Date{getSortIcon('publishedAt')}

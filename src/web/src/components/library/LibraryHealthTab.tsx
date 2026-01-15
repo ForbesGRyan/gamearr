@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { formatBytes, formatTimestamp } from '../../utils/formatters';
 import { FolderIcon } from '../Icons';
 import { api } from '../../api/client';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import type { LooseFile, DuplicateGroup, LibraryInfo } from './types';
 
 type LooseFileSortColumn = 'name' | 'size' | 'type' | 'modified' | 'library';
@@ -100,11 +101,33 @@ export function LibraryHealthTab({
     }
   };
 
+  const handleSortKeyDown = (e: React.KeyboardEvent, column: LooseFileSortColumn) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleSort(column);
+    }
+  };
+
+  const getAriaSortValue = (column: LooseFileSortColumn): 'ascending' | 'descending' | undefined => {
+    if (sortColumn !== column) return undefined;
+    return sortDirection === 'asc' ? 'ascending' : 'descending';
+  };
+
   const SortIndicator = ({ column }: { column: LooseFileSortColumn }) => {
     if (sortColumn !== column) {
-      return <span className="text-gray-500 ml-1">&#8597;</span>;
+      return (
+        <>
+          <span className="text-gray-500 ml-1" aria-hidden="true">&#8597;</span>
+          <span className="sr-only">, not sorted</span>
+        </>
+      );
     }
-    return <span className="text-blue-400 ml-1">{sortDirection === 'asc' ? '\u2191' : '\u2193'}</span>;
+    return (
+      <>
+        <span className="text-blue-400 ml-1" aria-hidden="true">{sortDirection === 'asc' ? '\u2191' : '\u2193'}</span>
+        <span className="sr-only">, sorted {sortDirection === 'asc' ? 'ascending' : 'descending'}</span>
+      </>
+    );
   };
 
   const handleOrganizeClick = (file: LooseFile) => {
@@ -258,6 +281,9 @@ export function LibraryHealthTab({
                   <th
                     className="pb-3 pr-4 cursor-pointer hover:text-gray-200 transition select-none"
                     onClick={() => handleSort('name')}
+                    onKeyDown={(e) => handleSortKeyDown(e, 'name')}
+                    tabIndex={0}
+                    aria-sort={getAriaSortValue('name')}
                   >
                     Name<SortIndicator column="name" />
                   </th>
@@ -265,6 +291,9 @@ export function LibraryHealthTab({
                     <th
                       className="pb-3 pr-4 cursor-pointer hover:text-gray-200 transition select-none"
                       onClick={() => handleSort('library')}
+                      onKeyDown={(e) => handleSortKeyDown(e, 'library')}
+                      tabIndex={0}
+                      aria-sort={getAriaSortValue('library')}
                     >
                       Library<SortIndicator column="library" />
                     </th>
@@ -272,18 +301,27 @@ export function LibraryHealthTab({
                   <th
                     className="pb-3 pr-4 cursor-pointer hover:text-gray-200 transition select-none"
                     onClick={() => handleSort('size')}
+                    onKeyDown={(e) => handleSortKeyDown(e, 'size')}
+                    tabIndex={0}
+                    aria-sort={getAriaSortValue('size')}
                   >
                     Size<SortIndicator column="size" />
                   </th>
                   <th
                     className="pb-3 pr-4 cursor-pointer hover:text-gray-200 transition select-none"
                     onClick={() => handleSort('type')}
+                    onKeyDown={(e) => handleSortKeyDown(e, 'type')}
+                    tabIndex={0}
+                    aria-sort={getAriaSortValue('type')}
                   >
                     Type<SortIndicator column="type" />
                   </th>
                   <th
                     className="pb-3 pr-4 cursor-pointer hover:text-gray-200 transition select-none"
                     onClick={() => handleSort('modified')}
+                    onKeyDown={(e) => handleSortKeyDown(e, 'modified')}
+                    tabIndex={0}
+                    aria-sort={getAriaSortValue('modified')}
                   >
                     Modified<SortIndicator column="modified" />
                   </th>
@@ -336,65 +374,115 @@ export function LibraryHealthTab({
 
       {/* Organize Confirmation Modal */}
       {confirmingFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl">
-            <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-              </svg>
-              Organize File
-            </h3>
+        <OrganizeFileModal
+          confirmingFile={confirmingFile}
+          customFolderName={customFolderName}
+          onFolderNameChange={setCustomFolderName}
+          onConfirm={handleConfirmOrganize}
+          onCancel={handleCancelOrganize}
+        />
+      )}
+    </div>
+  );
+}
 
-            <div className="space-y-4">
-              <div className="bg-gray-700 rounded-lg p-4">
-                <p className="text-sm text-gray-400 mb-1">File to organize:</p>
-                <p className="font-medium text-white break-all">{confirmingFile.name}</p>
-                <p className="text-xs text-gray-500 mt-1 break-all">{confirmingFile.path}</p>
-              </div>
+// Extracted modal component with proper accessibility
+interface OrganizeFileModalProps {
+  confirmingFile: LooseFile;
+  customFolderName: string;
+  onFolderNameChange: (value: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
 
-              <div className="flex items-center gap-2 text-gray-400">
-                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                </svg>
-                <span className="text-sm">Will be moved to:</span>
-              </div>
+function OrganizeFileModal({
+  confirmingFile,
+  customFolderName,
+  onFolderNameChange,
+  onConfirm,
+  onCancel,
+}: OrganizeFileModalProps) {
+  const modalRef = useFocusTrap<HTMLDivElement>(true);
 
-              <div className="bg-gray-700 rounded-lg p-4">
-                <label className="text-sm text-gray-400 mb-2 block">Target folder name:</label>
-                <input
-                  type="text"
-                  value={customFolderName}
-                  onChange={(e) => setCustomFolderName(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                  placeholder="Enter folder name"
-                />
-                <p className="text-xs text-gray-500 mt-2">
-                  Full path: <span className="text-gray-400">{confirmingFile.path.substring(0, confirmingFile.path.lastIndexOf(confirmingFile.name))}<span className="text-green-400">{customFolderName || '...'}</span>/</span>
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  The file will be moved into this folder. If the folder doesn't exist, it will be created.
-                </p>
-              </div>
-            </div>
+  // Handle Escape key
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onCancel();
+    }
+  }, [onCancel]);
 
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={handleCancelOrganize}
-                className="px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmOrganize}
-                disabled={!customFolderName.trim()}
-                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Organize File
-              </button>
-            </div>
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleKeyDown]);
+
+  return (
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="organize-modal-title"
+    >
+      <div ref={modalRef} className="bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl">
+        <h3 id="organize-modal-title" className="text-xl font-semibold mb-4 flex items-center gap-2">
+          <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+          Organize File
+        </h3>
+
+        <div className="space-y-4">
+          <div className="bg-gray-700 rounded-lg p-4">
+            <p className="text-sm text-gray-400 mb-1">File to organize:</p>
+            <p className="font-medium text-white break-all">{confirmingFile.name}</p>
+            <p className="text-xs text-gray-500 mt-1 break-all">{confirmingFile.path}</p>
+          </div>
+
+          <div className="flex items-center gap-2 text-gray-400">
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+            <span className="text-sm">Will be moved to:</span>
+          </div>
+
+          <div className="bg-gray-700 rounded-lg p-4">
+            <label htmlFor="folder-name-input" className="text-sm text-gray-400 mb-2 block">Target folder name:</label>
+            <input
+              ref={inputRef}
+              id="folder-name-input"
+              type="text"
+              value={customFolderName}
+              onChange={(e) => onFolderNameChange(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 min-h-[44px] text-white focus:outline-none focus:border-blue-500"
+              placeholder="Enter folder name"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              Full path: <span className="text-gray-400">{confirmingFile.path.substring(0, confirmingFile.path.lastIndexOf(confirmingFile.name))}<span className="text-green-400">{customFolderName || '...'}</span>/</span>
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              The file will be moved into this folder. If the folder doesn&apos;t exist, it will be created.
+            </p>
           </div>
         </div>
-      )}
+
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 min-h-[44px] text-gray-300 hover:text-white hover:bg-gray-700 rounded transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!customFolderName.trim()}
+            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 min-h-[44px] rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Organize File
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
