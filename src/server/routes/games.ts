@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { gameService } from '../services/GameService';
+import { integrationService } from '../services/IntegrationService';
 import { gameStoreRepository } from '../repositories/GameStoreRepository';
 import { gameFolderRepository } from '../repositories/GameFolderRepository';
 import { gameEventRepository } from '../repositories/GameEventRepository';
@@ -529,6 +530,116 @@ games.post(':id/folders/:folderId/primary', async (c) => {
     return c.json({ success: true, data: updatedFolder });
   } catch (error) {
     logger.error('Failed to set primary folder:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// ============================================
+// Integration endpoints (HLTB, ProtonDB)
+// ============================================
+
+// GET /api/v1/games/:id/integrations - Get HLTB and ProtonDB data for a game
+games.get('/:id/integrations', async (c) => {
+  const id = parseInt(c.req.param('id'));
+  if (isNaN(id)) {
+    return c.json({ success: false, error: 'Invalid game ID', code: ErrorCode.VALIDATION_ERROR }, 400);
+  }
+  logger.info(`GET /api/v1/games/${id}/integrations`);
+
+  try {
+    const game = await gameService.getGameById(id);
+    if (!game) {
+      return c.json({ success: false, error: 'Game not found', code: ErrorCode.NOT_FOUND }, 404);
+    }
+
+    const data = integrationService.getIntegrationData(game);
+    return c.json({ success: true, data });
+  } catch (error) {
+    logger.error('Failed to get integration data:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// POST /api/v1/games/:id/integrations/sync - Sync all integration data for a game
+games.post('/:id/integrations/sync', async (c) => {
+  const id = parseInt(c.req.param('id'));
+  if (isNaN(id)) {
+    return c.json({ success: false, error: 'Invalid game ID', code: ErrorCode.VALIDATION_ERROR }, 400);
+  }
+  logger.info(`POST /api/v1/games/${id}/integrations/sync`);
+
+  try {
+    const data = await integrationService.syncAll(id);
+    return c.json({ success: true, data });
+  } catch (error) {
+    logger.error('Failed to sync integration data:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// POST /api/v1/games/:id/hltb/sync - Sync HLTB data for a game
+games.post('/:id/hltb/sync', async (c) => {
+  const id = parseInt(c.req.param('id'));
+  if (isNaN(id)) {
+    return c.json({ success: false, error: 'Invalid game ID', code: ErrorCode.VALIDATION_ERROR }, 400);
+  }
+  logger.info(`POST /api/v1/games/${id}/hltb/sync`);
+
+  try {
+    const data = await integrationService.syncHLTB(id);
+    return c.json({ success: true, data });
+  } catch (error) {
+    logger.error('Failed to sync HLTB data:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// POST /api/v1/games/:id/protondb/sync - Sync ProtonDB data for a game
+games.post('/:id/protondb/sync', async (c) => {
+  const id = parseInt(c.req.param('id'));
+  if (isNaN(id)) {
+    return c.json({ success: false, error: 'Invalid game ID', code: ErrorCode.VALIDATION_ERROR }, 400);
+  }
+  logger.info(`POST /api/v1/games/${id}/protondb/sync`);
+
+  try {
+    const data = await integrationService.syncProtonDB(id);
+    return c.json({ success: true, data });
+  } catch (error) {
+    logger.error('Failed to sync ProtonDB data:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// Batch sync schemas
+const batchSyncSchema = z.object({
+  gameIds: z.array(z.number().int().positive()).min(1).max(100),
+});
+
+// POST /api/v1/games/batch/hltb/sync - Batch sync HLTB data
+games.post('/batch/hltb/sync', zValidator('json', batchSyncSchema), async (c) => {
+  logger.info('POST /api/v1/games/batch/hltb/sync');
+
+  try {
+    const { gameIds } = c.req.valid('json');
+    const result = await integrationService.batchSyncHLTB(gameIds);
+    return c.json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Failed to batch sync HLTB:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// POST /api/v1/games/batch/protondb/sync - Batch sync ProtonDB data
+games.post('/batch/protondb/sync', zValidator('json', batchSyncSchema), async (c) => {
+  logger.info('POST /api/v1/games/batch/protondb/sync');
+
+  try {
+    const { gameIds } = c.req.valid('json');
+    const result = await integrationService.batchSyncProtonDB(gameIds);
+    return c.json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Failed to batch sync ProtonDB:', error);
     return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });

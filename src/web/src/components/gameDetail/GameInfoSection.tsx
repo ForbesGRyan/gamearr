@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, Game, Library, SearchResult } from '../../api/client';
 import StoreSelector from '../StoreSelector';
 import ConfirmModal from '../ConfirmModal';
+import GameIntegrationSection from './GameIntegrationSection';
 import { PencilIcon, CloseIcon, TrashIcon } from '../Icons';
 
 interface GameInfoSectionProps {
@@ -240,6 +241,9 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
           </div>
         </div>
       </div>
+
+      {/* External Data (HLTB, ProtonDB) */}
+      <GameIntegrationSection gameId={game.id} />
 
       {/* Installed Folders */}
       {game.folders && game.folders.length > 0 && (

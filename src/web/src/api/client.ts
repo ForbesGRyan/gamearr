@@ -290,6 +290,35 @@ export interface GameUpdate {
   status: 'pending' | 'grabbed' | 'dismissed';
 }
 
+// Integration types (HLTB, ProtonDB)
+export type ProtonDBTier = 'native' | 'platinum' | 'gold' | 'silver' | 'bronze' | 'borked' | 'pending';
+
+export interface HLTBDisplayData {
+  hltbId: string | null;
+  main: number | null; // Hours
+  mainExtra: number | null; // Hours
+  completionist: number | null; // Hours
+  mainFormatted: string;
+  mainExtraFormatted: string;
+  completionistFormatted: string;
+  lastSync: Date | null;
+}
+
+export interface ProtonDBDisplayData {
+  tier: ProtonDBTier | null;
+  tierLabel: string;
+  tierColor: string;
+  tierDescription: string;
+  score: number | null;
+  isPlayable: boolean;
+  lastSync: Date | null;
+}
+
+export interface GameIntegrationData {
+  hltb: HLTBDisplayData;
+  protonDb: ProtonDBDisplayData;
+}
+
 export interface GrabbedRelease {
   id: number;
   gameId: number;
@@ -599,6 +628,43 @@ class ApiClient {
 
   async getGameEvents(gameId: number): Promise<ApiResponse<GameEvent[]>> {
     return this.request<GameEvent[]>(`/games/${gameId}/events`);
+  }
+
+  // Game Integrations (HLTB, ProtonDB)
+  async getGameIntegrations(gameId: number): Promise<ApiResponse<GameIntegrationData>> {
+    return this.request<GameIntegrationData>(`/games/${gameId}/integrations`);
+  }
+
+  async syncGameIntegrations(gameId: number): Promise<ApiResponse<GameIntegrationData>> {
+    return this.request<GameIntegrationData>(`/games/${gameId}/integrations/sync`, {
+      method: 'POST',
+    });
+  }
+
+  async syncGameHLTB(gameId: number): Promise<ApiResponse<HLTBDisplayData>> {
+    return this.request<HLTBDisplayData>(`/games/${gameId}/hltb/sync`, {
+      method: 'POST',
+    });
+  }
+
+  async syncGameProtonDB(gameId: number): Promise<ApiResponse<ProtonDBDisplayData>> {
+    return this.request<ProtonDBDisplayData>(`/games/${gameId}/protondb/sync`, {
+      method: 'POST',
+    });
+  }
+
+  async batchSyncHLTB(gameIds: number[]): Promise<ApiResponse<{ synced: number; failed: number }>> {
+    return this.request<{ synced: number; failed: number }>('/games/batch/hltb/sync', {
+      method: 'POST',
+      body: JSON.stringify({ gameIds }),
+    });
+  }
+
+  async batchSyncProtonDB(gameIds: number[]): Promise<ApiResponse<{ synced: number; skipped: number; failed: number }>> {
+    return this.request<{ synced: number; skipped: number; failed: number }>('/games/batch/protondb/sync', {
+      method: 'POST',
+      body: JSON.stringify({ gameIds }),
+    });
   }
 
   // Search

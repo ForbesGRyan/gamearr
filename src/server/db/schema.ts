@@ -60,6 +60,16 @@ export const games = sqliteTable('games', {
   }).default('notify'),
   lastUpdateCheck: integer('last_update_check', { mode: 'timestamp' }),
   updateAvailable: integer('update_available', { mode: 'boolean' }).default(false),
+  // HowLongToBeat integration
+  hltbId: text('hltb_id'), // HLTB game ID for future lookups
+  hltbMain: integer('hltb_main'), // Main story hours (stored as minutes)
+  hltbMainExtra: integer('hltb_main_extra'), // Main + extras hours (minutes)
+  hltbCompletionist: integer('hltb_completionist'), // Completionist hours (minutes)
+  hltbLastSync: integer('hltb_last_sync', { mode: 'timestamp' }),
+  // ProtonDB integration
+  protonDbTier: text('protondb_tier'), // native, platinum, gold, silver, bronze, borked
+  protonDbScore: integer('protondb_score'), // Numeric score 0-100
+  protonDbLastSync: integer('protondb_last_sync', { mode: 'timestamp' }),
   addedAt: integer('added_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
