@@ -6,6 +6,7 @@ import { downloadService } from '../services/DownloadService';
 import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
 import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
 import { igdbClient } from '../integrations/igdb/IGDBClient';
+import { discordClient } from '../integrations/discord/DiscordWebhookClient';
 import { ALL_CATEGORIES, DEFAULT_CATEGORIES, CATEGORY_GROUPS } from '../../shared/categories';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
@@ -39,6 +40,8 @@ const ALLOWED_SETTINGS = new Set([
   'dry_run',
   // Network settings
   'trusted_proxies',
+  // Notification settings
+  'discord_webhook_url',
 ]);
 
 // Settings that should NEVER be modified via bulk update
@@ -392,6 +395,14 @@ settings.put('/:key', zValidator('json', settingValueSchema), async (c) => {
           password: password || '',
         });
         logger.info('qBittorrent client reconfigured with new settings');
+      }
+    }
+
+    if (key === 'discord_webhook_url') {
+      const webhookUrl = await settingsService.getSetting('discord_webhook_url');
+      if (webhookUrl) {
+        discordClient.configure({ webhookUrl });
+        logger.info('Discord client reconfigured with new webhook URL');
       }
     }
 

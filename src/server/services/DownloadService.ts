@@ -1,4 +1,5 @@
 import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
+import { discordClient } from '../integrations/discord/DiscordWebhookClient';
 import { releaseRepository } from '../repositories/ReleaseRepository';
 import { gameRepository } from '../repositories/GameRepository';
 import { settingsService } from './SettingsService';
@@ -755,6 +756,11 @@ export class DownloadService {
       if (uniqueGameIds.length > 0) {
         await this.assignLibrariesToGames(uniqueGameIds);
       }
+
+      // Send Discord notifications for completed downloads
+      if (uniqueGameIds.length > 0 && discordClient.isConfigured()) {
+        await this.sendDownloadCompleteNotifications(uniqueGameIds);
+      }
     } catch (error) {
       // Rethrow to let DownloadMonitor handle connection state tracking
       throw error;
@@ -786,6 +792,30 @@ export class DownloadService {
       }
     } catch (error) {
       logger.error('Failed to assign libraries to games:', error);
+    }
+  }
+
+  /**
+   * Send Discord notifications for completed downloads
+   */
+  private async sendDownloadCompleteNotifications(gameIds: number[]): Promise<void> {
+    try {
+      const games = await gameRepository.findByIds(gameIds);
+
+      for (const [, game] of games) {
+        try {
+          await discordClient.notifyDownloadComplete({
+            gameTitle: game.title,
+            coverUrl: game.coverUrl || undefined,
+            store: game.store || undefined,
+          });
+        } catch (error) {
+          // Log but don't fail the whole sync if notification fails
+          logger.error(`Failed to send Discord notification for game "${game.title}":`, error);
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to send download complete notifications:', error);
     }
   }
 

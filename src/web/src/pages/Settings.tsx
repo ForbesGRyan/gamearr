@@ -9,10 +9,11 @@ const LibrariesTab = lazy(() => import('../components/settings/LibrariesTab'));
 const IndexersTab = lazy(() => import('../components/settings/IndexersTab'));
 const DownloadsTab = lazy(() => import('../components/settings/DownloadsTab'));
 const MetadataTab = lazy(() => import('../components/settings/MetadataTab'));
+const NotificationsTab = lazy(() => import('../components/settings/NotificationsTab'));
 const UpdatesTab = lazy(() => import('../components/settings/UpdatesTab'));
 const SystemTab = lazy(() => import('../components/settings/SystemTab'));
 
-type SettingsTab = 'general' | 'libraries' | 'indexers' | 'downloads' | 'metadata' | 'updates' | 'system';
+type SettingsTab = 'general' | 'libraries' | 'indexers' | 'downloads' | 'metadata' | 'notifications' | 'updates' | 'system';
 
 // Loading fallback component
 function TabLoading() {
@@ -27,7 +28,7 @@ function Settings() {
   // Tab state with URL params
   const [searchParams, setSearchParams] = useSearchParams();
   // Valid tabs for validation
-  const validTabs: SettingsTab[] = ['general', 'libraries', 'indexers', 'downloads', 'metadata', 'updates', 'system'];
+  const validTabs: SettingsTab[] = ['general', 'libraries', 'indexers', 'downloads', 'metadata', 'notifications', 'updates', 'system'];
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
     const tabParam = searchParams.get('tab');
@@ -104,6 +105,9 @@ function Settings() {
   // GOG settings
   const [gogRefreshToken, setGogRefreshToken] = useState('');
 
+  // Discord settings
+  const [discordWebhookUrl, setDiscordWebhookUrl] = useState('');
+
   // Global save message
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -148,6 +152,7 @@ function Settings() {
         minSeedersRes,
         trendingCacheRes,
         torrentsCacheRes,
+        discordWebhookRes,
       ] = await Promise.all([
         api.getSetting('prowlarr_url'),
         api.getSetting('prowlarr_api_key'),
@@ -169,6 +174,7 @@ function Settings() {
         api.getSetting('auto_grab_min_seeders'),
         api.getSetting('trending_games_cache_interval'),
         api.getSetting('top_torrents_cache_interval'),
+        api.getSetting('discord_webhook_url'),
       ]);
 
       if (prowlarrUrlRes.success && prowlarrUrlRes.data) setProwlarrUrl(prowlarrUrlRes.data as string);
@@ -191,6 +197,7 @@ function Settings() {
       if (minSeedersRes.success && minSeedersRes.data !== undefined) setAutoGrabMinSeeders(minSeedersRes.data as number);
       if (trendingCacheRes.success && trendingCacheRes.data !== undefined) setTrendingCacheInterval(trendingCacheRes.data as number);
       if (torrentsCacheRes.success && torrentsCacheRes.data !== undefined) setTorrentsCacheInterval(torrentsCacheRes.data as number);
+      if (discordWebhookRes.success && discordWebhookRes.data) setDiscordWebhookUrl(discordWebhookRes.data as string);
     } catch (err) {
       setLoadError('Failed to load settings. Please refresh the page.');
       console.error('Failed to load settings:', err);
@@ -279,6 +286,15 @@ function Settings() {
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'notifications',
+      label: 'Notifications',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
         </svg>
       ),
     },
@@ -417,6 +433,14 @@ function Settings() {
               setSteamId={setSteamId}
               gogRefreshToken={gogRefreshToken}
               setGogRefreshToken={setGogRefreshToken}
+              showSaveMessage={showSaveMessage}
+            />
+          )}
+
+          {activeTab === 'notifications' && (
+            <NotificationsTab
+              discordWebhookUrl={discordWebhookUrl}
+              setDiscordWebhookUrl={setDiscordWebhookUrl}
               showSaveMessage={showSaveMessage}
             />
           )}

@@ -736,6 +736,10 @@ class ApiClient {
     return this.request<boolean>('/steam/test');
   }
 
+  async testDiscordConnection(): Promise<ApiResponse<boolean>> {
+    return this.request<boolean>('/notifications/test/discord');
+  }
+
   // Steam Integration
   async getSteamOwnedGames(): Promise<ApiResponse<SteamGame[]>> {
     return this.request<SteamGame[]>('/steam/owned-games');

@@ -36,6 +36,7 @@ import steamRouter from './routes/steam';
 import gogRouter from './routes/gog';
 import authRouter from './routes/auth';
 import imagesRouter from './routes/images';
+import notificationsRouter from './routes/notifications';
 
 // Initialize database
 import './db';
@@ -53,6 +54,7 @@ import { discoverCacheJob } from './jobs/DiscoverCacheJob';
 import { qbittorrentClient } from './integrations/qbittorrent/QBittorrentClient';
 import { prowlarrClient } from './integrations/prowlarr/ProwlarrClient';
 import { igdbClient } from './integrations/igdb/IGDBClient';
+import { discordClient } from './integrations/discord/DiscordWebhookClient';
 import { settingsService } from './services/SettingsService';
 import { libraryService } from './services/LibraryService';
 
@@ -107,6 +109,7 @@ app.route('/api/v1/discover', discoverRouter);
 app.route('/api/v1/steam', steamRouter);
 app.route('/api/v1/gog', gogRouter);
 app.route('/api/v1/images', imagesRouter);
+app.route('/api/v1/notifications', notificationsRouter);
 
 // Serve static frontend files
 // Use embedded VFS in production (single binary), fall back to filesystem in development
@@ -193,6 +196,16 @@ async function initializeClients() {
       logger.info('IGDB credentials loaded from environment');
     } else {
       logger.warn('IGDB not configured - add settings in Settings > Metadata');
+    }
+
+    // Load Discord webhook settings
+    const discordWebhookUrl = await settingsService.getSetting('discord_webhook_url');
+
+    if (discordWebhookUrl) {
+      discordClient.configure({ webhookUrl: discordWebhookUrl });
+      logger.info('Discord webhook configured');
+    } else if (process.env.DISCORD_WEBHOOK_URL) {
+      logger.info('Discord webhook loaded from environment');
     }
   } catch (error) {
     logger.error('Failed to initialize clients from database:', error);

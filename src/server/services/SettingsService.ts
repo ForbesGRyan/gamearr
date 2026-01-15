@@ -38,6 +38,8 @@ const SETTINGS_KEYS = {
   // Cache settings
   TRENDING_GAMES_CACHE_INTERVAL: 'trending_games_cache_interval',
   TOP_TORRENTS_CACHE_INTERVAL: 'top_torrents_cache_interval',
+  // Notification settings
+  DISCORD_WEBHOOK_URL: 'discord_webhook_url',
 };
 
 // Map settings keys to their environment variable fallbacks
@@ -50,6 +52,7 @@ const ENV_VAR_FALLBACKS: Record<string, string> = {
   igdb_client_id: 'IGDB_CLIENT_ID',
   igdb_client_secret: 'IGDB_CLIENT_SECRET',
   library_path: 'LIBRARY_PATH',
+  discord_webhook_url: 'DISCORD_WEBHOOK_URL',
 };
 
 export class SettingsService {
@@ -270,6 +273,22 @@ export class SettingsService {
     logger.info(`Setting top torrents cache interval: ${validMinutes} minutes`);
     await settingsRepository.setJSON(SETTINGS_KEYS.TOP_TORRENTS_CACHE_INTERVAL, validMinutes);
     this.invalidateCache(SETTINGS_KEYS.TOP_TORRENTS_CACHE_INTERVAL);
+  }
+
+  /**
+   * Get Discord webhook URL
+   */
+  async getDiscordWebhookUrl(): Promise<string | null> {
+    return this.getSetting(SETTINGS_KEYS.DISCORD_WEBHOOK_URL);
+  }
+
+  /**
+   * Set Discord webhook URL
+   */
+  async setDiscordWebhookUrl(url: string): Promise<void> {
+    logger.info('Setting Discord webhook URL');
+    await settingsRepository.set(SETTINGS_KEYS.DISCORD_WEBHOOK_URL, url);
+    this.invalidateCache(SETTINGS_KEYS.DISCORD_WEBHOOK_URL);
   }
 
   /**

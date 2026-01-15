@@ -39,6 +39,10 @@ export enum ErrorCode {
   GOG_NOT_CONFIGURED = 3402,
   GOG_TOKEN_EXPIRED = 3403,
 
+  DISCORD_ERROR = 3500,
+  DISCORD_CONNECTION_FAILED = 3501,
+  DISCORD_NOT_CONFIGURED = 3502,
+
   // Database errors (4xxx)
   DATABASE_ERROR = 4000,
   DUPLICATE_ENTRY = 4001,
@@ -176,6 +180,15 @@ export class SteamError extends IntegrationError {
 export class GogError extends IntegrationError {
   constructor(message: string, code: ErrorCode = ErrorCode.GOG_ERROR) {
     super('GOG', message, code);
+  }
+}
+
+/**
+ * Discord integration errors
+ */
+export class DiscordError extends IntegrationError {
+  constructor(message: string, code: ErrorCode = ErrorCode.DISCORD_ERROR) {
+    super('Discord', message, code);
   }
 }
 
