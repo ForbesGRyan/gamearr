@@ -179,6 +179,7 @@ export class IntegrationService {
       try {
         logger.debug(`Looking up Steam ID from IGDB for game ${game.igdbId}`);
         const igdbData = await igdbClient.getGame(game.igdbId);
+        logger.debug(`IGDB data for ${game.title}: steamAppId=${igdbData?.steamAppId}, gogId=${igdbData?.gogId}`);
         if (igdbData?.steamAppId) {
           steamAppId = igdbData.steamAppId;
           logger.info(`Found Steam ID from IGDB: ${steamAppId}`);

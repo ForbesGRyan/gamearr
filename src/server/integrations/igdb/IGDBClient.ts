@@ -477,6 +477,7 @@ export class IGDBClient {
     let epicId: string | undefined;
 
     if (game.websites && game.websites.length > 0) {
+      logger.debug(`IGDB websites for ${game.name}: ${JSON.stringify(game.websites)}`);
       for (const website of game.websites) {
         // Steam: https://store.steampowered.com/app/12345
         if (website.category === IGDB_WEBSITE_CATEGORIES.STEAM) {
