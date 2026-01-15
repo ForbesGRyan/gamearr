@@ -129,6 +129,62 @@ Configure these in the Settings page (http://localhost:3000/settings):
 | **Steam ID** | Your 64-bit Steam ID for library import |
 | **GOG Account** | Login via OAuth in Settings > Metadata |
 
+### Environment Variables
+
+All settings can be configured via the web UI, but environment variables take precedence when set. This is useful for Docker deployments or when you want to keep secrets out of the database.
+
+#### System
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `7878` | HTTP server port |
+| `DATA_PATH` | `./data` | Directory for SQLite database and data files |
+| `LOG_PATH` | `$DATA_PATH/logs` | Directory for log files |
+| `NODE_ENV` | `production` | Set to `development` for debug logging |
+| `DISABLE_SEMANTIC_SEARCH` | - | Set to `true` to disable semantic search feature |
+| `TZ` | - | Timezone (e.g., `America/New_York`) |
+
+#### Service Credentials
+
+These environment variables override database settings when set:
+
+| Variable | Description |
+|----------|-------------|
+| `QBITTORRENT_HOST` | qBittorrent Web UI URL (e.g., `http://localhost:8080`) |
+| `QBITTORRENT_USERNAME` | qBittorrent username |
+| `QBITTORRENT_PASSWORD` | qBittorrent password |
+| `PROWLARR_URL` | Prowlarr URL (e.g., `http://localhost:9696`) |
+| `PROWLARR_API_KEY` | Prowlarr API key |
+| `IGDB_CLIENT_ID` | IGDB/Twitch Client ID |
+| `IGDB_CLIENT_SECRET` | IGDB/Twitch Client Secret |
+| `STEAM_API_KEY` | Steam Web API key |
+| `STEAM_ID` | Your 64-bit Steam ID |
+| `GOG_REFRESH_TOKEN` | GOG OAuth refresh token (set automatically via OAuth flow) |
+| `DISCORD_WEBHOOK_URL` | Discord webhook for notifications |
+
+#### Docker Example
+
+```yaml
+services:
+  gamearr:
+    image: ghcr.io/forbesgryan/gamearr:latest
+    ports:
+      - 7878:7878
+    volumes:
+      - ./config:/config
+      - /path/to/library:/library
+    environment:
+      - TZ=America/New_York
+      - DATA_PATH=/config
+      - PROWLARR_URL=http://prowlarr:9696
+      - PROWLARR_API_KEY=your-api-key
+      - QBITTORRENT_HOST=http://qbittorrent:8080
+      - QBITTORRENT_USERNAME=admin
+      - QBITTORRENT_PASSWORD=adminadmin
+      - IGDB_CLIENT_ID=your-client-id
+      - IGDB_CLIENT_SECRET=your-client-secret
+```
+
 ## Usage
 
 ### Adding Games
