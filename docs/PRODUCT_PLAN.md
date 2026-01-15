@@ -7,49 +7,128 @@
 **Description:** Automated game library management following the *arr ecosystem pattern
 **Stack:** Bun, TypeScript, Hono, Drizzle ORM, SQLite, React + Vite
 **Target Users:** PC gamers who want automated game collection management
+**Current Version:** 0.1.8
 
 ---
 
-## MVP Feature Set (v0.1.0)
+## Implementation Status
 
-### Core Features
+### MVP Complete (v0.1.x)
 
-**1. Game Library Management**
-- Add games via IGDB search
-- Monitor/unmonitor games
-- View library status (wanted/downloading/downloaded)
-- Display game metadata and cover art
-- PC platform only
+All 7 phases of the original MVP plan have been implemented, plus significant additional features.
 
-**2. Metadata Integration**
-- IGDB API integration
-- Auto-fetch: title, year, cover art, description, platforms
-- Cache metadata locally
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Phase 1 | ✅ Complete | Foundation - Project setup, database, basic API |
+| Phase 2 | ✅ Complete | Metadata - IGDB integration, game search |
+| Phase 3 | ✅ Complete | Indexers - Prowlarr integration, release search |
+| Phase 4 | ✅ Complete | Downloads - qBittorrent integration |
+| Phase 5 | ✅ Complete | Files - Library scanning, folder matching |
+| Phase 6 | ✅ Complete | Automation - RSS sync, auto-search |
+| Phase 7 | ✅ Complete | Polish - Settings UI, health checks |
 
-**3. Indexer Integration**
-- Prowlarr API support (leverage existing indexers)
-- Manual search for specific games
-- RSS feed monitoring (15-min intervals)
-- Parse and rank results
+---
 
-**4. Download Management**
-- qBittorrent integration
-- Send torrents to download client
-- Monitor download progress
-- Track completion status
+## Core Features (Implemented)
 
-**5. File Organization**
-- Auto-rename completed downloads
-- Move to library folder
-- Pattern: `{Title} ({Year})/`
-- Basic duplicate detection
+### 1. Game Library Management
+- [x] Add games via IGDB search with semantic matching
+- [x] Monitor/unmonitor games
+- [x] View library status (wanted/downloading/downloaded)
+- [x] Display game metadata and cover art
+- [x] Multi-view support: Poster grid, Table, Health tab
+- [x] Advanced filtering: Status, Store, Platform, Search
+- [x] Bulk operations: Monitor, status change, delete
+- [x] Game events tracking (imports, matches, status changes)
 
-**6. Web Interface**
-- Game grid view with cover art
-- Add game search modal
-- Activity feed (current downloads)
-- Settings page (API keys, paths, clients)
-- Responsive design
+### 2. Metadata Integration
+- [x] IGDB API integration with OAuth token management
+- [x] Auto-fetch: title, year, cover art, description, platforms, genres, rating
+- [x] Cover image caching with automatic cleanup
+- [x] Semantic search with vector embeddings
+- [x] Batch IGDB queries (10 games at a time)
+
+### 3. Indexer Integration
+- [x] Prowlarr API support with category filtering
+- [x] Manual search for specific games
+- [x] RSS feed monitoring (configurable intervals)
+- [x] Quality scoring algorithm (GOG, DRM-Free, Scene, seeders)
+- [x] Auto-grab based on score/seeder thresholds
+- [x] GUID deduplication to prevent duplicate grabs
+
+### 4. Download Management
+- [x] qBittorrent integration
+- [x] Send torrents to download client
+- [x] Monitor download progress (30-second sync)
+- [x] Track completion status
+- [x] Pause/resume/cancel operations
+- [x] Category support for filtering
+- [x] Dry-run mode for testing
+
+### 5. File Organization
+- [x] Library folder scanning
+- [x] Pattern parsing: `{Title} ({Year})/`
+- [x] Auto-match with semantic search
+- [x] Manual folder-to-game matching
+- [x] Duplicate detection
+- [x] Loose file organization
+- [x] Multi-folder per game (base, DLC, updates)
+
+### 6. Web Interface
+- [x] Game grid view with cover art
+- [x] Add game search modal
+- [x] Activity feed (current downloads)
+- [x] Comprehensive settings page
+- [x] Responsive design (mobile/desktop)
+- [x] Setup wizard for first run
+- [x] Toast notification system
+- [x] Accessibility improvements (ARIA, keyboard navigation)
+
+---
+
+## Extended Features (Implemented)
+
+### Multi-Library Support
+- [x] Multiple library paths with independent settings
+- [x] Platform filtering per library (PC, Steam, GOG, etc.)
+- [x] Priority ordering for libraries
+- [x] Download category per library
+
+### Game Store Integration
+- [x] Steam library import with SSE streaming
+- [x] GOG library import with OAuth flow
+- [x] Store-specific game ID tracking
+- [x] Many-to-many game-store relationships
+- [x] Playtime and ownership tracking
+
+### Update Management
+- [x] Automatic update detection for downloaded games
+- [x] Update policy per game (notify/auto-grab/ignore)
+- [x] Update types: version updates, DLC, better releases
+- [x] Scheduled and manual update checks
+
+### Discover Page
+- [x] Trending/popular games from IGDB
+- [x] 8 popularity type filters
+- [x] Torrent search with quality indicators
+- [x] Quick add-to-library workflow
+
+### Notifications
+- [x] Discord webhook integration
+- [x] Download complete notifications with embeds
+- [x] Rate limiting for webhook calls
+
+### Authentication & Security
+- [x] Optional API key authentication
+- [x] CSRF protection via Origin validation
+- [x] Tiered rate limiting by endpoint
+- [x] Path security for file operations
+
+### System Monitoring
+- [x] Comprehensive health checks
+- [x] Log viewer with rotation
+- [x] Service connection testing
+- [x] Cache statistics
 
 ---
 
@@ -67,300 +146,144 @@
   "frontend": "React 18 + TypeScript",
   "bundler": "Vite 5",
   "styling": "TailwindCSS",
-  "components": "shadcn/ui",
-  "jobs": "node-cron",
-  "websocket": "Bun native WebSocket"
+  "jobs": "setInterval + cron patterns",
+  "build": "Single binary compilation"
 }
 ```
 
-### Project Structure
+### API Routes (17 route files)
 
 ```
-gamearr/
-├── src/
-│   ├── server/
-│   │   ├── index.ts                    # Hono app entry
-│   │   ├── routes/
-│   │   │   ├── games.ts                # Game CRUD
-│   │   │   ├── search.ts               # Manual search
-│   │   │   ├── indexers.ts             # Indexer config
-│   │   │   ├── downloads.ts            # Download status
-│   │   │   ├── settings.ts             # App settings
-│   │   │   └── system.ts               # Health/status
-│   │   ├── services/
-│   │   │   ├── GameService.ts
-│   │   │   ├── IndexerService.ts
-│   │   │   ├── DownloadService.ts
-│   │   │   ├── MetadataService.ts      # IGDB client
-│   │   │   ├── FileService.ts
-│   │   │   └── MatchingService.ts      # Release matching
-│   │   ├── repositories/
-│   │   │   ├── GameRepository.ts
-│   │   │   ├── ReleaseRepository.ts
-│   │   │   └── SettingsRepository.ts
-│   │   ├── jobs/
-│   │   │   ├── RssSync.ts
-│   │   │   ├── DownloadMonitor.ts
-│   │   │   └── SearchScheduler.ts
-│   │   ├── integrations/
-│   │   │   ├── igdb/
-│   │   │   │   ├── IGDBClient.ts
-│   │   │   │   └── types.ts
-│   │   │   ├── prowlarr/
-│   │   │   │   ├── ProwlarrClient.ts
-│   │   │   │   └── types.ts
-│   │   │   └── qbittorrent/
-│   │   │       ├── QBittorrentClient.ts
-│   │   │       └── types.ts
-│   │   ├── db/
-│   │   │   ├── index.ts
-│   │   │   ├── schema.ts
-│   │   │   └── migrations/
-│   │   ├── utils/
-│   │   │   ├── logger.ts
-│   │   │   ├── parser.ts               # Release name parsing
-│   │   │   └── matcher.ts              # Game matching
-│   │   └── websocket/
-│   │       └── handlers.ts
-│   ├── web/
-│   │   ├── src/
-│   │   │   ├── components/
-│   │   │   │   ├── GameCard.tsx
-│   │   │   │   ├── GameGrid.tsx
-│   │   │   │   ├── AddGameModal.tsx
-│   │   │   │   ├── ActivityFeed.tsx
-│   │   │   │   └── Settings/
-│   │   │   ├── pages/
-│   │   │   │   ├── Library.tsx
-│   │   │   │   ├── Activity.tsx
-│   │   │   │   └── Settings.tsx
-│   │   │   ├── hooks/
-│   │   │   │   ├── useGames.ts
-│   │   │   │   ├── useWebSocket.ts
-│   │   │   │   └── useSettings.ts
-│   │   │   ├── api/
-│   │   │   │   └── client.ts
-│   │   │   ├── App.tsx
-│   │   │   └── main.tsx
-│   │   ├── index.html
-│   │   └── vite.config.ts
-│   └── shared/
-│       └── types.ts                    # Shared types
-├── tests/
-├── package.json
-├── tsconfig.json
-├── drizzle.config.ts
-└── README.md
+/api/v1/games          # Game CRUD, folders, releases, history, events
+/api/v1/search         # IGDB search, release search, grab
+/api/v1/discover       # Popular games, popularity types
+/api/v1/downloads      # Download management, pause/resume
+/api/v1/library        # Library scanning, matching, organization
+/api/v1/libraries      # Multi-library CRUD
+/api/v1/indexers       # Prowlarr integration, categories
+/api/v1/steam          # Steam import
+/api/v1/gog            # GOG import
+/api/v1/settings       # Configuration management
+/api/v1/system         # Health, logs, setup
+/api/v1/auth           # Authentication management
+/api/v1/updates        # Update checking, grab/dismiss
+/api/v1/images         # Cover image caching
+/api/v1/notifications  # Discord webhook testing
 ```
 
----
+### Background Jobs (7 jobs)
 
-## Development Phases
+1. **DownloadMonitor** - Sync downloads every 30s
+2. **SearchScheduler** - Search wanted games (configurable, default 15min)
+3. **RssSync** - Fetch new releases (configurable, default 15min)
+4. **UpdateCheckJob** - Check for game updates (daily)
+5. **MetadataRefreshJob** - Refresh IGDB metadata
+6. **DiscoverCacheJob** - Maintain trending cache
+7. **LogRotationJob** - Rotate and compress logs
 
-### **Phase 1: Foundation (Week 1)**
+### Services (11 services)
 
-**Goals:** Set up project, database, basic API
+1. **GameService** - Game operations, search, rematch
+2. **DownloadService** - Download orchestration
+3. **IndexerService** - Release search and scoring
+4. **FileService** - Library scanning
+5. **LibraryService** - Multi-library management
+6. **UpdateService** - Update detection
+7. **SettingsService** - Configuration
+8. **ImageCacheService** - Cover caching
+9. **CacheService** - API response caching
+10. **SemanticSearchService** - Vector matching
+11. **EmbeddingService** - Embedding generation
 
-**Tasks:**
-- [ ] Initialize Bun project
-- [ ] Set up TypeScript config
-- [ ] Configure Drizzle ORM + migrations
-- [ ] Create database schema (games, releases, settings)
-- [ ] Set up Hono server
-- [ ] Create basic API routes structure
-- [ ] Set up logging
-- [ ] Initialize React + Vite frontend
+### Integrations (6 external services)
 
-**Deliverable:** Running server with database, empty frontend
-
----
-
-### **Phase 2: Metadata Integration (Week 2)**
-
-**Goals:** IGDB integration, search functionality
-
-**Tasks:**
-- [ ] Build IGDBClient service
-- [ ] Implement game search endpoint
-- [ ] Create GameService with CRUD operations
-- [ ] Build GameRepository
-- [ ] Create "Add Game" UI flow
-- [ ] Display game metadata (cover, title, year)
-- [ ] Build game library grid view
-
-**Deliverable:** Can search IGDB and add games to library
-
----
-
-### **Phase 3: Indexer Integration (Week 3)**
-
-**Goals:** Connect to Prowlarr, search for releases
-
-**Tasks:**
-- [ ] Build ProwlarrClient service
-- [ ] Create IndexerService
-- [ ] Implement manual search endpoint
-- [ ] Build release matching logic
-- [ ] Create ReleaseRepository
-- [ ] Build manual search UI
-- [ ] Display search results with quality info
-
-**Deliverable:** Can manually search for game releases
-
----
-
-### **Phase 4: Download Client (Week 4)**
-
-**Goals:** qBittorrent integration, download management
-
-**Tasks:**
-- [ ] Build QBittorrentClient service
-- [ ] Create DownloadService
-- [ ] Implement "grab release" functionality
-- [ ] Build download monitoring job
-- [ ] Track download progress
-- [ ] Create Activity feed UI
-- [ ] WebSocket for real-time updates
-
-**Deliverable:** Can send torrents and track downloads
-
----
-
-### **Phase 5: File Management (Week 5)**
-
-**Goals:** Organize completed downloads
-
-**Tasks:**
-- [ ] Build FileService
-- [ ] Implement file moving/renaming
-- [ ] Create folder structure logic
-- [ ] Handle completion webhook from qBittorrent
-- [ ] Update game status to "downloaded"
-- [ ] Build library folder scanner
-- [ ] Handle duplicate detection
-
-**Deliverable:** Auto-organizes completed downloads
-
----
-
-### **Phase 6: Automation (Week 6)**
-
-**Goals:** RSS monitoring, automatic searching
-
-**Tasks:**
-- [ ] Build RSS sync job (15-min cron)
-- [ ] Implement automatic game matching
-- [ ] Create quality scoring algorithm
-- [ ] Auto-grab best releases
-- [ ] Build search scheduler for wanted games
-- [ ] Add retry logic for failed downloads
-- [ ] Implement basic error handling
-
-**Deliverable:** Fully automated workflow
-
----
-
-### **Phase 7: Polish & Settings (Week 7)**
-
-**Goals:** UI polish, settings management
-
-**Tasks:**
-- [ ] Build Settings UI (all integrations)
-- [ ] Create settings persistence
-- [ ] Add form validation
-- [ ] Improve error messages
-- [ ] Add loading states
-- [ ] Build system status page
-- [ ] Create health check endpoint
-- [ ] Write basic documentation
-
-**Deliverable:** Production-ready MVP
+1. **IGDBClient** - Game metadata with OAuth
+2. **ProwlarrClient** - Torrent indexing
+3. **QBittorrentClient** - Download management
+4. **SteamClient** - Steam library
+5. **GogClient** - GOG library
+6. **DiscordWebhookClient** - Notifications
 
 ---
 
 ## Database Schema
 
+### Core Tables (13 tables)
+
 ```typescript
-// Core tables
+// Game management
 games {
-  id: number (PK)
-  igdbId: number (unique)
-  title: string
-  year: number
-  platform: string
-  monitored: boolean
-  status: 'wanted' | 'downloading' | 'downloaded'
-  coverUrl: string
-  folderPath: string
-  addedAt: timestamp
+  id, igdbId (unique), title, year, platform, monitored,
+  status ('wanted'|'downloading'|'downloaded'),
+  coverUrl, description, rating, genres, gameModes, themes,
+  developer, publisher, folderPath, libraryId,
+  updatePolicy ('notify'|'auto'|'ignore'),
+  importSource, addedAt, updatedAt
 }
 
 releases {
-  id: number (PK)
-  gameId: number (FK)
-  title: string
-  size: number
-  seeders: number
-  downloadUrl: string
-  indexer: string
-  quality: string
-  grabbedAt: timestamp
-  status: 'pending' | 'downloading' | 'completed' | 'failed'
+  id, gameId (FK), title, size, seeders, downloadUrl,
+  indexer, quality, guid, grabbedAt,
+  status ('pending'|'downloading'|'completed'|'failed')
 }
 
 download_history {
-  id: number (PK)
-  gameId: number (FK)
-  releaseId: number (FK)
-  downloadId: string
-  status: string
-  progress: number
-  completedAt: timestamp
+  id, gameId (FK), releaseId (FK), downloadId, qbittorrentHash,
+  status, progress, startedAt, completedAt
 }
 
+game_folders {
+  id, gameId (FK), path, folderType ('base'|'dlc'|'update'),
+  version, quality, size, isPrimary, addedAt
+}
+
+game_events {
+  id, gameId (FK), eventType, metadata, createdAt
+}
+
+game_updates {
+  id, gameId (FK), releaseId (FK), updateType,
+  currentVersion, newVersion, detectedAt, grabbedAt, dismissedAt
+}
+
+// Library management
+libraries {
+  id, name, path, platform, priority, downloadCategory,
+  isDefault, createdAt, updatedAt
+}
+
+library_files {
+  id, libraryId (FK), path, name, parsedTitle, parsedYear,
+  matchStatus ('unscanned'|'unmatched'|'matched'|'ignored'),
+  gameId (FK), isDirectory, extension, size, modifiedAt, scannedAt
+}
+
+// Store integration
+stores {
+  id, name, slug, iconUrl
+}
+
+game_stores {
+  gameId (FK), storeId (FK), storeGameId, addedAt
+}
+
+// System
 settings {
-  id: number (PK)
-  key: string (unique)
-  value: string (JSON)
+  id, key (unique), value (JSON)
+}
+
+game_embeddings {
+  id, gameId (FK), titleHash, embedding (Float32Array), createdAt
+}
+
+api_cache {
+  id, key (unique), value, expiresAt, createdAt
 }
 ```
 
 ---
 
-## API Endpoints
-
-```
-GET    /api/v1/games                  # List all games
-POST   /api/v1/games                  # Add game
-GET    /api/v1/games/:id              # Get game details
-PUT    /api/v1/games/:id              # Update game
-DELETE /api/v1/games/:id              # Remove game
-
-GET    /api/v1/search/games           # Search IGDB
-POST   /api/v1/search/releases/:id    # Manual release search
-
-GET    /api/v1/downloads              # Current downloads
-DELETE /api/v1/downloads/:id          # Cancel download
-
-GET    /api/v1/indexers               # List indexers
-POST   /api/v1/indexers               # Add indexer
-PUT    /api/v1/indexers/:id           # Update indexer
-DELETE /api/v1/indexers/:id           # Remove indexer
-
-GET    /api/v1/settings               # Get all settings
-PUT    /api/v1/settings               # Update settings
-
-GET    /api/v1/system/status          # Health check
-GET    /api/v1/system/logs            # Recent logs
-
-WS     /ws                            # WebSocket for updates
-```
-
----
-
-## Quality Scoring (MVP)
-
-Simple scoring algorithm:
+## Quality Scoring
 
 ```
 Base Score: 100
@@ -376,85 +299,105 @@ Penalties (-points):
 - Very old (>2 years): -20
 - Suspicious size: -50
 
-Auto-grab if: score >= 100 && seeders >= 5
+Auto-grab criteria (configurable):
+- Minimum score: 100 (default)
+- Minimum seeders: 5 (default)
 ```
 
 ---
 
-## Success Metrics
+## Deployment
 
-**MVP Launch Criteria:**
-- [ ] Can add 10 games via search
-- [ ] Auto-downloads at least 1 game
-- [ ] Successfully organizes files
-- [ ] RSS sync runs without errors
-- [ ] Web UI loads in <2s
-- [ ] Zero crashes in 24hr test
-- [ ] Documentation covers setup
+### Development
+```bash
+bun run dev:all       # Frontend + Backend with HMR
+bun run db:push       # Push schema changes
+bun run db:studio     # Open Drizzle Studio
+```
+
+### Production
+```bash
+bun run build         # Build frontend + compile binary
+./gamearr             # Run on port 7878
+```
+
+### Docker
+```dockerfile
+FROM oven/bun:1
+EXPOSE 7878
+VOLUME /config /downloads /library
+ENV DATA_PATH=/config
+```
 
 ---
 
 ## Post-MVP Roadmap (v0.2.0+)
 
-**Features to add later:**
-- Multiple quality profiles
-- DLC tracking
-- Game updates/patches
-- Import existing library
-- Custom renaming patterns
-- Discord/Telegram notifications
-- Calendar view
-- Multiple platforms (console ROMs)
-- Authentication
-- Multi-user support
-- Backup/restore
-- Statistics dashboard
+### Planned Features
+- [ ] Multiple quality profiles
+- [ ] DLC tracking improvements
+- [ ] Custom renaming patterns
+- [ ] Telegram notifications
+- [ ] Calendar view for releases
+- [ ] Multiple platform support (console ROMs)
+- [ ] Multi-user support with permissions
+- [ ] Backup/restore functionality
+- [ ] Statistics dashboard
+- [ ] Additional download clients (Deluge, Transmission)
+- [ ] Bulk download controls (Pause All, Resume All)
+- [ ] ProtonDB/Wine compatibility integration
+- [ ] Metacritic integration
+
+### Technical Improvements
+- [ ] WebSocket for real-time updates
+- [ ] GraphQL API option
+- [ ] Plugin system for integrations
+- [ ] Improved test coverage
 
 ---
 
-## Deployment Strategy
+## Configuration
 
-**Development:**
-```bash
-bun dev              # Backend
-bun dev:web          # Frontend with HMR
-```
+### Settings Keys
 
-**Production:**
-```bash
-bun run build:web    # Build frontend
-bun build --compile  # Single binary
-./gamearr            # Run
-```
+**Integration:**
+- `igdb_client_id`, `igdb_client_secret`
+- `prowlarr_url`, `prowlarr_api_key`
+- `qbittorrent_host`, `qbittorrent_username`, `qbittorrent_password`
+- `steam_api_key`, `steam_id`
+- `gog_refresh_token`
+- `discord_webhook_url`
 
-**Docker:**
-```dockerfile
-FROM oven/bun:1
-# Copy and run
-EXPOSE 7878
-VOLUME /config /downloads /library
-```
+**Categories:**
+- `prowlarr_categories` (array of IDs)
+- `qbittorrent_category` (string)
 
----
+**Automation:**
+- `rss_sync_interval` (default: 15min)
+- `search_scheduler_interval` (default: 15min)
+- `auto_grab_min_score` (default: 100)
+- `auto_grab_min_seeders` (default: 5)
+- `update_check_enabled` (default: true)
+- `update_check_schedule` (default: daily)
+- `default_update_policy` (default: notify)
 
-## Risk Mitigation
-
-| Risk | Mitigation |
-|------|-----------|
-| IGDB rate limits | Cache aggressively, implement backoff |
-| Bun package incompatibility | Test early, have Node fallback plan |
-| Game matching accuracy | Start conservative, tune based on feedback |
-| Large game files | Stream downloads, don't load into memory |
-| qBittorrent API changes | Version lock, test thoroughly |
+**System:**
+- `dry_run` (testing mode)
+- `trusted_proxies`
 
 ---
 
-## Timeline Summary
+## Success Metrics
 
-**7 weeks to MVP**
-- Weeks 1-2: Foundation + metadata
-- Weeks 3-4: Indexers + downloads
-- Weeks 5-6: Automation + file management
-- Week 7: Polish
+**MVP Launch Criteria:** ✅ All Complete
+- [x] Can add games via search
+- [x] Auto-downloads releases meeting criteria
+- [x] Successfully organizes files
+- [x] RSS sync runs without errors
+- [x] Web UI loads quickly
+- [x] Stable operation over 24hr
+- [x] Setup wizard guides configuration
 
-**Target Launch:** End of Week 7
+---
+
+*Last Updated: January 2026*

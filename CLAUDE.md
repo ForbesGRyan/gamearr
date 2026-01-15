@@ -121,17 +121,19 @@ All API endpoints return consistent format:
 - `src/server/index.ts` - Hono app entry point, route registration, job startup
 - `src/server/db/schema.ts` - All database tables and type exports
 - `src/web/src/App.tsx` - React Router setup, navigation
-- `PRODUCT_PLAN.md` - Complete 7-phase development roadmap
+- `docs/PRODUCT_PLAN.md` - Complete development roadmap and implementation status
 
 ### Phase Status
-Current implementation includes Phases 1-5:
+All 7 MVP phases are complete, plus extended features:
 - ✅ Phase 1: Foundation
 - ✅ Phase 2: IGDB metadata
 - ✅ Phase 3: Prowlarr integration with category filtering
 - ✅ Phase 4: qBittorrent downloads
 - ✅ Phase 5: Library scanning and folder matching
-- ⏳ Phase 6: RSS automation (next)
-- ⏳ Phase 7: Polish & settings
+- ✅ Phase 6: RSS automation (SearchScheduler, RssSync jobs)
+- ✅ Phase 7: Polish & settings (comprehensive Settings UI, health checks)
+
+Extended features beyond MVP: Multi-library support, Steam/GOG import, Discord notifications, update checking, semantic search, game events tracking.
 
 ### Important Conventions
 - All timestamps stored as Unix epoch integers (Drizzle `mode: 'timestamp'`)
