@@ -10,8 +10,8 @@ import { RateLimiter } from '../../utils/http';
 const HLTB_BASE_URL = 'https://howlongtobeat.com';
 const HLTB_REFERER = 'https://howlongtobeat.com/';
 
-// Fallback API endpoint if dynamic discovery fails
-const HLTB_FALLBACK_API = 'api/s';
+// Fallback API endpoint if dynamic discovery fails (with trailing slash)
+const HLTB_FALLBACK_API = 'api/s/';
 
 // Rotate through common browser user agents
 const USER_AGENTS = [
@@ -145,10 +145,10 @@ export class HLTBClient {
         return null;
       }
 
-      const data = await response.json() as { searchApiKey?: string; token?: string };
+      const data = await response.json() as { token?: string };
 
-      // The token might be in different fields depending on API version
-      const token = data.searchApiKey || data.token;
+      // Extract the auth token from the response
+      const token = data.token;
 
       if (token) {
         this.authToken = token;
