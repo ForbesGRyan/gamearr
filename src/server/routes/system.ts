@@ -11,6 +11,8 @@ import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient
 import { settingsService } from '../services/SettingsService';
 import { gameService } from '../services/GameService';
 import { libraryService } from '../services/LibraryService';
+import { applicationUpdateService } from '../services/ApplicationUpdateService';
+import { applicationUpdateCheckJob } from '../jobs/ApplicationUpdateCheckJob';
 import { isPathWithinBase } from '../utils/pathSecurity';
 import { ErrorCode } from '../utils/errors';
 
@@ -601,6 +603,123 @@ system.post('/open-folder', zValidator('json', openFolderSchema), async (c) => {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to open folder',
       code: ErrorCode.UNKNOWN,
+    }, 500);
+  }
+});
+
+// ========================================
+// Application Update Endpoints
+// ========================================
+
+// GET /api/v1/system/update/status - Get application update status
+system.get('/update/status', async (c) => {
+  logger.info('GET /api/v1/system/update/status');
+
+  try {
+    const status = await applicationUpdateService.getUpdateStatus();
+    return c.json({ success: true, data: status });
+  } catch (error) {
+    logger.error('Failed to get update status:', error);
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get update status',
+    }, 500);
+  }
+});
+
+// POST /api/v1/system/update/check - Force check for updates
+system.post('/update/check', async (c) => {
+  logger.info('POST /api/v1/system/update/check');
+
+  try {
+    const result = await applicationUpdateCheckJob.triggerCheck();
+    return c.json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Failed to check for updates:', error);
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to check for updates',
+    }, 500);
+  }
+});
+
+// POST /api/v1/system/update/dismiss - Dismiss update notification for current version
+system.post('/update/dismiss', async (c) => {
+  logger.info('POST /api/v1/system/update/dismiss');
+
+  try {
+    const status = await applicationUpdateService.getCachedStatus();
+    if (status?.latestVersion) {
+      await applicationUpdateService.dismissVersion(status.latestVersion);
+      return c.json({ success: true });
+    }
+    return c.json({
+      success: false,
+      error: 'No update to dismiss',
+    }, 400);
+  } catch (error) {
+    logger.error('Failed to dismiss update:', error);
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to dismiss update',
+    }, 500);
+  }
+});
+
+// GET /api/v1/system/update/settings - Get update check settings
+system.get('/update/settings', async (c) => {
+  logger.info('GET /api/v1/system/update/settings');
+
+  try {
+    const enabled = await applicationUpdateService.isEnabled();
+    const schedule = await applicationUpdateService.getSchedule();
+    const repo = await applicationUpdateService.getGitHubRepo();
+
+    return c.json({
+      success: true,
+      data: { enabled, schedule, repo },
+    });
+  } catch (error) {
+    logger.error('Failed to get update settings:', error);
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get update settings',
+    }, 500);
+  }
+});
+
+// PUT /api/v1/system/update/settings - Update update check settings
+const updateSettingsSchema = z.object({
+  enabled: z.boolean().optional(),
+  schedule: z.enum(['daily', 'weekly', 'monthly']).optional(),
+  repo: z.string().optional(),
+});
+
+system.put('/update/settings', zValidator('json', updateSettingsSchema), async (c) => {
+  logger.info('PUT /api/v1/system/update/settings');
+
+  try {
+    const { enabled, schedule, repo } = c.req.valid('json');
+
+    if (enabled !== undefined) {
+      await applicationUpdateService.setEnabled(enabled);
+    }
+    if (schedule !== undefined) {
+      await applicationUpdateService.setSchedule(schedule);
+    }
+    if (repo !== undefined) {
+      await applicationUpdateService.setGitHubRepo(repo);
+    }
+
+    // Restart the job if settings changed
+    await applicationUpdateCheckJob.restart();
+
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error('Failed to update settings:', error);
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update settings',
     }, 500);
   }
 });

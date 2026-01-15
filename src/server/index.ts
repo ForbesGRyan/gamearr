@@ -49,6 +49,7 @@ import { metadataRefreshJob } from './jobs/MetadataRefreshJob';
 import { updateCheckJob } from './jobs/UpdateCheckJob';
 import { logRotationJob } from './jobs/LogRotationJob';
 import { discoverCacheJob } from './jobs/DiscoverCacheJob';
+import { applicationUpdateCheckJob } from './jobs/ApplicationUpdateCheckJob';
 
 // Import integration clients for configuration
 import { qbittorrentClient } from './integrations/qbittorrent/QBittorrentClient';
@@ -232,6 +233,7 @@ initializeClients().then(async () => {
   updateCheckJob.start();
   logRotationJob.start();
   discoverCacheJob.start();
+  applicationUpdateCheckJob.start();
   logger.info('✅ Background jobs started');
 });
 

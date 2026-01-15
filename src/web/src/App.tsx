@@ -10,6 +10,7 @@ import {
 import { GamepadIcon } from './components/Icons';
 import { NavDropdown } from './components/NavDropdown';
 import { MobileNav } from './components/MobileNav';
+import { UpdateBanner } from './components/UpdateBanner';
 import { api } from './api/client';
 import { ToastProvider } from './contexts/ToastContext';
 import ToastContainer from './components/ToastContainer';
@@ -199,6 +200,9 @@ function MainLayout() {
           </div>
         </div>
       </header>
+
+      {/* Update Banner */}
+      <UpdateBanner />
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6 md:py-8" role="main">

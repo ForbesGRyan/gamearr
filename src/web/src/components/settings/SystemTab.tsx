@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api, type LogFile } from '../../api/client';
+import { api, type LogFile, type AppUpdateStatus, type AppUpdateSettings } from '../../api/client';
 import { useToast } from '../../contexts/ToastContext';
 
 export default function SystemTab() {
@@ -13,6 +13,12 @@ export default function SystemTab() {
   const [logTotalLines, setLogTotalLines] = useState<number>(0);
   const [isLoadingLog, setIsLoadingLog] = useState(false);
 
+  // Application update state
+  const [updateStatus, setUpdateStatus] = useState<AppUpdateStatus | null>(null);
+  const [updateSettings, setUpdateSettings] = useState<AppUpdateSettings | null>(null);
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+  const [isSavingUpdateSettings, setIsSavingUpdateSettings] = useState(false);
+
   useEffect(() => {
     loadSystemInfo();
   }, []);
@@ -20,9 +26,11 @@ export default function SystemTab() {
   const loadSystemInfo = async () => {
     setIsLoading(true);
     try {
-      const [statusRes, logsRes] = await Promise.all([
+      const [statusRes, logsRes, updateStatusRes, updateSettingsRes] = await Promise.all([
         api.getSystemStatus(),
         api.getLogFiles(),
+        api.getAppUpdateStatus(),
+        api.getAppUpdateSettings(),
       ]);
 
       if (statusRes.success && statusRes.data) {
@@ -33,10 +41,62 @@ export default function SystemTab() {
       if (logsRes.success && logsRes.data) {
         setLogFiles(logsRes.data.files);
       }
+
+      if (updateStatusRes.success && updateStatusRes.data) {
+        setUpdateStatus(updateStatusRes.data);
+      }
+
+      if (updateSettingsRes.success && updateSettingsRes.data) {
+        setUpdateSettings(updateSettingsRes.data);
+      }
     } catch (err) {
       console.error('Failed to load system info:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCheckForUpdates = async () => {
+    setIsCheckingUpdates(true);
+    try {
+      const res = await api.checkForAppUpdates();
+      if (res.success && res.data) {
+        // Refresh the full update status
+        const statusRes = await api.getAppUpdateStatus();
+        if (statusRes.success && statusRes.data) {
+          setUpdateStatus(statusRes.data);
+        }
+        if (res.data.updateAvailable) {
+          addToast(`New version available: v${res.data.latestVersion}`, 'info');
+        } else {
+          addToast('Gamearr is up to date', 'success');
+        }
+      } else {
+        addToast(res.error || 'Failed to check for updates', 'error');
+      }
+    } catch (err) {
+      addToast('Failed to check for updates', 'error');
+    } finally {
+      setIsCheckingUpdates(false);
+    }
+  };
+
+  const handleUpdateSettingChange = async (key: keyof AppUpdateSettings, value: boolean | string) => {
+    if (!updateSettings) return;
+
+    setIsSavingUpdateSettings(true);
+    try {
+      const res = await api.updateAppUpdateSettings({ [key]: value });
+      if (res.success) {
+        setUpdateSettings({ ...updateSettings, [key]: value });
+        addToast('Update settings saved', 'success');
+      } else {
+        addToast(res.error || 'Failed to save settings', 'error');
+      }
+    } catch (err) {
+      addToast('Failed to save settings', 'error');
+    } finally {
+      setIsSavingUpdateSettings(false);
     }
   };
 
@@ -113,6 +173,108 @@ export default function SystemTab() {
             <p className="text-xl font-mono font-semibold text-white">{formatUptime(uptime)}</p>
           </div>
         </div>
+      </div>
+
+      {/* Application Updates */}
+      <div className="bg-gray-800 rounded-lg p-4 md:p-6">
+        <h3 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 flex items-center gap-2">
+          <svg className="w-5 h-5 md:w-6 md:h-6 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Application Updates
+        </h3>
+
+        {/* Update Status */}
+        {updateStatus && (
+          <div className="bg-gray-700 rounded-lg p-4 mb-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-gray-400">Current Version:</span>
+                  <span className="font-mono font-semibold text-white">v{updateStatus.currentVersion}</span>
+                </div>
+                {updateStatus.latestVersion && (
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-gray-400">Latest Version:</span>
+                    <span className="font-mono font-semibold text-white">v{updateStatus.latestVersion}</span>
+                    {updateStatus.updateAvailable && (
+                      <span className="px-2 py-0.5 text-xs font-medium bg-blue-600 text-white rounded-full">
+                        Update Available
+                      </span>
+                    )}
+                  </div>
+                )}
+                {updateStatus.lastChecked && (
+                  <div className="text-sm text-gray-400">
+                    Last checked: {new Date(updateStatus.lastChecked).toLocaleString()}
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                {updateStatus.updateAvailable && updateStatus.releaseUrl && (
+                  <a
+                    href={updateStatus.releaseUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded transition-colors text-sm font-medium"
+                  >
+                    View Release
+                  </a>
+                )}
+                <button
+                  onClick={handleCheckForUpdates}
+                  disabled={isCheckingUpdates}
+                  className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded transition-colors text-sm font-medium disabled:opacity-50"
+                >
+                  {isCheckingUpdates ? 'Checking...' : 'Check Now'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Update Settings */}
+        {updateSettings && (
+          <div className="space-y-4">
+            {/* Enable/Disable Toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Automatic Update Checking</p>
+                <p className="text-sm text-gray-400">Periodically check for new Gamearr versions</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={updateSettings.enabled}
+                  onChange={(e) => handleUpdateSettingChange('enabled', e.target.checked)}
+                  disabled={isSavingUpdateSettings}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+
+            {/* Schedule Dropdown */}
+            {updateSettings.enabled && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Check Frequency</p>
+                  <p className="text-sm text-gray-400">How often to check for updates</p>
+                </div>
+                <select
+                  value={updateSettings.schedule}
+                  onChange={(e) => handleUpdateSettingChange('schedule', e.target.value as 'daily' | 'weekly' | 'monthly')}
+                  disabled={isSavingUpdateSettings}
+                  className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Log Files */}

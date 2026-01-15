@@ -443,6 +443,23 @@ export interface LogFileContent {
   totalLines: number;
 }
 
+export interface AppUpdateStatus {
+  currentVersion: string;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  releaseUrl: string | null;
+  releaseNotes: string | null;
+  publishedAt: string | null;
+  lastChecked: string | null;
+  isDismissed: boolean;
+}
+
+export interface AppUpdateSettings {
+  enabled: boolean;
+  schedule: 'daily' | 'weekly' | 'monthly';
+  repo: string;
+}
+
 export interface Library {
   id: number;
   name: string;
@@ -1196,6 +1213,34 @@ class ApiClient {
     a.click();
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
+  }
+
+  // Application Updates
+  async getAppUpdateStatus(): Promise<ApiResponse<AppUpdateStatus>> {
+    return this.request<AppUpdateStatus>('/system/update/status');
+  }
+
+  async checkForAppUpdates(): Promise<ApiResponse<{ currentVersion: string; latestVersion: string | null; updateAvailable: boolean }>> {
+    return this.request<{ currentVersion: string; latestVersion: string | null; updateAvailable: boolean }>('/system/update/check', {
+      method: 'POST',
+    });
+  }
+
+  async dismissAppUpdate(): Promise<ApiResponse<void>> {
+    return this.request<void>('/system/update/dismiss', {
+      method: 'POST',
+    });
+  }
+
+  async getAppUpdateSettings(): Promise<ApiResponse<AppUpdateSettings>> {
+    return this.request<AppUpdateSettings>('/system/update/settings');
+  }
+
+  async updateAppUpdateSettings(settings: Partial<AppUpdateSettings>): Promise<ApiResponse<void>> {
+    return this.request<void>('/system/update/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
   }
 }
 
