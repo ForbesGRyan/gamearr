@@ -1,18 +1,17 @@
 /**
  * HowLongToBeat API Client
- * Direct implementation with browser-like headers to avoid 403 errors
+ * Implementation based on ScrappyCocco/HowLongToBeat-PythonAPI
+ * Uses auth token and dynamic endpoint discovery
  */
 
 import { logger } from '../../utils/logger';
 import { RateLimiter } from '../../utils/http';
 
-const HLTB_API_URL = 'https://howlongtobeat.com/api/search';
+const HLTB_BASE_URL = 'https://howlongtobeat.com';
 const HLTB_REFERER = 'https://howlongtobeat.com/';
-const HLTB_ORIGIN = 'https://howlongtobeat.com';
 
-// HLTB requires a dynamic key in the URL - this is extracted from their frontend JS
-// The key changes periodically, but this approach mimics how the site actually works
-const HLTB_API_KEY = 'users';
+// Fallback API endpoint if dynamic discovery fails
+const HLTB_FALLBACK_API = 'api/s';
 
 // Rotate through common browser user agents
 const USER_AGENTS = [
@@ -85,10 +84,151 @@ export class HLTBClient {
   private readonly rateLimiter = new RateLimiter({ maxRequests: 1, windowMs: 3000 });
   private userAgentIndex = 0;
 
+  // Cached auth token and API endpoint
+  private authToken: string | null = null;
+  private authTokenExpiry: number = 0;
+  private apiEndpoint: string | null = null;
+  private apiEndpointExpiry: number = 0;
+
+  // Cache duration (5 minutes for auth token, 1 hour for API endpoint)
+  private static readonly AUTH_TOKEN_TTL = 5 * 60 * 1000;
+  private static readonly API_ENDPOINT_TTL = 60 * 60 * 1000;
+
   private getRandomUserAgent(): string {
     const ua = USER_AGENTS[this.userAgentIndex];
     this.userAgentIndex = (this.userAgentIndex + 1) % USER_AGENTS.length;
     return ua;
+  }
+
+  /**
+   * Get headers for requests
+   */
+  private getHeaders(includeAuthToken: boolean = false): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': '*/*',
+      'User-Agent': this.getRandomUserAgent(),
+      'Referer': HLTB_REFERER,
+      'Origin': HLTB_BASE_URL,
+    };
+
+    if (includeAuthToken && this.authToken) {
+      headers['x-auth-token'] = this.authToken;
+    }
+
+    return headers;
+  }
+
+  /**
+   * Fetch auth token from HLTB
+   * The token is fetched from /api/search/init endpoint
+   */
+  private async fetchAuthToken(): Promise<string | null> {
+    // Return cached token if still valid
+    if (this.authToken && Date.now() < this.authTokenExpiry) {
+      return this.authToken;
+    }
+
+    try {
+      const timestamp = Date.now();
+      const url = `${HLTB_BASE_URL}/api/search/init?t=${timestamp}`;
+
+      logger.debug('Fetching HLTB auth token...');
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        logger.debug(`Failed to fetch auth token: ${response.status}`);
+        return null;
+      }
+
+      const data = await response.json() as { searchApiKey?: string; token?: string };
+
+      // The token might be in different fields depending on API version
+      const token = data.searchApiKey || data.token;
+
+      if (token) {
+        this.authToken = token;
+        this.authTokenExpiry = Date.now() + HLTBClient.AUTH_TOKEN_TTL;
+        logger.debug('HLTB auth token obtained successfully');
+        return token;
+      }
+
+      logger.debug('No auth token found in response');
+      return null;
+    } catch (error) {
+      logger.debug(`Error fetching auth token: ${error}`);
+      return null;
+    }
+  }
+
+  /**
+   * Discover the API endpoint from the HLTB homepage
+   * The endpoint is extracted from JavaScript on the page
+   */
+  private async discoverApiEndpoint(): Promise<string> {
+    // Return cached endpoint if still valid
+    if (this.apiEndpoint && Date.now() < this.apiEndpointExpiry) {
+      return this.apiEndpoint;
+    }
+
+    try {
+      logger.debug('Discovering HLTB API endpoint...');
+
+      const response = await fetch(HLTB_BASE_URL, {
+        method: 'GET',
+        headers: {
+          'User-Agent': this.getRandomUserAgent(),
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      });
+
+      if (!response.ok) {
+        logger.debug(`Failed to fetch HLTB homepage: ${response.status}`);
+        return HLTB_FALLBACK_API;
+      }
+
+      const html = await response.text();
+
+      // Look for the API endpoint in the JavaScript
+      // Pattern matches: fetch("/api/...", { ... method: "POST" ... })
+      const pattern = /fetch\s*\(\s*["']\/api\/([a-zA-Z0-9_/]+)["'][^)]*method:\s*["']POST["']/gi;
+      const matches = [...html.matchAll(pattern)];
+
+      if (matches.length > 0) {
+        // Use the first POST endpoint found (usually the search endpoint)
+        const endpoint = `api/${matches[0][1]}`;
+        this.apiEndpoint = endpoint;
+        this.apiEndpointExpiry = Date.now() + HLTBClient.API_ENDPOINT_TTL;
+        logger.debug(`Discovered HLTB API endpoint: ${endpoint}`);
+        return endpoint;
+      }
+
+      // Try alternative pattern for newer HLTB versions
+      const altPattern = /["']\/api\/([a-zA-Z0-9_/]+)["']/gi;
+      const altMatches = [...html.matchAll(altPattern)];
+
+      for (const match of altMatches) {
+        const endpoint = match[1];
+        // Look for search-related endpoints
+        if (endpoint.includes('search') || endpoint.includes('find')) {
+          const fullEndpoint = `api/${endpoint}`;
+          this.apiEndpoint = fullEndpoint;
+          this.apiEndpointExpiry = Date.now() + HLTBClient.API_ENDPOINT_TTL;
+          logger.debug(`Discovered HLTB API endpoint (alt): ${fullEndpoint}`);
+          return fullEndpoint;
+        }
+      }
+
+      logger.debug('Could not discover API endpoint, using fallback');
+      return HLTB_FALLBACK_API;
+    } catch (error) {
+      logger.debug(`Error discovering API endpoint: ${error}`);
+      return HLTB_FALLBACK_API;
+    }
   }
 
   /**
@@ -149,6 +289,12 @@ export class HLTBClient {
     try {
       await this.rateLimiter.acquire();
 
+      // Get auth token and API endpoint
+      const [authToken, apiEndpoint] = await Promise.all([
+        this.fetchAuthToken(),
+        this.discoverApiEndpoint(),
+      ]);
+
       const searchTerms = title.split(' ').filter(t => t.length > 0);
 
       const payload = {
@@ -173,34 +319,24 @@ export class HLTBClient {
           sort: 0,
           randomizer: 0,
         },
+        useCache: true,
       };
 
-      const userAgent = this.getRandomUserAgent();
+      const url = `${HLTB_BASE_URL}/${apiEndpoint}`;
+      logger.debug(`HLTB search URL: ${url}`);
 
-      // Use headers that match what the HLTB website actually sends
-      const response = await fetch(`${HLTB_API_URL}/${HLTB_API_KEY}`, {
+      const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': userAgent,
-          'Origin': HLTB_ORIGIN,
-          'Referer': HLTB_REFERER,
-          'Accept': '*/*',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'sec-ch-ua': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
-          'sec-ch-ua-mobile': '?0',
-          'sec-ch-ua-platform': '"Windows"',
-          'sec-fetch-dest': 'empty',
-          'sec-fetch-mode': 'cors',
-          'sec-fetch-site': 'same-origin',
-        },
+        headers: this.getHeaders(!!authToken),
         body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         if (response.status === 403) {
-          // HLTB uses aggressive Cloudflare bot protection that blocks API requests
-          logger.debug(`HLTB returned 403 - Cloudflare bot protection active`);
+          // Clear cached values and retry once
+          this.authToken = null;
+          this.apiEndpoint = null;
+          logger.debug(`HLTB returned 403, clearing cache`);
         } else {
           logger.warn(`HLTB API returned ${response.status}: ${response.statusText}`);
         }
