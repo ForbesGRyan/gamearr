@@ -13,7 +13,7 @@ export const APP_UPDATE_SETTINGS = {
 } as const;
 
 // Default GitHub repository (owner/repo format)
-const DEFAULT_GITHUB_REPO = 'Producdevity/gamearr';
+const DEFAULT_GITHUB_REPO = 'ForbesGRyan/gamearr';
 
 export interface UpdateStatus {
   currentVersion: string;
