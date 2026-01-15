@@ -8,14 +8,17 @@ import { RateLimiter } from '../../utils/http';
 
 const HLTB_API_URL = 'https://howlongtobeat.com/api/search';
 const HLTB_REFERER = 'https://howlongtobeat.com/';
+const HLTB_ORIGIN = 'https://howlongtobeat.com';
+
+// HLTB requires a dynamic key in the URL - this is extracted from their frontend JS
+// The key changes periodically, but this approach mimics how the site actually works
+const HLTB_API_KEY = 'users';
 
 // Rotate through common browser user agents
 const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
 ];
 
 interface HLTBSearchResult {
@@ -172,22 +175,35 @@ export class HLTBClient {
         },
       };
 
-      const response = await fetch(HLTB_API_URL, {
+      const userAgent = this.getRandomUserAgent();
+
+      // Use headers that match what the HLTB website actually sends
+      const response = await fetch(`${HLTB_API_URL}/${HLTB_API_KEY}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': this.getRandomUserAgent(),
-          'Origin': HLTB_REFERER,
+          'User-Agent': userAgent,
+          'Origin': HLTB_ORIGIN,
           'Referer': HLTB_REFERER,
           'Accept': '*/*',
           'Accept-Language': 'en-US,en;q=0.9',
-          'Accept-Encoding': 'gzip, deflate, br',
+          'sec-ch-ua': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"Windows"',
+          'sec-fetch-dest': 'empty',
+          'sec-fetch-mode': 'cors',
+          'sec-fetch-site': 'same-origin',
         },
         body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
-        logger.warn(`HLTB API returned ${response.status}: ${response.statusText}`);
+        if (response.status === 403) {
+          // HLTB uses aggressive Cloudflare bot protection that blocks API requests
+          logger.debug(`HLTB returned 403 - Cloudflare bot protection active`);
+        } else {
+          logger.warn(`HLTB API returned ${response.status}: ${response.statusText}`);
+        }
         return [];
       }
 

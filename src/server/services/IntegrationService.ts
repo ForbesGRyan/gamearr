@@ -7,6 +7,7 @@ import { gameRepository } from '../repositories/GameRepository';
 import { gameStoreRepository } from '../repositories/GameStoreRepository';
 import { hltbClient, HLTBGameData, HLTBClient } from '../integrations/hltb/HLTBClient';
 import { protonDBClient, ProtonDBGameData, ProtonDBClient, ProtonDBTier, TIER_CONFIG } from '../integrations/protondb/ProtonDBClient';
+import { igdbClient } from '../integrations/igdb/IGDBClient';
 import type { Game } from '../db/schema';
 import { logger } from '../utils/logger';
 import { NotFoundError } from '../utils/errors';
@@ -145,7 +146,7 @@ export class IntegrationService {
 
   /**
    * Sync ProtonDB data for a game
-   * Requires Steam app ID (from gameStores)
+   * Requires Steam app ID - tries gameStores first, then falls back to IGDB lookup
    */
   async syncProtonDB(gameId: number): Promise<ProtonDBDisplayData> {
     const game = await gameRepository.findById(gameId);
@@ -155,24 +156,55 @@ export class IntegrationService {
 
     logger.info(`Syncing ProtonDB data for: ${game.title}`);
 
-    // Get Steam app ID from game stores
-    const stores = await gameStoreRepository.getStoreInfoForGame(gameId);
-    const steamStore = stores.find(s => s.slug === 'steam');
-
     const updates: Partial<Game> = {
       protonDbLastSync: new Date(),
     };
 
-    if (!steamStore?.storeGameId) {
-      logger.info(`No Steam ID found for ${game.title}, skipping ProtonDB sync`);
-      // Still update lastSync to avoid repeated attempts
-      const updatedGame = await gameRepository.update(gameId, updates);
-      return this.getProtonDBDisplayData(updatedGame || game);
+    // Try to get Steam app ID from multiple sources
+    let steamAppId: number | undefined;
+
+    // 1. Try game stores first (from Steam import)
+    const stores = await gameStoreRepository.getStoreInfoForGame(gameId);
+    const steamStore = stores.find(s => s.slug === 'steam');
+    if (steamStore?.storeGameId) {
+      const parsed = parseInt(steamStore.storeGameId);
+      if (!isNaN(parsed)) {
+        steamAppId = parsed;
+        logger.debug(`Found Steam ID from stores: ${steamAppId}`);
+      }
     }
 
-    const steamAppId = parseInt(steamStore.storeGameId);
-    if (isNaN(steamAppId)) {
-      logger.warn(`Invalid Steam app ID for ${game.title}: ${steamStore.storeGameId}`);
+    // 2. If not found, try IGDB lookup using the game's IGDB ID
+    if (!steamAppId && game.igdbId) {
+      try {
+        logger.debug(`Looking up Steam ID from IGDB for game ${game.igdbId}`);
+        const igdbData = await igdbClient.getGame(game.igdbId);
+        if (igdbData?.steamAppId) {
+          steamAppId = igdbData.steamAppId;
+          logger.info(`Found Steam ID from IGDB: ${steamAppId}`);
+
+          // Store it in gameStores for future use
+          const steamStoreEntry = await gameStoreRepository.getStoreBySlug('steam');
+          if (steamStoreEntry) {
+            try {
+              await gameStoreRepository.addGameToStore(
+                gameId,
+                steamStoreEntry.id,
+                String(steamAppId)
+              );
+              logger.debug(`Saved Steam store association for ${game.title}`);
+            } catch {
+              // May already exist, that's ok
+            }
+          }
+        }
+      } catch (err) {
+        logger.debug(`IGDB lookup failed for Steam ID: ${err}`);
+      }
+    }
+
+    if (!steamAppId) {
+      logger.info(`No Steam ID found for ${game.title}, skipping ProtonDB sync`);
       const updatedGame = await gameRepository.update(gameId, updates);
       return this.getProtonDBDisplayData(updatedGame || game);
     }
@@ -232,7 +264,7 @@ export class IntegrationService {
 
   /**
    * Batch sync ProtonDB data for multiple games
-   * Only syncs games that have Steam app IDs
+   * Will try to get Steam app IDs from stores or IGDB
    */
   async batchSyncProtonDB(gameIds: number[]): Promise<{ synced: number; skipped: number; failed: number }> {
     let synced = 0;
@@ -247,14 +279,7 @@ export class IntegrationService {
           continue;
         }
 
-        const stores = await gameStoreRepository.getStoreInfoForGame(gameId);
-        const steamStore = stores.find(s => s.slug === 'steam');
-
-        if (!steamStore?.storeGameId) {
-          skipped++;
-          continue;
-        }
-
+        // syncProtonDB now handles IGDB lookup internally
         await this.syncProtonDB(gameId);
         synced++;
       } catch (error) {

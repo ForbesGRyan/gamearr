@@ -8,6 +8,7 @@ import type {
   PopularGame,
   MultiplayerInfo,
 } from './types';
+import { IGDB_WEBSITE_CATEGORIES } from './types';
 import { logger } from '../../utils/logger';
 import { IGDBError, ErrorCode } from '../../utils/errors';
 import { fetchWithRetry, RateLimiter } from '../../utils/http';
@@ -266,7 +267,7 @@ export class IGDBClient {
                  genres.name, total_rating, game_modes.name,
                  involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
                  similar_games.name, similar_games.cover.image_id, game_type,
-                 multiplayer_modes.*, themes.name;
+                 multiplayer_modes.*, themes.name, websites.category, websites.url;
           where name ~ *"${escapedName}"* & game_type = 0;
           limit ${limit};
         };`;
@@ -324,7 +325,7 @@ export class IGDBClient {
              genres.name, total_rating, game_modes.name,
              involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
              similar_games.name, similar_games.cover.image_id, game_type,
-             multiplayer_modes.*, themes.name;
+             multiplayer_modes.*, themes.name, websites.category, websites.url;
       where game_type = 0;
       limit ${limit};
     `;
@@ -348,7 +349,7 @@ export class IGDBClient {
              genres.name, total_rating, game_modes.name,
              involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
              similar_games.name, similar_games.cover.image_id,
-             multiplayer_modes.*, themes.name;
+             multiplayer_modes.*, themes.name, websites.category, websites.url;
       where id = ${igdbId};
     `;
 
@@ -470,6 +471,37 @@ export class IGDBClient {
       }
     }
 
+    // Extract external store IDs from websites
+    let steamAppId: number | undefined;
+    let gogId: string | undefined;
+    let epicId: string | undefined;
+
+    if (game.websites && game.websites.length > 0) {
+      for (const website of game.websites) {
+        // Steam: https://store.steampowered.com/app/12345
+        if (website.category === IGDB_WEBSITE_CATEGORIES.STEAM) {
+          const match = website.url.match(/store\.steampowered\.com\/app\/(\d+)/);
+          if (match) {
+            steamAppId = parseInt(match[1], 10);
+          }
+        }
+        // GOG: https://www.gog.com/game/game_name or https://www.gog.com/en/game/game_name
+        if (website.category === IGDB_WEBSITE_CATEGORIES.GOG) {
+          const match = website.url.match(/gog\.com(?:\/[a-z]{2})?\/game\/([^/?]+)/);
+          if (match) {
+            gogId = match[1];
+          }
+        }
+        // Epic: https://store.epicgames.com/en-US/p/game-name or /product/
+        if (website.category === IGDB_WEBSITE_CATEGORIES.EPIC) {
+          const match = website.url.match(/epicgames\.com(?:\/[a-z-]+)?\/(?:p|product)\/([^/?]+)/);
+          if (match) {
+            epicId = match[1];
+          }
+        }
+      }
+    }
+
     return {
       igdbId: game.id,
       title: game.name,
@@ -485,6 +517,9 @@ export class IGDBClient {
       gameModes,
       similarGames,
       multiplayer,
+      steamAppId,
+      gogId,
+      epicId,
     };
   }
 
@@ -527,7 +562,7 @@ export class IGDBClient {
              genres.name, total_rating, game_modes.name,
              involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
              similar_games.name, similar_games.cover.image_id,
-             multiplayer_modes.*, themes.name;
+             multiplayer_modes.*, themes.name, websites.category, websites.url;
       where id = (${gameIds.join(',')});
       limit ${limit};
     `;

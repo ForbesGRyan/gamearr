@@ -1,5 +1,32 @@
 // IGDB API response types
 
+// IGDB website category types
+export const IGDB_WEBSITE_CATEGORIES = {
+  OFFICIAL: 1,
+  WIKIA: 2,
+  WIKIPEDIA: 3,
+  FACEBOOK: 4,
+  TWITTER: 5,
+  TWITCH: 6,
+  INSTAGRAM: 8,
+  YOUTUBE: 9,
+  IPHONE: 10,
+  IPAD: 11,
+  ANDROID: 12,
+  STEAM: 13,
+  REDDIT: 14,
+  ITCH: 15,
+  EPIC: 16,
+  GOG: 17,
+  DISCORD: 18,
+} as const;
+
+export interface IGDBWebsite {
+  id: number;
+  category: number;
+  url: string;
+}
+
 export interface IGDBGame {
   id: number;
   name: string;
@@ -49,6 +76,7 @@ export interface IGDBGame {
     id: number;
     name: string;
   }>;
+  websites?: IGDBWebsite[];
 }
 
 export interface IGDBAuthResponse {
@@ -83,6 +111,10 @@ export interface GameSearchResult {
   }>;
   multiplayer?: MultiplayerInfo;
   themes?: string[];
+  // External store IDs (extracted from IGDB websites)
+  steamAppId?: number;
+  gogId?: string;
+  epicId?: string;
 }
 
 // Multiplayer modes
