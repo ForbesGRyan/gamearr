@@ -471,7 +471,8 @@ export class IGDBClient {
       }
     }
 
-    // Extract external store IDs from websites
+    // Extract external store IDs from websites by parsing URLs
+    // Note: IGDB website objects may not always include category, so we parse URLs directly
     let steamAppId: number | undefined;
     let gogId: string | undefined;
     let epicId: string | undefined;
@@ -479,25 +480,32 @@ export class IGDBClient {
     if (game.websites && game.websites.length > 0) {
       logger.debug(`IGDB websites for ${game.name}: ${JSON.stringify(game.websites)}`);
       for (const website of game.websites) {
+        const url = website.url;
+
         // Steam: https://store.steampowered.com/app/12345
-        if (website.category === IGDB_WEBSITE_CATEGORIES.STEAM) {
-          const match = website.url.match(/store\.steampowered\.com\/app\/(\d+)/);
+        if (!steamAppId && url.includes('store.steampowered.com')) {
+          const match = url.match(/store\.steampowered\.com\/app\/(\d+)/);
           if (match) {
             steamAppId = parseInt(match[1], 10);
+            logger.debug(`Extracted Steam app ID: ${steamAppId}`);
           }
         }
+
         // GOG: https://www.gog.com/game/game_name or https://www.gog.com/en/game/game_name
-        if (website.category === IGDB_WEBSITE_CATEGORIES.GOG) {
-          const match = website.url.match(/gog\.com(?:\/[a-z]{2})?\/game\/([^/?]+)/);
+        if (!gogId && url.includes('gog.com')) {
+          const match = url.match(/gog\.com(?:\/[a-z]{2})?\/game\/([^/?]+)/);
           if (match) {
             gogId = match[1];
+            logger.debug(`Extracted GOG ID: ${gogId}`);
           }
         }
+
         // Epic: https://store.epicgames.com/en-US/p/game-name or /product/
-        if (website.category === IGDB_WEBSITE_CATEGORIES.EPIC) {
-          const match = website.url.match(/epicgames\.com(?:\/[a-z-]+)?\/(?:p|product)\/([^/?]+)/);
+        if (!epicId && url.includes('epicgames.com')) {
+          const match = url.match(/epicgames\.com(?:\/[a-z-]+)?\/(?:p|product)\/([^/?]+)/);
           if (match) {
             epicId = match[1];
+            logger.debug(`Extracted Epic ID: ${epicId}`);
           }
         }
       }
