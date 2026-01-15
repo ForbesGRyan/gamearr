@@ -642,6 +642,18 @@ class ApiClient {
     });
   }
 
+  async pauseAllDownloads(): Promise<ApiResponse<void>> {
+    return this.request<void>('/downloads/pause-all', {
+      method: 'POST',
+    });
+  }
+
+  async resumeAllDownloads(): Promise<ApiResponse<void>> {
+    return this.request<void>('/downloads/resume-all', {
+      method: 'POST',
+    });
+  }
+
   // Grab release
   async grabRelease(gameId: number, release: ReleaseData): Promise<ApiResponse<{ hash: string }>> {
     return this.request<{ hash: string }>('/search/grab', {

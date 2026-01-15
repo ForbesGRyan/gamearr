@@ -19,6 +19,8 @@ import {
   validSortDirections,
   filterDownloads,
   sortDownloads,
+  isPaused,
+  isActiveDownload,
 } from '../components/activity';
 
 function Activity() {
@@ -114,6 +116,15 @@ function Activity() {
     return sortDownloads(filtered, sortField, sortDirection);
   }, [downloads, searchQuery, statusFilter, sortField, sortDirection]);
 
+  // Check for active and paused downloads
+  const hasActiveDownloads = useMemo(() => {
+    return downloads.some((d) => isActiveDownload(d.state));
+  }, [downloads]);
+
+  const hasPausedDownloads = useMemo(() => {
+    return downloads.some((d) => isPaused(d.state));
+  }, [downloads]);
+
   // Action handlers
   const handlePause = async (hash: string) => {
     try {
@@ -130,6 +141,24 @@ function Activity() {
       loadDownloads();
     } catch (err) {
       setActionError('Failed to resume download');
+    }
+  };
+
+  const handlePauseAll = async () => {
+    try {
+      await api.pauseAllDownloads();
+      loadDownloads();
+    } catch (err) {
+      setActionError('Failed to pause all downloads');
+    }
+  };
+
+  const handleResumeAll = async () => {
+    try {
+      await api.resumeAllDownloads();
+      loadDownloads();
+    } catch (err) {
+      setActionError('Failed to resume all downloads');
     }
   };
 
@@ -165,7 +194,11 @@ function Activity() {
       <ActivityHeader
         totalDownloads={downloads.length}
         filteredCount={filteredDownloads.length}
+        hasActiveDownloads={hasActiveDownloads}
+        hasPausedDownloads={hasPausedDownloads}
         onRefresh={() => loadDownloads(true)}
+        onPauseAll={handlePauseAll}
+        onResumeAll={handleResumeAll}
       />
 
       <ActivityFilters

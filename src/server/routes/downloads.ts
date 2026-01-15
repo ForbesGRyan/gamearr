@@ -21,6 +21,33 @@ downloads.get('/', async (c) => {
   }
 });
 
+// POST /api/v1/downloads/pause-all - Pause all downloads
+// NOTE: Must be defined BEFORE /:hash route to avoid being treated as a hash
+downloads.post('/pause-all', async (c) => {
+  logger.info('POST /api/v1/downloads/pause-all');
+
+  try {
+    await downloadService.pauseAllDownloads();
+    return c.json({ success: true, message: 'All downloads paused successfully' });
+  } catch (error) {
+    logger.error('Failed to pause all downloads:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+// POST /api/v1/downloads/resume-all - Resume all downloads
+downloads.post('/resume-all', async (c) => {
+  logger.info('POST /api/v1/downloads/resume-all');
+
+  try {
+    await downloadService.resumeAllDownloads();
+    return c.json({ success: true, message: 'All downloads resumed successfully' });
+  } catch (error) {
+    logger.error('Failed to resume all downloads:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
 // GET /api/v1/downloads/test - Test qBittorrent connection
 // NOTE: Must be defined BEFORE /:hash route to avoid "test" being treated as a hash
 downloads.get('/test', async (c) => {

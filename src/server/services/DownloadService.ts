@@ -608,6 +608,34 @@ export class DownloadService {
   }
 
   /**
+   * Pause all downloads
+   */
+  async pauseAllDownloads() {
+    try {
+      // 'all' is a special value that pauses all torrents in qBittorrent
+      await qbittorrentClient.pauseTorrents(['all']);
+      logger.info('All downloads paused');
+    } catch (error) {
+      logger.error('Failed to pause all downloads:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Resume all downloads
+   */
+  async resumeAllDownloads() {
+    try {
+      // 'all' is a special value that resumes all torrents in qBittorrent
+      await qbittorrentClient.resumeTorrents(['all']);
+      logger.info('All downloads resumed');
+    } catch (error) {
+      logger.error('Failed to resume all downloads:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Link torrents to a game by folder path
    * Finds torrents whose save path matches and adds the game tag
    */

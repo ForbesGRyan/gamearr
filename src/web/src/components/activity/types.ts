@@ -33,6 +33,14 @@ export function isPaused(state: string): boolean {
   return state.includes('paused') || state.includes('stopped');
 }
 
+export function isActiveDownload(state: string): boolean {
+  // Active means downloading, checking, or seeding - anything that's not paused or completed
+  return !isPaused(state) &&
+    !state.includes('completed') &&
+    state !== 'stalledUP' &&
+    state !== 'forcedUP';
+}
+
 export function getStatusCategory(state: string): StatusFilter {
   if (state.includes('downloading') || state.includes('metaDL')) return 'downloading';
   if (state.includes('uploading') || state.includes('UP') || state.includes('stalled')) return 'seeding';
