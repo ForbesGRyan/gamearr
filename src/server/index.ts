@@ -50,6 +50,7 @@ import { updateCheckJob } from './jobs/UpdateCheckJob';
 import { logRotationJob } from './jobs/LogRotationJob';
 import { discoverCacheJob } from './jobs/DiscoverCacheJob';
 import { applicationUpdateCheckJob } from './jobs/ApplicationUpdateCheckJob';
+import { sessionCleanupJob } from './jobs/SessionCleanupJob';
 
 // Import integration clients for configuration
 import { qbittorrentClient } from './integrations/qbittorrent/QBittorrentClient';
@@ -77,9 +78,11 @@ app.use('/api/*', cors({
 app.use('/api/*', csrfProtection());
 
 // Auth middleware - protects API routes when authentication is enabled
-// Skip auth for setup-related endpoints (needed before user is authenticated)
+// Skip auth for setup-related endpoints and auth endpoints that need to work without auth
 const authMiddleware = createAuthMiddleware([
   '/api/v1/auth/status',
+  '/api/v1/auth/login',
+  '/api/v1/auth/register',
   '/api/v1/system/setup-status',
   '/api/v1/system/skip-setup',
 ]);
@@ -234,6 +237,7 @@ initializeClients().then(async () => {
   logRotationJob.start();
   discoverCacheJob.start();
   applicationUpdateCheckJob.start();
+  sessionCleanupJob.start();
   logger.info('✅ Background jobs started');
 });
 

@@ -11,8 +11,9 @@ const MetadataTab = lazy(() => import('../components/settings/MetadataTab'));
 const NotificationsTab = lazy(() => import('../components/settings/NotificationsTab'));
 const UpdatesTab = lazy(() => import('../components/settings/UpdatesTab'));
 const SystemTab = lazy(() => import('../components/settings/SystemTab'));
+const SecurityTab = lazy(() => import('../components/settings/SecurityTab'));
 
-type SettingsTab = 'general' | 'libraries' | 'indexers' | 'downloads' | 'metadata' | 'notifications' | 'updates' | 'system';
+type SettingsTab = 'general' | 'libraries' | 'indexers' | 'downloads' | 'metadata' | 'notifications' | 'updates' | 'system' | 'security';
 
 // Loading fallback component
 function TabLoading() {
@@ -27,7 +28,7 @@ function Settings() {
   // Tab state with URL params
   const [searchParams, setSearchParams] = useSearchParams();
   // Valid tabs for validation
-  const validTabs: SettingsTab[] = ['general', 'libraries', 'indexers', 'downloads', 'metadata', 'notifications', 'updates', 'system'];
+  const validTabs: SettingsTab[] = ['general', 'libraries', 'indexers', 'downloads', 'metadata', 'notifications', 'updates', 'system', 'security'];
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
     const tabParam = searchParams.get('tab');
@@ -293,6 +294,15 @@ function Settings() {
         </svg>
       ),
     },
+    {
+      id: 'security',
+      label: 'Security',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+      ),
+    },
   ];
 
   return (
@@ -419,6 +429,10 @@ function Settings() {
 
           {activeTab === 'system' && (
             <SystemTab />
+          )}
+
+          {activeTab === 'security' && (
+            <SecurityTab />
           )}
         </Suspense>
       </div>

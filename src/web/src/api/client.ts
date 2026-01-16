@@ -460,6 +460,35 @@ export interface AppUpdateSettings {
   repo: string;
 }
 
+// Auth types
+export interface AuthUser {
+  id: number;
+  username: string;
+  role: 'admin' | 'user';
+  createdAt: string;
+  lastLoginAt: string | null;
+  hasApiKey?: boolean;
+}
+
+export interface AuthStatus {
+  authEnabled: boolean;
+  hasUsers: boolean;
+}
+
+export interface LoginResponse {
+  user: AuthUser;
+  token: string;
+  expiresAt: string;
+  message?: string;
+}
+
+export interface RegisterResponse {
+  user: AuthUser;
+  token: string;
+  expiresAt: string;
+  message: string;
+}
+
 export interface Library {
   id: number;
   name: string;
@@ -1240,6 +1269,78 @@ class ApiClient {
     return this.request<void>('/system/update/settings', {
       method: 'PUT',
       body: JSON.stringify(settings),
+    });
+  }
+
+  // Auth methods
+  async getAuthStatus(): Promise<ApiResponse<AuthStatus>> {
+    return this.request<AuthStatus>('/auth/status');
+  }
+
+  async login(username: string, password: string, rememberMe: boolean = false): Promise<ApiResponse<LoginResponse>> {
+    return this.request<LoginResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, rememberMe }),
+    });
+  }
+
+  async logout(): Promise<ApiResponse<void>> {
+    return this.request<void>('/auth/logout', {
+      method: 'POST',
+    });
+  }
+
+  async register(username: string, password: string): Promise<ApiResponse<RegisterResponse>> {
+    return this.request<RegisterResponse>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+  }
+
+  async getCurrentUser(): Promise<ApiResponse<AuthUser>> {
+    return this.request<AuthUser>('/auth/me');
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  }
+
+  async generateApiKey(): Promise<ApiResponse<{ apiKey: string; message: string }>> {
+    return this.request<{ apiKey: string; message: string }>('/auth/api-key', {
+      method: 'POST',
+    });
+  }
+
+  async revokeApiKey(): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>('/auth/api-key', {
+      method: 'DELETE',
+    });
+  }
+
+  // Admin user management
+  async getUsers(): Promise<ApiResponse<AuthUser[]>> {
+    return this.request<AuthUser[]>('/auth/users');
+  }
+
+  async createUser(username: string, password: string, role: 'admin' | 'user' = 'user'): Promise<ApiResponse<AuthUser>> {
+    return this.request<AuthUser>('/auth/users', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, role }),
+    });
+  }
+
+  async deleteUser(id: number): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>(`/auth/users/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async disableAuth(): Promise<ApiResponse<{ authEnabled: boolean; message: string }>> {
+    return this.request<{ authEnabled: boolean; message: string }>('/auth/disable', {
+      method: 'POST',
     });
   }
 }

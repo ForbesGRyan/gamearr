@@ -1,195 +1,103 @@
 /**
  * Authentication middleware for API routes
- * Provides API key authentication for protecting sensitive endpoints
+ * Supports both session tokens (web UI) and API keys (external clients)
  */
 
 import type { Context, Next } from 'hono';
-import { settingsRepository } from '../repositories/SettingsRepository';
+import { authService } from '../services/AuthService';
+import type { PublicUser } from '../repositories/UserRepository';
 import { logger } from '../utils/logger';
-import * as crypto from 'crypto';
 
-// Settings keys for authentication
-export const AUTH_SETTINGS = {
-  AUTH_ENABLED: 'auth_enabled',
-  API_KEY: 'api_key',
-  API_KEY_HASH: 'api_key_hash',
-};
-
-/**
- * Hash an API key using SHA-256
- * We store the hash, not the plaintext key
- */
-function hashApiKey(apiKey: string): string {
-  return crypto.createHash('sha256').update(apiKey).digest('hex');
-}
-
-/**
- * Verify an API key against the stored hash
- */
-async function verifyApiKey(providedKey: string): Promise<boolean> {
-  const storedHash = await settingsRepository.get(AUTH_SETTINGS.API_KEY_HASH);
-  if (!storedHash) {
-    return false;
-  }
-
-  const providedHash = hashApiKey(providedKey);
-  // Use timing-safe comparison to prevent timing attacks
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(providedHash, 'hex'),
-      Buffer.from(storedHash, 'hex')
-    );
-  } catch (error) {
-    // Buffer comparison failed (e.g., invalid hex encoding or length mismatch)
-    logger.debug('API key verification failed:', error instanceof Error ? error.message : 'Unknown error');
-    return false;
+// Extend Hono context to include user
+declare module 'hono' {
+  interface ContextVariableMap {
+    user: PublicUser;
   }
 }
 
 /**
- * Check if authentication is enabled
- */
-export async function isAuthEnabled(): Promise<boolean> {
-  const enabled = await settingsRepository.get(AUTH_SETTINGS.AUTH_ENABLED);
-  return enabled === 'true';
-}
-
-/**
- * Generate a new API key and store its hash
- * Returns the plaintext key (only shown once during generation)
- */
-export async function generateApiKey(): Promise<string> {
-  // Generate a 32-byte random key, encoded as base64url
-  const keyBytes = crypto.randomBytes(32);
-  const apiKey = keyBytes.toString('base64url');
-
-  // Store the hash of the key
-  const keyHash = hashApiKey(apiKey);
-  await settingsRepository.set(AUTH_SETTINGS.API_KEY_HASH, keyHash);
-
-  logger.info('New API key generated');
-
-  return apiKey;
-}
-
-/**
- * Enable authentication
- * If no API key exists, generates one
- */
-export async function enableAuth(): Promise<string | null> {
-  const existingHash = await settingsRepository.get(AUTH_SETTINGS.API_KEY_HASH);
-
-  let apiKey: string | null = null;
-  if (!existingHash) {
-    apiKey = await generateApiKey();
-  }
-
-  await settingsRepository.set(AUTH_SETTINGS.AUTH_ENABLED, 'true');
-  logger.info('Authentication enabled');
-
-  return apiKey;
-}
-
-/**
- * Disable authentication
- */
-export async function disableAuth(): Promise<void> {
-  await settingsRepository.set(AUTH_SETTINGS.AUTH_ENABLED, 'false');
-  logger.info('Authentication disabled');
-}
-
-/**
- * Reset the API key (generates a new one)
- */
-export async function resetApiKey(): Promise<string> {
-  const newKey = await generateApiKey();
-  logger.info('API key reset');
-  return newKey;
-}
-
-/**
- * Extract API key from request headers
+ * Extract token from request headers
  * Supports:
- * - X-Api-Key header
- * - Authorization: Bearer <key>
- * - Authorization: ApiKey <key>
+ * - Authorization: Bearer <token>
+ * - X-Api-Key: <key>
  */
-function extractApiKey(c: Context): string | null {
+function extractToken(c: Context): string | null {
+  // Check Authorization header (Bearer token)
+  const authHeader = c.req.header('Authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.slice(7);
+  }
+
   // Check X-Api-Key header
   const xApiKey = c.req.header('X-Api-Key');
   if (xApiKey) {
     return xApiKey;
   }
 
-  // Check Authorization header
-  const authHeader = c.req.header('Authorization');
-  if (authHeader) {
-    // Bearer token format
-    if (authHeader.startsWith('Bearer ')) {
-      return authHeader.slice(7);
-    }
-    // ApiKey format
-    if (authHeader.startsWith('ApiKey ')) {
-      return authHeader.slice(7);
-    }
-  }
-
   return null;
 }
 
 /**
- * Authentication middleware
- * Checks for valid API key if authentication is enabled
+ * Main authentication middleware
+ * Validates session tokens and API keys
  */
 export async function authMiddleware(c: Context, next: Next): Promise<Response | void> {
   // Check if auth is enabled
-  const authEnabled = await isAuthEnabled();
+  const authEnabled = await authService.isAuthEnabled();
 
   if (!authEnabled) {
-    // Auth not enabled, allow request
+    // Auth not enabled, allow request without user context
     return next();
   }
 
-  // Extract API key from request
-  const apiKey = extractApiKey(c);
+  // Extract token from request
+  const token = extractToken(c);
 
-  if (!apiKey) {
-    logger.warn(`Unauthorized request to ${c.req.path}: Missing API key`);
+  if (!token) {
+    logger.warn(`Unauthorized request to ${c.req.path}: Missing authentication`);
     return c.json(
       {
         success: false,
-        error: 'Authentication required. Provide API key via X-Api-Key header or Authorization header.',
+        error: 'Authentication required. Provide session token or API key via Authorization header.',
       },
       401
     );
   }
 
-  // Verify the API key
-  const isValid = await verifyApiKey(apiKey);
+  // Try session token first (web UI)
+  let user = await authService.validateSession(token);
 
-  if (!isValid) {
-    logger.warn(`Unauthorized request to ${c.req.path}: Invalid API key`);
+  // Fall back to API key (external clients)
+  if (!user) {
+    user = await authService.validateApiKey(token);
+  }
+
+  if (!user) {
+    logger.warn(`Unauthorized request to ${c.req.path}: Invalid or expired token`);
     return c.json(
       {
         success: false,
-        error: 'Invalid API key',
+        error: 'Invalid or expired authentication token',
       },
       401
     );
   }
 
-  // API key is valid, proceed
+  // Set user in context for downstream handlers
+  c.set('user', user);
+
   return next();
 }
 
 /**
- * Optional auth middleware - skips auth check for certain paths
- * Useful for endpoints that need to be accessible without auth (like /api/v1/auth/status)
+ * Create auth middleware with configurable skip paths
+ * Paths in skipPaths will bypass authentication
  */
 export function createAuthMiddleware(skipPaths: string[] = []): (c: Context, next: Next) => Promise<Response | void> {
   return async (c: Context, next: Next): Promise<Response | void> => {
-    // Check if this path should skip auth
     const path = c.req.path;
+
+    // Check if this path should skip auth
     for (const skipPath of skipPaths) {
       if (path === skipPath || path.startsWith(skipPath + '/')) {
         return next();
@@ -199,3 +107,43 @@ export function createAuthMiddleware(skipPaths: string[] = []): (c: Context, nex
     return authMiddleware(c, next);
   };
 }
+
+/**
+ * Admin-only middleware
+ * Must be used after authMiddleware
+ */
+export async function adminMiddleware(c: Context, next: Next): Promise<Response | void> {
+  const user = c.get('user');
+
+  if (!user) {
+    return c.json(
+      {
+        success: false,
+        error: 'Authentication required',
+      },
+      401
+    );
+  }
+
+  if (user.role !== 'admin') {
+    logger.warn(`Forbidden: User ${user.username} attempted admin action on ${c.req.path}`);
+    return c.json(
+      {
+        success: false,
+        error: 'Admin access required',
+      },
+      403
+    );
+  }
+
+  return next();
+}
+
+// Re-export auth functions from AuthService for backward compatibility
+export { authService };
+export const isAuthEnabled = () => authService.isAuthEnabled();
+export const enableAuth = async () => {
+  await authService.enableAuth();
+  return null; // No longer returns API key here
+};
+export const disableAuth = () => authService.disableAuth();

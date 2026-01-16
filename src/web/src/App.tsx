@@ -11,6 +11,7 @@ import { GamepadIcon } from './components/Icons';
 import { NavDropdown } from './components/NavDropdown';
 import { MobileNav } from './components/MobileNav';
 import { UpdateBanner } from './components/UpdateBanner';
+import { AuthGuard, useAuth } from './components/AuthGuard';
 import { api } from './api/client';
 import { ToastProvider } from './contexts/ToastContext';
 import ToastContainer from './components/ToastContainer';
@@ -25,6 +26,8 @@ const Search = lazy(() => import('./pages/Search'));
 const Activity = lazy(() => import('./pages/Activity'));
 const Updates = lazy(() => import('./pages/Updates'));
 const Settings = lazy(() => import('./pages/Settings'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
 // Setup is eagerly loaded to avoid lazy-loading timing issues with navigation
 import { Setup } from './pages/Setup';
 
@@ -128,6 +131,64 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// User menu component
+function UserMenu() {
+  const { user, logout } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!user) return null;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+        <span className="hidden sm:inline">{user.username}</span>
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
+
+          {/* Dropdown */}
+          <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-20">
+            <div className="px-4 py-3 border-b border-gray-700">
+              <p className="text-sm text-white font-medium">{user.username}</p>
+              <p className="text-xs text-gray-400 capitalize">{user.role}</p>
+            </div>
+            <div className="py-1">
+              <NavLink
+                to="/settings?tab=security"
+                onClick={() => setIsOpen(false)}
+                className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
+              >
+                Security Settings
+              </NavLink>
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  logout();
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Main layout with header and navigation
 function MainLayout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -193,10 +254,14 @@ function MainLayout() {
                     { label: 'Metadata', to: '/settings?tab=metadata', tab: 'metadata' },
                     { label: 'Updates', to: '/settings?tab=updates', tab: 'updates' },
                     { label: 'System', to: '/settings?tab=system', tab: 'system' },
+                    { label: 'Security', to: '/settings?tab=security', tab: 'security' },
                   ]}
                 />
               </nav>
             </div>
+
+            {/* User Menu */}
+            <UserMenu />
           </div>
         </div>
       </header>
@@ -229,14 +294,35 @@ const router = createBrowserRouter([
   {
     element: <RootLayout />,
     children: [
+      // Auth pages - no header/nav
+      {
+        path: '/login',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <Login />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/register',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <Register />
+          </Suspense>
+        ),
+      },
       // Setup page - no header/nav
       {
         path: '/setup',
         element: <Setup />,
       },
-      // Main app routes - with header/nav
+      // Main app routes - with header/nav, protected by AuthGuard
       {
-        element: <MainLayout />,
+        element: (
+          <AuthGuard>
+            <MainLayout />
+          </AuthGuard>
+        ),
         children: [
           {
             path: '/',

@@ -221,6 +221,30 @@ function initializeSchema() {
       )
     `);
 
+    // Create users table for authentication
+    sqlite.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        api_key_hash TEXT,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        last_login_at INTEGER
+      )
+    `);
+
+    // Create sessions table for web UI authentication
+    sqlite.run(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token TEXT NOT NULL UNIQUE,
+        expires_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+
     // Create indexes
     sqlite.run('CREATE INDEX IF NOT EXISTS games_status_idx ON games(status)');
     sqlite.run('CREATE INDEX IF NOT EXISTS games_monitored_idx ON games(monitored)');
@@ -246,6 +270,10 @@ function initializeSchema() {
     sqlite.run('CREATE INDEX IF NOT EXISTS game_embeddings_title_hash_idx ON game_embeddings(title_hash)');
     sqlite.run('CREATE INDEX IF NOT EXISTS api_cache_key_idx ON api_cache(cache_key)');
     sqlite.run('CREATE INDEX IF NOT EXISTS api_cache_expires_at_idx ON api_cache(expires_at)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS users_username_idx ON users(username)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS sessions_token_idx ON sessions(token)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions(user_id)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions(expires_at)');
 
     logger.info('Schema initialized successfully');
   }
@@ -391,6 +419,40 @@ function runMigrations() {
       }
     }
     logger.info(`Migration: Migrated ${gamesWithFolders.length} game folder(s)`);
+  }
+
+  // Create users table if missing (authentication support)
+  if (!tableExists('users')) {
+    logger.info('Migration: Creating users table');
+    sqlite.run(`
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        api_key_hash TEXT,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        last_login_at INTEGER
+      )
+    `);
+    sqlite.run('CREATE INDEX IF NOT EXISTS users_username_idx ON users(username)');
+  }
+
+  // Create sessions table if missing (web UI authentication)
+  if (!tableExists('sessions')) {
+    logger.info('Migration: Creating sessions table');
+    sqlite.run(`
+      CREATE TABLE sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token TEXT NOT NULL UNIQUE,
+        expires_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+    sqlite.run('CREATE INDEX IF NOT EXISTS sessions_token_idx ON sessions(token)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions(user_id)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions(expires_at)');
   }
 }
 

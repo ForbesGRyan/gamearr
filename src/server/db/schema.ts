@@ -259,6 +259,38 @@ export const apiCache = sqliteTable('api_cache', {
   expiresAtIdx: index('api_cache_expires_at_idx').on(table.expiresAt),
 }));
 
+// Users table for authentication
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  username: text('username').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  role: text('role', { enum: ['admin', 'user'] }).notNull().default('user'),
+  apiKeyHash: text('api_key_hash'), // SHA-256 hash of personal API key
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  lastLoginAt: integer('last_login_at', { mode: 'timestamp' }),
+}, (table) => ({
+  usernameIdx: index('users_username_idx').on(table.username),
+}));
+
+// Sessions table for web UI authentication
+export const sessions = sqliteTable('sessions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  token: text('token').notNull().unique(),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, (table) => ({
+  tokenIdx: index('sessions_token_idx').on(table.token),
+  userIdIdx: index('sessions_user_id_idx').on(table.userId),
+  expiresAtIdx: index('sessions_expires_at_idx').on(table.expiresAt),
+}));
+
 // Type exports
 export type Library = typeof libraries.$inferSelect;
 export type NewLibrary = typeof libraries.$inferInsert;
@@ -298,3 +330,9 @@ export type NewGameEvent = typeof gameEvents.$inferInsert;
 
 export type ApiCache = typeof apiCache.$inferSelect;
 export type NewApiCache = typeof apiCache.$inferInsert;
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+
+export type Session = typeof sessions.$inferSelect;
+export type NewSession = typeof sessions.$inferInsert;
