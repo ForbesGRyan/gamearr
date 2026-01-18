@@ -26,7 +26,7 @@ const publicUserFields = {
 export type PublicUser = {
   id: number;
   username: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'user' | 'viewer';
   createdAt: Date;
   lastLoginAt: Date | null;
 };
@@ -35,7 +35,7 @@ export class UserRepository {
   /**
    * Create a new user
    */
-  async create(username: string, passwordHash: string, role: 'admin' | 'user' = 'user'): Promise<User> {
+  async create(username: string, passwordHash: string, role: 'admin' | 'user' | 'viewer' = 'user'): Promise<User> {
     logger.info(`Creating user: ${username}`);
 
     const result = await db

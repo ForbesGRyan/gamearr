@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { api, setAuthToken } from '../api/client';
+import { api, setAuthToken, getAuthToken, emitAuthEvent } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { GamepadIcon } from '../components/Icons';
 
@@ -14,16 +14,32 @@ export function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [showRegisterLink, setShowRegisterLink] = useState(false);
 
-  // Check if we should show the register link (no users exist)
+  // Check auth status - redirect if auth is disabled or already logged in
   useEffect(() => {
     const checkAuthStatus = async () => {
       const result = await api.getAuthStatus();
       if (result.success && result.data) {
+        // If auth is disabled, redirect to main app
+        if (!result.data.authEnabled) {
+          navigate('/');
+          return;
+        }
+
+        // If already logged in (have a valid token), redirect to main app
+        const token = getAuthToken();
+        if (token) {
+          const meResult = await api.getCurrentUser();
+          if (meResult.success && meResult.data) {
+            navigate('/');
+            return;
+          }
+        }
+
         setShowRegisterLink(!result.data.hasUsers);
       }
     };
     checkAuthStatus();
-  }, []);
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,16 +56,16 @@ export function Login() {
 
       if (result.success && result.data) {
         setAuthToken(result.data.token);
-        showToast('Logged in successfully', 'success');
+        emitAuthEvent('login');
         navigate('/');
+        return;
       } else {
         showToast(result.error || 'Login failed', 'error');
       }
     } catch {
       showToast('Login failed', 'error');
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   };
 
   return (

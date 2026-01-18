@@ -110,7 +110,7 @@ export class AuthService {
   async createUser(
     username: string,
     password: string,
-    role: 'admin' | 'user' = 'user'
+    role: 'admin' | 'user' | 'viewer' = 'user'
   ): Promise<PublicUser> {
     // Check if username already exists
     const existing = await userRepository.findByUsername(username);
@@ -234,6 +234,23 @@ export class AuthService {
     // await sessionRepository.deleteAllForUser(userId);
 
     logger.info(`Password changed for user ID: ${userId}`);
+    return true;
+  }
+
+  /**
+   * Reset user password (admin action, no current password required)
+   * Should only be used when auth is disabled or by admins
+   */
+  async resetPassword(userId: number, newPassword: string): Promise<boolean> {
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      return false;
+    }
+
+    const newPasswordHash = await this.hashPassword(newPassword);
+    await userRepository.updatePassword(userId, newPasswordHash);
+
+    logger.info(`Password reset for user ID: ${userId}`);
     return true;
   }
 

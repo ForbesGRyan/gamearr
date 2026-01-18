@@ -11,7 +11,7 @@ const API_BASE = '/api/v1';
 const AUTH_TOKEN_KEY = 'gamearr_auth_token';
 
 // Event for auth state changes
-export type AuthEventType = 'logout' | 'unauthorized';
+export type AuthEventType = 'login' | 'logout' | 'unauthorized';
 type AuthEventListener = (event: AuthEventType) => void;
 const authEventListeners: Set<AuthEventListener> = new Set();
 
@@ -20,7 +20,7 @@ export function onAuthEvent(listener: AuthEventListener): () => void {
   return () => authEventListeners.delete(listener);
 }
 
-function emitAuthEvent(event: AuthEventType) {
+export function emitAuthEvent(event: AuthEventType) {
   authEventListeners.forEach((listener) => listener(event));
 }
 
@@ -464,7 +464,7 @@ export interface AppUpdateSettings {
 export interface AuthUser {
   id: number;
   username: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'user' | 'viewer';
   createdAt: string;
   lastLoginAt: string | null;
   hasApiKey?: boolean;
@@ -1325,7 +1325,7 @@ class ApiClient {
     return this.request<AuthUser[]>('/auth/users');
   }
 
-  async createUser(username: string, password: string, role: 'admin' | 'user' = 'user'): Promise<ApiResponse<AuthUser>> {
+  async createUser(username: string, password: string, role: 'admin' | 'user' | 'viewer' = 'user'): Promise<ApiResponse<AuthUser>> {
     return this.request<AuthUser>('/auth/users', {
       method: 'POST',
       body: JSON.stringify({ username, password, role }),
@@ -1338,8 +1338,21 @@ class ApiClient {
     });
   }
 
+  async resetUserPassword(id: number, newPassword: string): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>(`/auth/users/${id}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ newPassword }),
+    });
+  }
+
   async disableAuth(): Promise<ApiResponse<{ authEnabled: boolean; message: string }>> {
     return this.request<{ authEnabled: boolean; message: string }>('/auth/disable', {
+      method: 'POST',
+    });
+  }
+
+  async enableAuth(): Promise<ApiResponse<{ authEnabled: boolean; message: string }>> {
+    return this.request<{ authEnabled: boolean; message: string }>('/auth/enable', {
       method: 'POST',
     });
   }

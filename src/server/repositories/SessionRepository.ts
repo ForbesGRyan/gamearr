@@ -25,7 +25,7 @@ export type SessionWithUser = Session & {
   user: {
     id: number;
     username: string;
-    role: 'admin' | 'user';
+    role: 'admin' | 'user' | 'viewer';
     createdAt: Date;
     lastLoginAt: Date | null;
   };

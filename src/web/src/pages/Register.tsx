@@ -14,12 +14,18 @@ export function Register() {
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
 
-  // Check if registration is allowed (no users exist)
+  // Check if registration is allowed
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
         const result = await api.getAuthStatus();
         if (result.success && result.data) {
+          // If auth is disabled, redirect to main app
+          // (they can enable auth from Settings > Security)
+          if (!result.data.authEnabled) {
+            navigate('/');
+            return;
+          }
           if (result.data.hasUsers) {
             // Users already exist, redirect to login
             showToast('An admin account already exists', 'info');

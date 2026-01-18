@@ -111,8 +111,15 @@ export function createAuthMiddleware(skipPaths: string[] = []): (c: Context, nex
 /**
  * Admin-only middleware
  * Must be used after authMiddleware
+ * When auth is disabled, allows access (since anyone can access the app anyway)
  */
 export async function adminMiddleware(c: Context, next: Next): Promise<Response | void> {
+  // Check if auth is enabled - if not, allow access
+  const authEnabled = await authService.isAuthEnabled();
+  if (!authEnabled) {
+    return next();
+  }
+
   const user = c.get('user');
 
   if (!user) {
@@ -134,6 +141,45 @@ export async function adminMiddleware(c: Context, next: Next): Promise<Response 
       },
       403
     );
+  }
+
+  return next();
+}
+
+/**
+ * Write access middleware - blocks viewers from making changes
+ * Must be used after authMiddleware
+ * Viewers can only use GET/HEAD/OPTIONS methods
+ */
+export async function writeAccessMiddleware(c: Context, next: Next): Promise<Response | void> {
+  // Check if auth is enabled - if not, allow access
+  const authEnabled = await authService.isAuthEnabled();
+  if (!authEnabled) {
+    return next();
+  }
+
+  const user = c.get('user');
+
+  // No user = already handled by authMiddleware
+  if (!user) {
+    return next();
+  }
+
+  // Viewers can only read
+  if (user.role === 'viewer') {
+    const method = c.req.method.toUpperCase();
+    const readOnlyMethods = ['GET', 'HEAD', 'OPTIONS'];
+
+    if (!readOnlyMethods.includes(method)) {
+      logger.warn(`Forbidden: Viewer ${user.username} attempted write action (${method}) on ${c.req.path}`);
+      return c.json(
+        {
+          success: false,
+          error: 'Viewers have read-only access. Contact an admin for write permissions.',
+        },
+        403
+      );
+    }
   }
 
   return next();

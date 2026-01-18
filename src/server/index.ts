@@ -9,7 +9,7 @@ import { createEmbeddedStaticMiddleware } from './middleware/embeddedStatic';
 import { frontendVFS, VFS_FILE_COUNT } from './generated/frontend-vfs';
 
 // Import auth middleware
-import { createAuthMiddleware } from './middleware/auth';
+import { createAuthMiddleware, writeAccessMiddleware } from './middleware/auth';
 
 // Import rate limiting middleware
 import {
@@ -87,6 +87,9 @@ const authMiddleware = createAuthMiddleware([
   '/api/v1/system/skip-setup',
 ]);
 app.use('/api/*', authMiddleware);
+
+// Write access middleware - blocks viewers from making changes
+app.use('/api/*', writeAccessMiddleware);
 
 // Rate limiting middleware
 // Apply stricter limits to sensitive endpoints (auth, settings)

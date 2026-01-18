@@ -20,6 +20,7 @@ const grabReleaseSchema = z.object({
     leechers: z.number().optional(),
     indexer: z.string().optional(),
     publishDate: z.string().optional(),
+    publishedAt: z.string().optional(), // Frontend sends this field name
     infoUrl: z.string().optional(),
     categories: z.array(z.number()).optional(),
     score: z.number().optional(),
@@ -135,7 +136,7 @@ search.post('/grab', zValidator('json', grabReleaseSchema), async (c) => {
       downloadUrl: release.downloadUrl || release.magnetUrl || '',
       indexer: release.indexer || 'Unknown',
       quality: undefined,
-      publishedAt: release.publishDate ? new Date(release.publishDate) : new Date(),
+      publishedAt: release.publishedAt ? new Date(release.publishedAt) : release.publishDate ? new Date(release.publishDate) : new Date(),
       score: release.score || 0,
       matchConfidence: 'high' as const,
     };

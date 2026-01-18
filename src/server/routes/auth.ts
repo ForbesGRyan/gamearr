@@ -33,7 +33,7 @@ const changePasswordSchema = z.object({
 const createUserSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters').max(50),
   password: z.string().min(8, 'Password must be at least 8 characters'),
-  role: z.enum(['admin', 'user']).optional().default('user'),
+  role: z.enum(['admin', 'user', 'viewer']).optional().default('user'),
 });
 
 /**
@@ -403,6 +403,58 @@ auth.delete('/users/:id', adminMiddleware, async (c) => {
     });
   } catch (error) {
     logger.error('Failed to delete user:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+  }
+});
+
+const resetPasswordSchema = z.object({
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+/**
+ * POST /api/v1/auth/users/:id/reset-password
+ * Reset a user's password (admin only, or when auth is disabled)
+ */
+auth.post('/users/:id/reset-password', adminMiddleware, zValidator('json', resetPasswordSchema), async (c) => {
+  const userId = parseInt(c.req.param('id'));
+  logger.info(`POST /api/v1/auth/users/${userId}/reset-password`);
+
+  try {
+    if (isNaN(userId)) {
+      return c.json({
+        success: false,
+        error: 'Invalid user ID',
+      }, 400);
+    }
+
+    const { newPassword } = c.req.valid('json');
+
+    // Check if user exists
+    const targetUser = await authService.getUserById(userId);
+    if (!targetUser) {
+      return c.json({
+        success: false,
+        error: 'User not found',
+      }, 404);
+    }
+
+    const success = await authService.resetPassword(userId, newPassword);
+
+    if (!success) {
+      return c.json({
+        success: false,
+        error: 'Failed to reset password',
+      }, 500);
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        message: 'Password reset successfully',
+      },
+    });
+  } catch (error) {
+    logger.error('Failed to reset password:', error);
     return c.json(formatErrorResponse(error), getHttpStatusCode(error));
   }
 });

@@ -99,12 +99,15 @@ export function AuthGuard({ children }: AuthGuardProps) {
   useEffect(() => {
     checkAuth();
 
-    // Listen for auth events (unauthorized responses)
+    // Listen for auth events
     const unsubscribe = onAuthEvent((event) => {
       if (event === 'unauthorized') {
         setUser(null);
         setState('unauthenticated');
         navigate('/login');
+      } else if (event === 'login') {
+        // Re-check auth after login
+        checkAuth();
       }
     });
 
