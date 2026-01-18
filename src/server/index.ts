@@ -85,6 +85,7 @@ const authMiddleware = createAuthMiddleware([
   '/api/v1/auth/register',
   '/api/v1/system/setup-status',
   '/api/v1/system/skip-setup',
+  '/api/v1/images',
 ]);
 app.use('/api/*', authMiddleware);
 
