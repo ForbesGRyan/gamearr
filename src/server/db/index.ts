@@ -86,6 +86,14 @@ function initializeSchema() {
         update_policy TEXT DEFAULT 'notify',
         last_update_check INTEGER,
         update_available INTEGER DEFAULT 0,
+        hltb_id TEXT,
+        hltb_main INTEGER,
+        hltb_main_extra INTEGER,
+        hltb_completionist INTEGER,
+        hltb_last_sync INTEGER,
+        protondb_tier TEXT,
+        protondb_score INTEGER,
+        protondb_last_sync INTEGER,
         added_at INTEGER NOT NULL DEFAULT (unixepoch())
       )
     `);
@@ -362,6 +370,18 @@ function runMigrations() {
   if (columnExists('games', 'slug')) {
     sqlite.run('CREATE INDEX IF NOT EXISTS games_slug_idx ON games(slug)');
   }
+
+  // HLTB (HowLongToBeat) columns
+  addColumnIfMissing('games', 'hltb_id', 'TEXT');
+  addColumnIfMissing('games', 'hltb_main', 'INTEGER');
+  addColumnIfMissing('games', 'hltb_main_extra', 'INTEGER');
+  addColumnIfMissing('games', 'hltb_completionist', 'INTEGER');
+  addColumnIfMissing('games', 'hltb_last_sync', 'INTEGER');
+
+  // ProtonDB columns
+  addColumnIfMissing('games', 'protondb_tier', 'TEXT');
+  addColumnIfMissing('games', 'protondb_score', 'INTEGER');
+  addColumnIfMissing('games', 'protondb_last_sync', 'INTEGER');
 
   // Create api_cache table if missing (server-side caching for discover data)
   if (!tableExists('api_cache')) {

@@ -7,6 +7,24 @@ CREATE TABLE `api_cache` (
 	`updated_at` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE `stores` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`name` text NOT NULL,
+	`slug` text NOT NULL,
+	`icon_url` text,
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE `users` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`username` text NOT NULL,
+	`password_hash` text NOT NULL,
+	`role` text DEFAULT 'user' NOT NULL,
+	`api_key_hash` text,
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`last_login_at` integer
+);
+--> statement-breakpoint
 CREATE TABLE `game_embeddings` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`game_id` integer NOT NULL,
@@ -54,24 +72,6 @@ CREATE TABLE `sessions` (
 	`expires_at` integer NOT NULL,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE TABLE `stores` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`name` text NOT NULL,
-	`slug` text NOT NULL,
-	`icon_url` text,
-	`created_at` integer DEFAULT (unixepoch()) NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE `users` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`username` text NOT NULL,
-	`password_hash` text NOT NULL,
-	`role` text DEFAULT 'user' NOT NULL,
-	`api_key_hash` text,
-	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
-	`last_login_at` integer
 );
 --> statement-breakpoint
 ALTER TABLE games ADD `slug` text;--> statement-breakpoint
