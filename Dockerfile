@@ -23,8 +23,8 @@ COPY . .
 # Build frontend and compile binary
 RUN bun run build
 
-# Runtime stage
-FROM debian:bookworm-slim
+# Runtime stage - use Bun for running migrations
+FROM oven/bun:1-slim
 
 WORKDIR /app
 
@@ -34,18 +34,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN useradd -m -u 1000 gamearr
-
 # Copy compiled binary and frontend assets from builder
 COPY --from=builder /app/gamearr /app/gamearr
 COPY --from=builder /app/dist /app/dist
 
+# Copy migration files and dependencies
+COPY --from=builder /app/src/server/db/migrations /app/migrations
+COPY --from=builder /app/src/server/db/migrate.ts /app/migrate.ts
+COPY --from=builder /app/node_modules/drizzle-orm /app/node_modules/drizzle-orm
+
+# Copy and set up entrypoint script
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Create directories for volumes
 RUN mkdir -p /config /library /downloads && \
-    chown -R gamearr:gamearr /app /config /library /downloads
+    chown -R bun:bun /app /config /library /downloads
 
-USER gamearr
+USER bun
 
 # Environment variables
 ENV PORT=7878
@@ -58,5 +64,5 @@ EXPOSE 7878
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${PORT:-7878}/api/v1/system/status || exit 1
 
-# Run the application
-CMD ["/app/gamearr"]
+# Run entrypoint (migrations + app)
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
