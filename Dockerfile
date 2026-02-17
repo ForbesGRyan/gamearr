@@ -4,9 +4,16 @@ FROM oven/bun:1 AS builder
 WORKDIR /app
 
 # Install build dependencies for native modules (better-sqlite3)
+# Node.js 22 LTS is installed because Bun's Node.js compatibility layer reports
+# as Node 24, which causes node-gyp "Completion callback never invoked" failures.
+# Having real Node.js in PATH ensures install scripts use a compatible runtime.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     build-essential \
+    ca-certificates \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
