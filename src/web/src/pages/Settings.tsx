@@ -375,10 +375,6 @@ function Settings() {
               setTrendingCacheInterval={setTrendingCacheInterval}
               torrentsCacheInterval={torrentsCacheInterval}
               setTorrentsCacheInterval={setTorrentsCacheInterval}
-              updatePatchHandling={updatePatchHandling}
-              setUpdatePatchHandling={setUpdatePatchHandling}
-              updatePatchPenalty={updatePatchPenalty}
-              setUpdatePatchPenalty={setUpdatePatchPenalty}
             />
           )}
 
@@ -438,6 +434,10 @@ function Settings() {
               setUpdateCheckSchedule={setUpdateCheckSchedule}
               defaultUpdatePolicy={defaultUpdatePolicy}
               setDefaultUpdatePolicy={setDefaultUpdatePolicy}
+              updatePatchHandling={updatePatchHandling}
+              setUpdatePatchHandling={setUpdatePatchHandling}
+              updatePatchPenalty={updatePatchPenalty}
+              setUpdatePatchPenalty={setUpdatePatchPenalty}
             />
           )}
 

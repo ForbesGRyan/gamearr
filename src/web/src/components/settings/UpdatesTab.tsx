@@ -9,6 +9,10 @@ interface UpdatesTabProps {
   setUpdateCheckSchedule: (schedule: 'hourly' | 'daily' | 'weekly') => void;
   defaultUpdatePolicy: 'notify' | 'auto' | 'ignore';
   setDefaultUpdatePolicy: (policy: 'notify' | 'auto' | 'ignore') => void;
+  updatePatchHandling: 'penalize' | 'hide' | 'warn_only';
+  setUpdatePatchHandling: (value: 'penalize' | 'hide' | 'warn_only') => void;
+  updatePatchPenalty: number;
+  setUpdatePatchPenalty: (value: number) => void;
 }
 
 export default function UpdatesTab({
@@ -18,6 +22,10 @@ export default function UpdatesTab({
   setUpdateCheckSchedule,
   defaultUpdatePolicy,
   setDefaultUpdatePolicy,
+  updatePatchHandling,
+  setUpdatePatchHandling,
+  updatePatchPenalty,
+  setUpdatePatchPenalty,
 }: UpdatesTabProps) {
   const { addToast } = useToast();
   const [isSavingUpdateSettings, setIsSavingUpdateSettings] = useState(false);
@@ -30,6 +38,8 @@ export default function UpdatesTab({
         api.updateSetting('update_check_enabled', updateCheckEnabled),
         api.updateSetting('update_check_schedule', updateCheckSchedule),
         api.updateSetting('default_update_policy', defaultUpdatePolicy),
+        api.updateSetting('update_patch_handling', updatePatchHandling),
+        api.updateSetting('update_patch_penalty', updatePatchPenalty),
       ]);
       addToast('Update check settings saved!', 'success');
     } catch {
@@ -37,7 +47,7 @@ export default function UpdatesTab({
     } finally {
       setIsSavingUpdateSettings(false);
     }
-  }, [updateCheckEnabled, updateCheckSchedule, defaultUpdatePolicy, addToast]);
+  }, [updateCheckEnabled, updateCheckSchedule, defaultUpdatePolicy, updatePatchHandling, updatePatchPenalty, addToast]);
 
   const handleCheckUpdatesNow = useCallback(async () => {
     setIsCheckingUpdates(true);
@@ -130,13 +140,6 @@ export default function UpdatesTab({
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <button
-              onClick={handleSaveUpdateSettings}
-              disabled={isSavingUpdateSettings}
-              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
-            >
-              {isSavingUpdateSettings ? 'Saving...' : 'Save Settings'}
-            </button>
-            <button
               onClick={handleCheckUpdatesNow}
               disabled={isCheckingUpdates || !updateCheckEnabled}
               className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 flex items-center justify-center gap-2 min-h-[44px]"
@@ -160,6 +163,76 @@ export default function UpdatesTab({
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Update/Patch Detection Settings */}
+      <div className="bg-gray-800 rounded-lg p-4 md:p-6">
+        <h3 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 flex items-center gap-2">
+          <svg className="w-5 h-5 md:w-6 md:h-6 text-orange-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          Update/Patch Detection
+        </h3>
+        <p className="text-gray-400 mb-4 text-sm md:text-base">
+          Control how Gamearr handles releases that are updates or patches only (not full games).
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+          {/* Update/Patch Handling Mode */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              Update/Patch Handling
+            </label>
+            <select
+              value={updatePatchHandling}
+              onChange={(e) => setUpdatePatchHandling(e.target.value as 'penalize' | 'hide' | 'warn_only')}
+              className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
+            >
+              <option value="penalize">Penalize Score</option>
+              <option value="hide">Hide from Results</option>
+              <option value="warn_only">Show Warning Only</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              How to handle releases detected as update-only or patch-only
+            </p>
+          </div>
+
+          {/* Update/Patch Penalty */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              Score Penalty
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={200}
+              value={updatePatchPenalty}
+              onChange={(e) => setUpdatePatchPenalty(Math.max(0, Math.min(200, parseInt(e.target.value) || 80)))}
+              disabled={updatePatchHandling !== 'penalize'}
+              className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Points to subtract from update/patch releases (0-200, only applies when penalizing)
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 p-3 bg-gray-700 rounded text-sm text-gray-300">
+          <strong>Detection examples:</strong>
+          <ul className="mt-2 space-y-1 text-gray-400">
+            <li><span className="text-orange-400">Update Only:</span> "Game.Title.Update.v1.5-GROUP", "Game Title Update Only"</li>
+            <li><span className="text-yellow-400">Patch Only:</span> "Game.Title.Patch.1.2-GROUP", "Game Title Patch Only"</li>
+            <li><span className="text-green-400">Full Game:</span> "Game Title v1.5.3 Updated-GROUP" (includes updates)</li>
+          </ul>
+        </div>
+
+        <button
+          onClick={handleSaveUpdateSettings}
+          disabled={isSavingUpdateSettings}
+          className="mt-4 w-full md:w-auto bg-green-600 hover:bg-green-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+        >
+          {isSavingUpdateSettings ? 'Saving...' : 'Save Settings'}
+        </button>
       </div>
     </>
   );

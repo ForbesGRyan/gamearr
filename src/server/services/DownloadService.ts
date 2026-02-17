@@ -462,11 +462,18 @@ export class DownloadService {
       const fallbackUrl = release.magnetUrl && release.magnetUrl !== release.downloadUrl
         ? release.magnetUrl : undefined;
 
+      // Include Prowlarr API key header for proxy URL authentication
+      const prowlarrApiKey = await settingsService.getSetting('prowlarr_api_key');
+      const fetchHeaders: Record<string, string> = {};
+      if (prowlarrApiKey) {
+        fetchHeaders['X-Api-Key'] = prowlarrApiKey;
+      }
+
       await qbittorrentClient.addTorrent(release.downloadUrl, {
         category,
         tags,
         paused: 'false',
-      }, fallbackUrl);
+      }, fallbackUrl, fetchHeaders);
 
       // Update release status to downloading
       await releaseRepository.updateStatus(createdRelease.id, 'downloading');

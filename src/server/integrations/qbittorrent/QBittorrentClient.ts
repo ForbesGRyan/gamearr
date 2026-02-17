@@ -194,7 +194,7 @@ export class QBittorrentClient {
    * For .torrent URLs: downloads the file first, then uploads as binary
    * If fallbackUrl is provided and primary URL fails, retries with fallback
    */
-  async addTorrent(url: string, options?: Partial<AddTorrentOptions>, fallbackUrl?: string): Promise<string> {
+  async addTorrent(url: string, options?: Partial<AddTorrentOptions>, fallbackUrl?: string, fetchHeaders?: Record<string, string>): Promise<string> {
     const isMagnet = url.startsWith('magnet:');
     logger.info(`Adding ${isMagnet ? 'magnet' : 'torrent file'} to qBittorrent`);
 
@@ -202,7 +202,7 @@ export class QBittorrentClient {
       if (isMagnet) {
         return await this.addTorrentByUrl(url, options);
       } else {
-        return await this.addTorrentByFile(url, options);
+        return await this.addTorrentByFile(url, options, fetchHeaders);
       }
     } catch (error) {
       // If primary URL failed and we have a fallback, try it
@@ -213,7 +213,7 @@ export class QBittorrentClient {
           if (isFallbackMagnet) {
             return await this.addTorrentByUrl(fallbackUrl, options);
           } else {
-            return await this.addTorrentByFile(fallbackUrl, options);
+            return await this.addTorrentByFile(fallbackUrl, options, fetchHeaders);
           }
         } catch (fallbackError) {
           logger.error('Fallback URL also failed:', fallbackError);
@@ -266,11 +266,11 @@ export class QBittorrentClient {
   /**
    * Add torrent by downloading .torrent file and uploading as binary
    */
-  private async addTorrentByFile(url: string, options?: Partial<AddTorrentOptions>): Promise<string> {
+  private async addTorrentByFile(url: string, options?: Partial<AddTorrentOptions>, fetchHeaders?: Record<string, string>): Promise<string> {
     logger.debug(`Downloading .torrent file from: ${url.substring(0, 80)}...`);
 
-    // Download the .torrent file
-    const response = await fetch(url);
+    // Download the .torrent file (include any provided headers, e.g. Prowlarr API key)
+    const response = await fetch(url, fetchHeaders ? { headers: fetchHeaders } : undefined);
     if (!response.ok) {
       throw new QBittorrentError(
         `Failed to download .torrent file: ${response.status} ${response.statusText}`,
