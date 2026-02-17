@@ -6,6 +6,7 @@ import { settingsService } from '../services/SettingsService';
 import { logger } from '../utils/logger';
 import type { Game } from '../db/schema';
 import type { ReleaseSearchResult } from '../integrations/prowlarr/types';
+import { detectReleaseType, type ReleaseType } from '../utils/releaseType';
 
 /**
  * RSS Sync Job
@@ -130,7 +131,7 @@ export class RssSync {
         this.markAsProcessed(release.guid);
 
         // Try to match against each wanted game
-        const match = this.findBestMatch(release, wantedGames);
+        const match = await this.findBestMatch(release, wantedGames);
 
         if (match) {
           matchCount++;
@@ -178,15 +179,25 @@ export class RssSync {
   /**
    * Find the best matching game for a release
    */
-  private findBestMatch(
+  private async findBestMatch(
     release: ReleaseSearchResult,
     wantedGames: Game[]
-  ): { game: Game; scoredRelease: ScoredRelease } | null {
+  ): Promise<{ game: Game; scoredRelease: ScoredRelease } | null> {
     let bestMatch: { game: Game; scoredRelease: ScoredRelease } | null = null;
     let bestScore = 0;
 
+    // Get update/patch handling setting once
+    const updatePatchHandling = await settingsService.getUpdatePatchHandling();
+    const releaseType = detectReleaseType(release.title);
+
+    // Skip update/patch releases entirely if handling mode is 'hide'
+    if ((releaseType === 'update' || releaseType === 'patch') && updatePatchHandling === 'hide') {
+      logger.debug(`RSS: Skipping ${releaseType} release (hide mode): "${release.title}"`);
+      return null;
+    }
+
     for (const game of wantedGames) {
-      const scoredRelease = this.scoreReleaseForGame(release, game);
+      const scoredRelease = await this.scoreReleaseForGame(release, game);
 
       // Only consider matches with positive scores and high confidence
       if (scoredRelease.score > bestScore && scoredRelease.matchConfidence !== 'low') {
@@ -202,12 +213,25 @@ export class RssSync {
    * Score a release for a specific game
    * This replicates the logic from IndexerService.scoreRelease but works with raw releases
    */
-  private scoreReleaseForGame(release: ReleaseSearchResult, game: Game): ScoredRelease {
+  private async scoreReleaseForGame(release: ReleaseSearchResult, game: Game): Promise<ScoredRelease> {
     let score = 100; // Base score
     let matchConfidence: 'high' | 'medium' | 'low' = 'medium';
 
     const releaseTitleLower = release.title.toLowerCase();
     const gameTitleLower = game.title.toLowerCase();
+
+    // Detect release type (full, update, patch, dlc)
+    const releaseType = detectReleaseType(release.title);
+
+    // Get update/patch handling settings
+    const updatePatchHandling = await settingsService.getUpdatePatchHandling();
+    const updatePatchPenalty = await settingsService.getUpdatePatchPenalty();
+
+    // Apply penalty for update/patch releases based on handling mode
+    if ((releaseType === 'update' || releaseType === 'patch') && updatePatchHandling === 'penalize') {
+      score -= updatePatchPenalty;
+      logger.debug(`RSS: Applied ${updatePatchPenalty} penalty for ${releaseType} release: "${release.title}"`);
+    }
 
     // Normalize game title for matching (remove special characters, handle common patterns)
     const normalizedGameTitle = this.normalizeTitle(gameTitleLower);
@@ -281,6 +305,7 @@ export class RssSync {
       quality,
       score,
       matchConfidence,
+      releaseType,
     };
   }
 

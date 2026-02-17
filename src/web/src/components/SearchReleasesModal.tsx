@@ -20,6 +20,21 @@ interface Release {
   quality?: string;
   score?: number;
   matchConfidence?: 'high' | 'medium' | 'low';
+  releaseType?: 'full' | 'update' | 'patch' | 'dlc';
+}
+
+// Helper function to get release type badge styling
+function getReleaseTypeBadge(releaseType?: string): { label: string; className: string } | null {
+  switch (releaseType) {
+    case 'update':
+      return { label: 'Update Only', className: 'bg-orange-600 text-orange-100' };
+    case 'patch':
+      return { label: 'Patch Only', className: 'bg-yellow-600 text-yellow-100' };
+    case 'dlc':
+      return { label: 'DLC', className: 'bg-purple-600 text-purple-100' };
+    default:
+      return null; // Don't show badge for full games
+  }
 }
 
 interface SearchReleasesModalProps {
@@ -182,9 +197,16 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-white text-sm mb-2 truncate" title={release.title}>
-                        {release.title}
-                      </h3>
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-semibold text-white text-sm truncate" title={release.title}>
+                          {release.title}
+                        </h3>
+                        {getReleaseTypeBadge(release.releaseType) && (
+                          <span className={`text-xs px-2 py-0.5 rounded font-medium flex-shrink-0 ${getReleaseTypeBadge(release.releaseType)!.className}`}>
+                            {getReleaseTypeBadge(release.releaseType)!.label}
+                          </span>
+                        )}
+                      </div>
 
                       <div className="flex flex-wrap gap-2 text-xs mb-2">
                         <span className="bg-gray-500 text-gray-100 px-2 py-1 rounded">

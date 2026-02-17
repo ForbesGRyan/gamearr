@@ -192,20 +192,35 @@ export class QBittorrentClient {
    * Add a torrent by URL or magnet link
    * For magnet links: sends URL directly
    * For .torrent URLs: downloads the file first, then uploads as binary
+   * If fallbackUrl is provided and primary URL fails, retries with fallback
    */
-  async addTorrent(url: string, options?: Partial<AddTorrentOptions>): Promise<string> {
+  async addTorrent(url: string, options?: Partial<AddTorrentOptions>, fallbackUrl?: string): Promise<string> {
     const isMagnet = url.startsWith('magnet:');
     logger.info(`Adding ${isMagnet ? 'magnet' : 'torrent file'} to qBittorrent`);
 
     try {
       if (isMagnet) {
-        // Magnet links can be sent directly as URL
         return await this.addTorrentByUrl(url, options);
       } else {
-        // For .torrent URLs, download the file first then upload as binary
         return await this.addTorrentByFile(url, options);
       }
     } catch (error) {
+      // If primary URL failed and we have a fallback, try it
+      if (fallbackUrl && fallbackUrl !== url) {
+        const isFallbackMagnet = fallbackUrl.startsWith('magnet:');
+        logger.warn(`Primary download URL failed, trying fallback (${isFallbackMagnet ? 'magnet' : 'torrent file'})...`);
+        try {
+          if (isFallbackMagnet) {
+            return await this.addTorrentByUrl(fallbackUrl, options);
+          } else {
+            return await this.addTorrentByFile(fallbackUrl, options);
+          }
+        } catch (fallbackError) {
+          logger.error('Fallback URL also failed:', fallbackError);
+          // Throw the original error since it's more relevant
+          throw error;
+        }
+      }
       logger.error('Failed to add torrent:', error);
       throw error;
     }
@@ -265,6 +280,21 @@ export class QBittorrentClient {
 
     const torrentData = await response.arrayBuffer();
     logger.debug(`Downloaded .torrent file: ${torrentData.byteLength} bytes`);
+
+    // Validate the response is actually a .torrent file
+    const contentType = response.headers.get('content-type') || '';
+    const isHtml = contentType.includes('text/html');
+    const isTooSmall = torrentData.byteLength < 50;
+
+    if (isHtml || isTooSmall) {
+      const reason = isHtml
+        ? `received HTML response (content-type: ${contentType})`
+        : `response too small (${torrentData.byteLength} bytes)`;
+      throw new QBittorrentError(
+        `Downloaded content is not a valid .torrent file: ${reason}. The URL may be a proxy link that failed to resolve.`,
+        ErrorCode.QBITTORRENT_ERROR
+      );
+    }
 
     // Create multipart form data with the torrent file
     const formData = new FormData();

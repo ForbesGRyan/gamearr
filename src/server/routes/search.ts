@@ -128,12 +128,14 @@ search.post('/grab', zValidator('json', grabReleaseSchema), async (c) => {
     const { gameId, release } = c.req.valid('json');
 
     // Build a ScoredRelease-like object from the request
+    // Prefer magnet links over proxy URLs for direct download client compatibility
     const scoredRelease = {
       guid: `manual-${Date.now()}`,
       title: release.title,
       size: release.size || 0,
       seeders: release.seeders || 0,
-      downloadUrl: release.downloadUrl || release.magnetUrl || '',
+      downloadUrl: release.magnetUrl || release.downloadUrl || '',
+      magnetUrl: release.magnetUrl || undefined,
       indexer: release.indexer || 'Unknown',
       quality: undefined,
       publishedAt: release.publishedAt ? new Date(release.publishedAt) : release.publishDate ? new Date(release.publishDate) : new Date(),

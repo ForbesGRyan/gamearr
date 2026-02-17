@@ -59,8 +59,10 @@ export interface ReleaseSearchResult {
   seeders: number;
   leechers: number;
   downloadUrl: string;
+  magnetUrl?: string;
   infoUrl?: string;
   publishedAt: Date;
   quality?: string;
   categories?: number[];
+  releaseType?: 'full' | 'update' | 'patch' | 'dlc';
 }

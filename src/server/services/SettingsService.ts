@@ -35,6 +35,9 @@ const SETTINGS_KEYS = {
   SEARCH_SCHEDULER_INTERVAL: 'search_scheduler_interval',
   AUTO_GRAB_MIN_SCORE: 'auto_grab_min_score',
   AUTO_GRAB_MIN_SEEDERS: 'auto_grab_min_seeders',
+  // Release type detection settings
+  UPDATE_PATCH_PENALTY: 'update_patch_penalty',
+  UPDATE_PATCH_HANDLING: 'update_patch_handling',
   // Cache settings
   TRENDING_GAMES_CACHE_INTERVAL: 'trending_games_cache_interval',
   TOP_TORRENTS_CACHE_INTERVAL: 'top_torrents_cache_interval',
@@ -237,6 +240,47 @@ export class SettingsService {
     logger.info(`Setting auto-grab minimum seeders: ${validSeeders}`);
     await settingsRepository.setJSON(SETTINGS_KEYS.AUTO_GRAB_MIN_SEEDERS, validSeeders);
     this.invalidateCache(SETTINGS_KEYS.AUTO_GRAB_MIN_SEEDERS);
+  }
+
+  /**
+   * Get update/patch release score penalty
+   */
+  async getUpdatePatchPenalty(): Promise<number> {
+    const penalty = await this.getCachedJSON<number>(SETTINGS_KEYS.UPDATE_PATCH_PENALTY);
+    return penalty ?? 80; // Default: 80
+  }
+
+  /**
+   * Set update/patch release score penalty
+   */
+  async setUpdatePatchPenalty(penalty: number): Promise<void> {
+    const validPenalty = Math.max(0, Math.min(200, penalty)); // 0 to 200
+    logger.info(`Setting update/patch penalty: ${validPenalty}`);
+    await settingsRepository.setJSON(SETTINGS_KEYS.UPDATE_PATCH_PENALTY, validPenalty);
+    this.invalidateCache(SETTINGS_KEYS.UPDATE_PATCH_PENALTY);
+  }
+
+  /**
+   * Get update/patch handling mode
+   * - 'penalize': Apply score penalty to update/patch releases
+   * - 'hide': Hide update/patch releases from results
+   * - 'warn_only': Show warning but don't penalize score
+   */
+  async getUpdatePatchHandling(): Promise<'penalize' | 'hide' | 'warn_only'> {
+    const handling = await this.getCached(SETTINGS_KEYS.UPDATE_PATCH_HANDLING);
+    if (handling === 'hide' || handling === 'warn_only') {
+      return handling;
+    }
+    return 'penalize'; // Default
+  }
+
+  /**
+   * Set update/patch handling mode
+   */
+  async setUpdatePatchHandling(handling: 'penalize' | 'hide' | 'warn_only'): Promise<void> {
+    logger.info(`Setting update/patch handling: ${handling}`);
+    await settingsRepository.set(SETTINGS_KEYS.UPDATE_PATCH_HANDLING, handling);
+    this.invalidateCache(SETTINGS_KEYS.UPDATE_PATCH_HANDLING);
   }
 
   /**

@@ -458,11 +458,15 @@ export class DownloadService {
 
     // Add to qBittorrent (category and tags already loaded above)
     try {
+      // Use magnetUrl as fallback if primary downloadUrl is a proxy URL that fails
+      const fallbackUrl = release.magnetUrl && release.magnetUrl !== release.downloadUrl
+        ? release.magnetUrl : undefined;
+
       await qbittorrentClient.addTorrent(release.downloadUrl, {
         category,
         tags,
         paused: 'false',
-      });
+      }, fallbackUrl);
 
       // Update release status to downloading
       await releaseRepository.updateStatus(createdRelease.id, 'downloading');

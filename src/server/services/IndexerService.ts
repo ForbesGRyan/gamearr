@@ -6,10 +6,12 @@ import type { Game } from '../db/schema';
 import { logger } from '../utils/logger';
 import { NotConfiguredError } from '../utils/errors';
 import { cleanSearchQuery } from '../utils/searchQuery';
+import { detectReleaseType, type ReleaseType } from '../utils/releaseType';
 
 export interface ScoredRelease extends ReleaseSearchResult {
   score: number;
   matchConfidence: 'high' | 'medium' | 'low';
+  releaseType: ReleaseType;
 }
 
 export class IndexerService {
@@ -30,6 +32,10 @@ export class IndexerService {
     // Get configured categories
     const categories = await settingsService.getProwlarrCategories();
 
+    // Get update/patch handling settings
+    const updatePatchHandling = await settingsService.getUpdatePatchHandling();
+    const updatePatchPenalty = await settingsService.getUpdatePatchPenalty();
+
     // Search Prowlarr with configured category filters
     const releases = await prowlarrClient.searchReleases({
       query: searchQuery,
@@ -38,9 +44,21 @@ export class IndexerService {
     });
 
     // Score and filter releases (base scoring)
-    const scoredReleases = releases
-      .map((release) => this.scoreRelease(release, game))
+    let scoredReleases = releases
+      .map((release) => this.scoreRelease(release, game, updatePatchHandling, updatePatchPenalty))
       .filter((release) => release.score > 0); // Filter out obvious bad matches
+
+    // Filter out updates/patches if handling mode is 'hide'
+    if (updatePatchHandling === 'hide') {
+      const beforeCount = scoredReleases.length;
+      scoredReleases = scoredReleases.filter(
+        (release) => release.releaseType === 'full' || release.releaseType === 'dlc'
+      );
+      const hiddenCount = beforeCount - scoredReleases.length;
+      if (hiddenCount > 0) {
+        logger.debug(`Hidden ${hiddenCount} update/patch releases from results`);
+      }
+    }
 
     // Enhance scores with semantic similarity
     const enhancedReleases = await this.enhanceWithSemanticScores(scoredReleases, game);
@@ -219,12 +237,26 @@ export class IndexerService {
   /**
    * Score a release based on quality and matching
    */
-  private scoreRelease(release: ReleaseSearchResult, game: Game): ScoredRelease {
+  private scoreRelease(
+    release: ReleaseSearchResult,
+    game: Game,
+    updatePatchHandling: 'penalize' | 'hide' | 'warn_only' = 'penalize',
+    updatePatchPenalty: number = 80
+  ): ScoredRelease {
     let score = 100; // Base score
     let matchConfidence: 'high' | 'medium' | 'low' = 'medium';
 
     const releaseTitleLower = release.title.toLowerCase();
     const gameTitleLower = game.title.toLowerCase();
+
+    // Detect release type (full, update, patch, dlc)
+    const releaseType = detectReleaseType(release.title);
+
+    // Apply penalty for update/patch releases based on handling mode
+    if ((releaseType === 'update' || releaseType === 'patch') && updatePatchHandling === 'penalize') {
+      score -= updatePatchPenalty;
+      logger.debug(`Applied ${updatePatchPenalty} penalty for ${releaseType} release: "${release.title}"`);
+    }
 
     // Platform matching - heavily penalize wrong platform releases
     const detectedPlatform = this.detectReleasePlatform(release.title);
@@ -305,6 +337,7 @@ export class IndexerService {
       ...release,
       score,
       matchConfidence,
+      releaseType,
     };
   }
 

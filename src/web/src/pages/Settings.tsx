@@ -93,6 +93,10 @@ function Settings() {
   const [trendingCacheInterval, setTrendingCacheInterval] = useState(15);
   const [torrentsCacheInterval, setTorrentsCacheInterval] = useState(5);
 
+  // Update/Patch detection settings
+  const [updatePatchHandling, setUpdatePatchHandling] = useState<'penalize' | 'hide' | 'warn_only'>('penalize');
+  const [updatePatchPenalty, setUpdatePatchPenalty] = useState(80);
+
   // Update check settings
   const [updateCheckEnabled, setUpdateCheckEnabled] = useState(true);
   const [updateCheckSchedule, setUpdateCheckSchedule] = useState<'hourly' | 'daily' | 'weekly'>('daily');
@@ -140,6 +144,8 @@ function Settings() {
         trendingCacheRes,
         torrentsCacheRes,
         discordWebhookRes,
+        updatePatchHandlingRes,
+        updatePatchPenaltyRes,
       ] = await Promise.all([
         api.getSetting('prowlarr_url'),
         api.getSetting('prowlarr_api_key'),
@@ -162,6 +168,8 @@ function Settings() {
         api.getSetting('trending_games_cache_interval'),
         api.getSetting('top_torrents_cache_interval'),
         api.getSetting('discord_webhook_url'),
+        api.getSetting('update_patch_handling'),
+        api.getSetting('update_patch_penalty'),
       ]);
 
       if (prowlarrUrlRes.success && prowlarrUrlRes.data) setProwlarrUrl(prowlarrUrlRes.data as string);
@@ -185,6 +193,8 @@ function Settings() {
       if (trendingCacheRes.success && trendingCacheRes.data !== undefined) setTrendingCacheInterval(trendingCacheRes.data as number);
       if (torrentsCacheRes.success && torrentsCacheRes.data !== undefined) setTorrentsCacheInterval(torrentsCacheRes.data as number);
       if (discordWebhookRes.success && discordWebhookRes.data) setDiscordWebhookUrl(discordWebhookRes.data as string);
+      if (updatePatchHandlingRes.success && updatePatchHandlingRes.data) setUpdatePatchHandling(updatePatchHandlingRes.data as 'penalize' | 'hide' | 'warn_only');
+      if (updatePatchPenaltyRes.success && updatePatchPenaltyRes.data !== undefined) setUpdatePatchPenalty(updatePatchPenaltyRes.data as number);
     } catch (err) {
       setLoadError('Failed to load settings. Please refresh the page.');
       console.error('Failed to load settings:', err);
@@ -365,6 +375,10 @@ function Settings() {
               setTrendingCacheInterval={setTrendingCacheInterval}
               torrentsCacheInterval={torrentsCacheInterval}
               setTorrentsCacheInterval={setTorrentsCacheInterval}
+              updatePatchHandling={updatePatchHandling}
+              setUpdatePatchHandling={setUpdatePatchHandling}
+              updatePatchPenalty={updatePatchPenalty}
+              setUpdatePatchPenalty={setUpdatePatchPenalty}
             />
           )}
 

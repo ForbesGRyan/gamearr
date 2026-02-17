@@ -4,6 +4,20 @@ import { formatBytes, formatDate } from '../../utils/formatters';
 export type SortField = 'title' | 'indexer' | 'size' | 'seeders' | 'publishedAt' | 'category';
 export type SortDirection = 'asc' | 'desc';
 
+// Helper function to get release type badge styling
+function getReleaseTypeBadge(releaseType?: string): { label: string; className: string } | null {
+  switch (releaseType) {
+    case 'update':
+      return { label: 'Update Only', className: 'bg-orange-600 text-orange-100' };
+    case 'patch':
+      return { label: 'Patch Only', className: 'bg-yellow-600 text-yellow-100' };
+    case 'dlc':
+      return { label: 'DLC', className: 'bg-purple-600 text-purple-100' };
+    default:
+      return null; // Don't show badge for full games
+  }
+}
+
 // Common Prowlarr category mappings
 const CATEGORY_NAMES: Record<number, string> = {
   4000: 'PC',
@@ -165,11 +179,18 @@ function ReleasesTable({
               {sortedReleases.map((release) => (
                 <tr key={release.guid} className="hover:bg-gray-750 transition">
                   <td className="px-4 py-3">
-                    <div
-                      className="text-sm font-medium text-white truncate max-w-md"
-                      title={release.title}
-                    >
-                      {release.title}
+                    <div className="flex items-center gap-2 max-w-md">
+                      <div
+                        className="text-sm font-medium text-white truncate"
+                        title={release.title}
+                      >
+                        {release.title}
+                      </div>
+                      {getReleaseTypeBadge(release.releaseType) && (
+                        <span className={`text-xs px-2 py-0.5 rounded font-medium flex-shrink-0 ${getReleaseTypeBadge(release.releaseType)!.className}`}>
+                          {getReleaseTypeBadge(release.releaseType)!.label}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3">

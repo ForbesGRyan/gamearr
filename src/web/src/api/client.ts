@@ -92,6 +92,7 @@ export interface ReleaseData {
   size?: number;
   seeders?: number;
   downloadUrl: string;
+  magnetUrl?: string;
   indexer: string;
   quality?: string;
 }
@@ -192,11 +193,13 @@ export interface Release {
   size: number;
   seeders: number;
   downloadUrl: string;
+  magnetUrl?: string;
   publishedAt: string;
   quality?: string;
   score?: number;
   matchConfidence?: 'high' | 'medium' | 'low';
   categories?: number[];
+  releaseType?: 'full' | 'update' | 'patch' | 'dlc';
 }
 
 export interface SearchResult {
