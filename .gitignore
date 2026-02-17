@@ -58,3 +58,5 @@ src/server/generated/frontend-vfs.ts
 
 # Downloaded docs
 igdb-api-docs.html
+
+config/

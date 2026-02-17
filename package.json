@@ -1,6 +1,6 @@
 {
   "name": "gamearr",
-  "version": "0.1.12.1",
+  "version": "0.1.13",
   "type": "module",
   "scripts": {
     "start": "bun run dev",
