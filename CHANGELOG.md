@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.14 (2026-04-16)
+
+### New Features
+
+- **SABnzbd download client support** - Gamearr now supports SABnzbd as a second download client alongside qBittorrent. Usenet releases from Prowlarr automatically route to SABnzbd while torrent releases continue to qBittorrent. Configure SABnzbd host, API key, and category under Settings > Downloads. Activity page shows unified download status across both clients with protocol badges (Torrent/NZB) on search results. (Closes #1)
+- **Dual-client status sync** - DownloadMonitor tracks connection state independently per client, so one client going offline does not break the other's sync. Per-client error logging makes it easy to see which client is having issues.
+
 ## v0.1.12 (2026-02-17)
 
 ### Bug Fixes
