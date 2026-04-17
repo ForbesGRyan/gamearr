@@ -146,10 +146,11 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
             </p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="game-info-library" className="block text-sm font-medium text-gray-300 mb-2">
               Library
             </label>
             <select
+              id="game-info-library"
               value={libraryId || ''}
               onChange={(e) => setLibraryId(e.target.value ? Number(e.target.value) : null)}
               className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white focus:border-blue-500 focus:outline-none"
@@ -166,10 +167,11 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
             </p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="game-info-platform" className="block text-sm font-medium text-gray-300 mb-2">
               Platform
             </label>
             <input
+              id="game-info-platform"
               type="text"
               value={platform}
               onChange={(e) => setPlatform(e.target.value)}
@@ -188,10 +190,11 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
         <h3 className="text-lg font-semibold mb-4">Status & Monitoring</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="game-info-status" className="block text-sm font-medium text-gray-300 mb-2">
               Status
             </label>
             <select
+              id="game-info-status"
               value={status}
               onChange={(e) => setStatus(e.target.value as Game['status'])}
               className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white focus:border-blue-500 focus:outline-none"
@@ -205,9 +208,9 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
             </p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <span className="block text-sm font-medium text-gray-300 mb-2">
               Monitored
-            </label>
+            </span>
             <button
               onClick={() => setMonitored(!monitored)}
               className={`w-full px-4 py-2 rounded transition ${
@@ -223,10 +226,11 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
             </p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="game-info-update-policy" className="block text-sm font-medium text-gray-300 mb-2">
               Update Policy
             </label>
             <select
+              id="game-info-update-policy"
               value={updatePolicy}
               onChange={(e) => setUpdatePolicy(e.target.value as 'notify' | 'auto' | 'ignore')}
               className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white focus:border-blue-500 focus:outline-none"

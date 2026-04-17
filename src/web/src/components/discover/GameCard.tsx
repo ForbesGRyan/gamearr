@@ -88,9 +88,9 @@ export default function GameCard({
         {/* Multiplayer badges */}
         {game.multiplayer && (
           <div className="flex flex-wrap gap-1 mt-1.5">
-            {getMultiplayerBadges(game.multiplayer).slice(0, 2).map((badge, i) => (
+            {getMultiplayerBadges(game.multiplayer).slice(0, 2).map((badge) => (
               <span
-                key={i}
+                key={badge}
                 className="bg-purple-600/80 text-white text-[10px] px-1.5 py-0.5 rounded"
               >
                 {badge}

@@ -98,7 +98,7 @@ function GameHistorySection({ history, releases }: GameHistorySectionProps) {
 
         {/* Timeline items */}
         <div className="space-y-4">
-          {history.map((entry, index) => {
+          {history.map((entry) => {
             const release = releaseMap.get(entry.releaseId);
             return (
               <div key={entry.id} className="relative pl-10">

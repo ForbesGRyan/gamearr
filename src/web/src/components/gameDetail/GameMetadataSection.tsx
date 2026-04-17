@@ -70,7 +70,7 @@ function GameMetadataSection({ game }: GameMetadataSectionProps) {
             <div className="flex items-center gap-1 text-yellow-400">
               {[...Array(5)].map((_, i) => (
                 <StarIcon
-                  key={i}
+                  key={`star-${i}`}
                   className={`w-5 h-5 ${
                     i < Math.round(game.totalRating! / 20)
                       ? 'text-yellow-400'

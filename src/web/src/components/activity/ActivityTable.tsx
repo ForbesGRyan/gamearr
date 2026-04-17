@@ -1,15 +1,15 @@
 import { Download } from '../../api/client';
 import { PlayIcon, PauseIcon, TrashIcon, DownloadIcon } from '../Icons';
 import { formatBytes, formatSpeed, formatETA } from '../../utils/formatters';
-import { SortField, SortDirection, getStateColor, isPaused } from './types';
+import { SortField, SortDirection, getStateColor, getStateLabel, isPaused, getDownloadId } from './types';
 
 interface ActivityTableProps {
   downloads: Download[];
   sortField: SortField;
   sortDirection: SortDirection;
   onSortChange: (field: SortField) => void;
-  onPause: (hash: string) => void;
-  onResume: (hash: string) => void;
+  onPause: (id: string, client: 'qbittorrent' | 'sabnzbd') => void;
+  onResume: (id: string, client: 'qbittorrent' | 'sabnzbd') => void;
   onImport: (download: Download) => void;
   onDelete: (download: Download) => void;
 }
@@ -134,90 +134,100 @@ function ActivityTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
-            {downloads.map((download) => (
-              <tr key={download.hash} className="hover:bg-gray-750">
-                <td className="px-4 py-3">
-                  <div className="max-w-xs">
-                    <div className="truncate font-medium" title={download.name}>
-                      {download.name}
+            {downloads.map((download) => {
+              const dlId = getDownloadId(download);
+              return (
+                <tr key={dlId} className="hover:bg-gray-750">
+                  <td className="px-4 py-3">
+                    <div className="max-w-xs">
+                      <div className="flex items-center gap-1.5">
+                        <div className="truncate font-medium" title={download.name}>
+                          {download.name}
+                        </div>
+                        {download.client === 'sabnzbd' && (
+                          <span className="text-[10px] bg-purple-900/50 text-purple-400 px-1 py-0.5 rounded flex-shrink-0">NZB</span>
+                        )}
+                      </div>
+                      <div className="mt-1 bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-blue-600 h-full transition-all duration-300"
+                          style={{ width: `${download.progress * 100}%` }}
+                        ></div>
+                      </div>
                     </div>
-                    <div className="mt-1 bg-gray-700 rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className="bg-blue-600 h-full transition-all duration-300"
-                        style={{ width: `${download.progress * 100}%` }}
-                      ></div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs ${getStateColor(download)}`}>{getStateLabel(download)}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right text-white">
+                    {(download.progress * 100).toFixed(1)}%
+                  </td>
+                  <td className="px-4 py-3 text-right text-white">{formatBytes(download.size)}</td>
+                  <td className="px-4 py-3 text-right text-green-400">
+                    {formatSpeed(download.downloadSpeed)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-blue-400">
+                    {download.client === 'sabnzbd' ? '-' : formatSpeed(download.uploadSpeed || 0)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-white">{formatETA(download.eta)}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
+                    {download.addedOn ? new Date(download.addedOn).toLocaleDateString(undefined, {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }) : '-'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1 justify-end">
+                      {isPaused(download) ? (
+                        <button
+                          onClick={() => onResume(dlId, download.client)}
+                          className="bg-green-600 hover:bg-green-700 p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded transition"
+                          title="Resume"
+                          aria-label="Resume download"
+                        >
+                          <PlayIcon />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => onPause(dlId, download.client)}
+                          className="bg-yellow-600 hover:bg-yellow-700 p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded transition"
+                          title="Pause"
+                          aria-label="Pause download"
+                        >
+                          <PauseIcon />
+                        </button>
+                      )}
+                      {download.client === 'qbittorrent' && (
+                        <button
+                          onClick={() => onImport(download)}
+                          className={`p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded transition ${
+                            download.gameId
+                              ? 'bg-gray-600 cursor-not-allowed opacity-50'
+                              : 'bg-blue-600 hover:bg-blue-700'
+                          }`}
+                          title={download.gameId ? 'Already linked to library' : 'Import to Library'}
+                          aria-label={download.gameId ? 'Already linked to library' : 'Import to Library'}
+                          disabled={!!download.gameId}
+                        >
+                          <DownloadIcon />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => onDelete(download)}
+                        className="bg-red-600 hover:bg-red-700 p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded transition"
+                        title="Delete"
+                        aria-label="Delete download"
+                      >
+                        <TrashIcon />
+                      </button>
                     </div>
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`text-xs ${getStateColor(download.state)}`}>{download.state}</span>
-                </td>
-                <td className="px-4 py-3 text-right text-white">
-                  {(download.progress * 100).toFixed(1)}%
-                </td>
-                <td className="px-4 py-3 text-right text-white">{formatBytes(download.size)}</td>
-                <td className="px-4 py-3 text-right text-green-400">
-                  {formatSpeed(download.downloadSpeed)}
-                </td>
-                <td className="px-4 py-3 text-right text-blue-400">
-                  {formatSpeed(download.uploadSpeed)}
-                </td>
-                <td className="px-4 py-3 text-right text-white">{formatETA(download.eta)}</td>
-                <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
-                  {new Date(download.addedOn).toLocaleDateString(undefined, {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1 justify-end">
-                    {isPaused(download.state) ? (
-                      <button
-                        onClick={() => onResume(download.hash)}
-                        className="bg-green-600 hover:bg-green-700 p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded transition"
-                        title="Resume"
-                        aria-label="Resume download"
-                      >
-                        <PlayIcon />
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => onPause(download.hash)}
-                        className="bg-yellow-600 hover:bg-yellow-700 p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded transition"
-                        title="Pause"
-                        aria-label="Pause download"
-                      >
-                        <PauseIcon />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => onImport(download)}
-                      className={`p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded transition ${
-                        download.gameId
-                          ? 'bg-gray-600 cursor-not-allowed opacity-50'
-                          : 'bg-blue-600 hover:bg-blue-700'
-                      }`}
-                      title={download.gameId ? 'Already linked to library' : 'Import to Library'}
-                      aria-label={download.gameId ? 'Already linked to library' : 'Import to Library'}
-                      disabled={!!download.gameId}
-                    >
-                      <DownloadIcon />
-                    </button>
-                    <button
-                      onClick={() => onDelete(download)}
-                      className="bg-red-600 hover:bg-red-700 p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded transition"
-                      title="Delete"
-                      aria-label="Delete download"
-                    >
-                      <TrashIcon />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

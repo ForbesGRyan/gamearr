@@ -39,9 +39,14 @@ export enum ErrorCode {
   GOG_NOT_CONFIGURED = 3402,
   GOG_TOKEN_EXPIRED = 3403,
 
-  DISCORD_ERROR = 3500,
-  DISCORD_CONNECTION_FAILED = 3501,
-  DISCORD_NOT_CONFIGURED = 3502,
+  SABNZBD_ERROR = 3500,
+  SABNZBD_CONNECTION_FAILED = 3501,
+  SABNZBD_NOT_CONFIGURED = 3502,
+  SABNZBD_AUTH_FAILED = 3503,
+
+  DISCORD_ERROR = 3600,
+  DISCORD_CONNECTION_FAILED = 3601,
+  DISCORD_NOT_CONFIGURED = 3602,
 
   // Database errors (4xxx)
   DATABASE_ERROR = 4000,
@@ -184,6 +189,15 @@ export class GogError extends IntegrationError {
 }
 
 /**
+ * SABnzbd integration errors
+ */
+export class SabnzbdError extends IntegrationError {
+  constructor(message: string, code: ErrorCode = ErrorCode.SABNZBD_ERROR) {
+    super('SABnzbd', message, code);
+  }
+}
+
+/**
  * Discord integration errors
  */
 export class DiscordError extends IntegrationError {
@@ -286,7 +300,7 @@ interface HonoContext {
  *     return c.json({ success: true, data: game });
  *   } catch (error) {
  *     logger.error('Get game failed:', error);
- *     return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+ *     return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
  *   }
  * });
  *
@@ -312,7 +326,7 @@ export function routeHandler<T>(
       return c.json(result);
     } catch (error) {
       logFn(`${operationName} failed:`, error);
-      return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+      return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
     }
   };
 }

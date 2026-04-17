@@ -22,7 +22,7 @@ notifications.get('/test/discord', async (c) => {
     return c.json({ success: true, data: connected });
   } catch (error) {
     logger.error('Discord connection test failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 

@@ -370,12 +370,14 @@ export class UpdateService {
       title: update.title,
       size: update.size || 0,
       seeders: update.seeders || 0,
+      leechers: 0,
       downloadUrl: update.downloadUrl,
       indexer: update.indexer || 'Unknown',
       quality: update.quality || undefined,
       publishedAt: new Date(update.detectedAt),
       score: 100,
       matchConfidence: 'high',
+      releaseType: 'full',
     };
 
     // This will throw on failure

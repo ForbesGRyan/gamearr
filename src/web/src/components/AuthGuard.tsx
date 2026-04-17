@@ -134,7 +134,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
       value={{
         user,
         isAuthenticated: state === 'authenticated',
-        isLoading: state === 'checking',
+        isLoading: false,
         refreshUser,
         logout,
       }}
@@ -144,4 +144,3 @@ export function AuthGuard({ children }: AuthGuardProps) {
   );
 }
 
-export default AuthGuard;

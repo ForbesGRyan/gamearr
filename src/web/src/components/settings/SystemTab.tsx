@@ -242,8 +242,9 @@ export default function SystemTab() {
                 <p className="font-medium">Automatic Update Checking</p>
                 <p className="text-sm text-gray-400">Periodically check for new Gamearr versions</p>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
+              <label htmlFor="setting-app-update-enabled" aria-label="Toggle automatic update checking" className="relative inline-flex items-center cursor-pointer">
                 <input
+                  id="setting-app-update-enabled"
                   type="checkbox"
                   checked={updateSettings.enabled}
                   onChange={(e) => handleUpdateSettingChange('enabled', e.target.checked)}

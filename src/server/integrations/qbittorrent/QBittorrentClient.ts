@@ -172,10 +172,10 @@ export class QBittorrentClient {
 
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
-        return response.json();
+        return await response.json() as T;
       }
 
-      return response.text() as T;
+      return await response.text() as unknown as T;
     } catch (error) {
       if (error instanceof QBittorrentError) {
         throw error;

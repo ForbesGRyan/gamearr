@@ -1,7 +1,5 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { formatBytes, formatTimestamp } from '../../utils/formatters';
-import { FolderIcon } from '../Icons';
-import { api } from '../../api/client';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import type { LooseFile, DuplicateGroup, LibraryInfo } from './types';
 
@@ -24,11 +22,22 @@ function getTargetFolderName(fileName: string, extension: string): string {
   return fileName.replace(new RegExp(`${extension.replace('.', '\\.')}$`, 'i'), '');
 }
 
-// Get the target folder path from a file path
-function getTargetFolderPath(filePath: string, fileName: string, extension: string): string {
-  const folderName = getTargetFolderName(fileName, extension);
-  const parentDir = filePath.substring(0, filePath.lastIndexOf(fileName));
-  return `${parentDir}${folderName}`;
+
+function SortIndicator({ column, sortColumn, sortDirection }: { column: LooseFileSortColumn; sortColumn: LooseFileSortColumn; sortDirection: SortDirection }) {
+  if (sortColumn !== column) {
+    return (
+      <>
+        <span className="text-gray-500 ml-1" aria-hidden="true">&#8597;</span>
+        <span className="sr-only">, not sorted</span>
+      </>
+    );
+  }
+  return (
+    <>
+      <span className="text-blue-400 ml-1" aria-hidden="true">{sortDirection === 'asc' ? '\u2191' : '\u2193'}</span>
+      <span className="sr-only">, sorted {sortDirection === 'asc' ? 'ascending' : 'descending'}</span>
+    </>
+  );
 }
 
 export function LibraryHealthTab({
@@ -113,22 +122,6 @@ export function LibraryHealthTab({
     return sortDirection === 'asc' ? 'ascending' : 'descending';
   };
 
-  const SortIndicator = ({ column }: { column: LooseFileSortColumn }) => {
-    if (sortColumn !== column) {
-      return (
-        <>
-          <span className="text-gray-500 ml-1" aria-hidden="true">&#8597;</span>
-          <span className="sr-only">, not sorted</span>
-        </>
-      );
-    }
-    return (
-      <>
-        <span className="text-blue-400 ml-1" aria-hidden="true">{sortDirection === 'asc' ? '\u2191' : '\u2193'}</span>
-        <span className="sr-only">, sorted {sortDirection === 'asc' ? 'ascending' : 'descending'}</span>
-      </>
-    );
-  };
 
   const handleOrganizeClick = (file: LooseFile) => {
     setConfirmingFile(file);
@@ -186,8 +179,8 @@ export function LibraryHealthTab({
           </div>
         ) : (
           <div className="space-y-4">
-            {duplicates.map((group, index) => (
-              <div key={index} className="bg-gray-700 rounded-lg p-4">
+            {duplicates.map((group) => (
+              <div key={group.games.map(g => g.id).sort().join('-')} className="bg-gray-700 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm text-yellow-400 font-medium">
                     {group.similarity}% similar
@@ -285,7 +278,7 @@ export function LibraryHealthTab({
                     tabIndex={0}
                     aria-sort={getAriaSortValue('name')}
                   >
-                    Name<SortIndicator column="name" />
+                    Name<SortIndicator column="name" sortColumn={sortColumn} sortDirection={sortDirection} />
                   </th>
                   {allLibraryOptions.length > 1 && (
                     <th
@@ -295,7 +288,7 @@ export function LibraryHealthTab({
                       tabIndex={0}
                       aria-sort={getAriaSortValue('library')}
                     >
-                      Library<SortIndicator column="library" />
+                      Library<SortIndicator column="library" sortColumn={sortColumn} sortDirection={sortDirection} />
                     </th>
                   )}
                   <th
@@ -305,7 +298,7 @@ export function LibraryHealthTab({
                     tabIndex={0}
                     aria-sort={getAriaSortValue('size')}
                   >
-                    Size<SortIndicator column="size" />
+                    Size<SortIndicator column="size" sortColumn={sortColumn} sortDirection={sortDirection} />
                   </th>
                   <th
                     className="pb-3 pr-4 cursor-pointer hover:text-gray-200 transition select-none"
@@ -314,7 +307,7 @@ export function LibraryHealthTab({
                     tabIndex={0}
                     aria-sort={getAriaSortValue('type')}
                   >
-                    Type<SortIndicator column="type" />
+                    Type<SortIndicator column="type" sortColumn={sortColumn} sortDirection={sortDirection} />
                   </th>
                   <th
                     className="pb-3 pr-4 cursor-pointer hover:text-gray-200 transition select-none"
@@ -323,7 +316,7 @@ export function LibraryHealthTab({
                     tabIndex={0}
                     aria-sort={getAriaSortValue('modified')}
                   >
-                    Modified<SortIndicator column="modified" />
+                    Modified<SortIndicator column="modified" sortColumn={sortColumn} sortDirection={sortDirection} />
                   </th>
                   <th className="pb-3">Actions</th>
                 </tr>
@@ -403,6 +396,7 @@ function OrganizeFileModal({
   onCancel,
 }: OrganizeFileModalProps) {
   const modalRef = useFocusTrap<HTMLDivElement>(true);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Handle Escape key
   const handleKeyDown = useCallback((e: KeyboardEvent) => {

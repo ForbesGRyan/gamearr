@@ -30,14 +30,6 @@ function serializeArrayParam(arr: string[]): string | null {
   return arr.length > 0 ? arr.join(',') : null;
 }
 
-const DEFAULT_FILTERS: Filters = {
-  status: 'all',
-  monitored: 'all',
-  genres: [],
-  gameModes: [],
-  libraryId: 'all',
-  stores: [],
-};
 
 export function useLibraryGames() {
   const navigate = useNavigate();

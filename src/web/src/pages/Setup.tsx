@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import {
@@ -12,6 +12,144 @@ import {
   STEPS,
 } from '../components/setup';
 import type { Step, TestStatus } from '../components/setup';
+
+interface StepContentProps {
+  currentStep: Step;
+  onNext: () => void;
+  onBack: () => void;
+  onFinish: () => void;
+  onSkipSetup: () => void;
+  error: string | null;
+  setError: (error: string | null) => void;
+  testStatus: TestStatus;
+  setTestStatus: (status: TestStatus) => void;
+  libraryName: string;
+  setLibraryName: (name: string) => void;
+  libraryPath: string;
+  setLibraryPath: (path: string) => void;
+  igdbClientId: string;
+  setIgdbClientId: (id: string) => void;
+  igdbClientSecret: string;
+  setIgdbClientSecret: (secret: string) => void;
+  prowlarrUrl: string;
+  setProwlarrUrl: (url: string) => void;
+  prowlarrApiKey: string;
+  setProwlarrApiKey: (key: string) => void;
+  qbHost: string;
+  setQbHost: (host: string) => void;
+  qbUsername: string;
+  setQbUsername: (username: string) => void;
+  qbPassword: string;
+  setQbPassword: (password: string) => void;
+}
+
+function StepContent({
+  currentStep,
+  onNext,
+  onBack,
+  onFinish,
+  onSkipSetup,
+  error,
+  setError,
+  testStatus,
+  setTestStatus,
+  libraryName,
+  setLibraryName,
+  libraryPath,
+  setLibraryPath,
+  igdbClientId,
+  setIgdbClientId,
+  igdbClientSecret,
+  setIgdbClientSecret,
+  prowlarrUrl,
+  setProwlarrUrl,
+  prowlarrApiKey,
+  setProwlarrApiKey,
+  qbHost,
+  setQbHost,
+  qbUsername,
+  setQbUsername,
+  qbPassword,
+  setQbPassword,
+}: StepContentProps) {
+  switch (currentStep) {
+    case 'welcome':
+      return (
+        <WelcomeStep
+          onNext={onNext}
+          onSkipSetup={onSkipSetup}
+        />
+      );
+
+    case 'library':
+      return (
+        <LibraryStep
+          onNext={onNext}
+          onBack={onBack}
+          error={error}
+          setError={setError}
+          libraryName={libraryName}
+          setLibraryName={setLibraryName}
+          libraryPath={libraryPath}
+          setLibraryPath={setLibraryPath}
+        />
+      );
+
+    case 'igdb':
+      return (
+        <IGDBStep
+          onNext={onNext}
+          onBack={onBack}
+          error={error}
+          setError={setError}
+          clientId={igdbClientId}
+          setClientId={setIgdbClientId}
+          clientSecret={igdbClientSecret}
+          setClientSecret={setIgdbClientSecret}
+        />
+      );
+
+    case 'prowlarr':
+      return (
+        <ProwlarrStep
+          onNext={onNext}
+          onBack={onBack}
+          error={error}
+          setError={setError}
+          url={prowlarrUrl}
+          setUrl={setProwlarrUrl}
+          apiKey={prowlarrApiKey}
+          setApiKey={setProwlarrApiKey}
+          testStatus={testStatus}
+          setTestStatus={setTestStatus}
+        />
+      );
+
+    case 'qbittorrent':
+      return (
+        <QBittorrentStep
+          onNext={onNext}
+          onBack={onBack}
+          error={error}
+          setError={setError}
+          host={qbHost}
+          setHost={setQbHost}
+          username={qbUsername}
+          setUsername={setQbUsername}
+          password={qbPassword}
+          setPassword={setQbPassword}
+          testStatus={testStatus}
+          setTestStatus={setTestStatus}
+        />
+      );
+
+    case 'complete':
+      return <CompleteStep onFinish={onFinish} />;
+
+    default:
+      return null;
+  }
+}
 
 export function Setup() {
   const navigate = useNavigate();
@@ -73,86 +211,6 @@ export function Setup() {
     navigate('/');
   };
 
-  const renderStepContent = () => {
-    switch (currentStep) {
-      case 'welcome':
-        return (
-          <WelcomeStep
-            onNext={goNext}
-            onSkipSetup={handleSkipSetup}
-          />
-        );
-
-      case 'library':
-        return (
-          <LibraryStep
-            onNext={goNext}
-            onBack={goBack}
-            error={error}
-            setError={setError}
-            libraryName={libraryName}
-            setLibraryName={setLibraryName}
-            libraryPath={libraryPath}
-            setLibraryPath={setLibraryPath}
-          />
-        );
-
-      case 'igdb':
-        return (
-          <IGDBStep
-            onNext={goNext}
-            onBack={goBack}
-            error={error}
-            setError={setError}
-            clientId={igdbClientId}
-            setClientId={setIgdbClientId}
-            clientSecret={igdbClientSecret}
-            setClientSecret={setIgdbClientSecret}
-          />
-        );
-
-      case 'prowlarr':
-        return (
-          <ProwlarrStep
-            onNext={goNext}
-            onBack={goBack}
-            error={error}
-            setError={setError}
-            url={prowlarrUrl}
-            setUrl={setProwlarrUrl}
-            apiKey={prowlarrApiKey}
-            setApiKey={setProwlarrApiKey}
-            testStatus={testStatus}
-            setTestStatus={setTestStatus}
-          />
-        );
-
-      case 'qbittorrent':
-        return (
-          <QBittorrentStep
-            onNext={goNext}
-            onBack={goBack}
-            error={error}
-            setError={setError}
-            host={qbHost}
-            setHost={setQbHost}
-            username={qbUsername}
-            setUsername={setQbUsername}
-            password={qbPassword}
-            setPassword={setQbPassword}
-            testStatus={testStatus}
-            setTestStatus={setTestStatus}
-          />
-        );
-
-      case 'complete':
-        return <CompleteStep onFinish={handleFinish} />;
-
-      default:
-        return null;
-    }
-  };
-
   const showProgressBar = currentStep !== 'welcome' && currentStep !== 'complete';
 
   return (
@@ -162,7 +220,35 @@ export function Setup() {
 
       {/* Content */}
       <div className="flex-1 flex items-center justify-center p-6">
-        {renderStepContent()}
+        <StepContent
+          currentStep={currentStep}
+          onNext={goNext}
+          onBack={goBack}
+          onFinish={handleFinish}
+          onSkipSetup={handleSkipSetup}
+          error={error}
+          setError={setError}
+          testStatus={testStatus}
+          setTestStatus={setTestStatus}
+          libraryName={libraryName}
+          setLibraryName={setLibraryName}
+          libraryPath={libraryPath}
+          setLibraryPath={setLibraryPath}
+          igdbClientId={igdbClientId}
+          setIgdbClientId={setIgdbClientId}
+          igdbClientSecret={igdbClientSecret}
+          setIgdbClientSecret={setIgdbClientSecret}
+          prowlarrUrl={prowlarrUrl}
+          setProwlarrUrl={setProwlarrUrl}
+          prowlarrApiKey={prowlarrApiKey}
+          setProwlarrApiKey={setProwlarrApiKey}
+          qbHost={qbHost}
+          setQbHost={setQbHost}
+          qbUsername={qbUsername}
+          setQbUsername={setQbUsername}
+          qbPassword={qbPassword}
+          setQbPassword={setQbPassword}
+        />
       </div>
     </div>
   );

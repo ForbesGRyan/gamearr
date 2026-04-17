@@ -64,7 +64,7 @@ router.get('/auth/url', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to get GOG auth URL:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -110,7 +110,7 @@ router.post('/auth/exchange', async (c) => {
     });
   } catch (error) {
     logger.error('GOG code exchange error:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -147,7 +147,7 @@ router.get('/test', async (c) => {
     }
   } catch (error) {
     logger.error('GOG connection test failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -198,7 +198,7 @@ router.get('/owned-games', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to get owned GOG games:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -253,7 +253,7 @@ router.post('/import', async (c) => {
       return c.json({
         success: false,
         error: 'GOG store not found in database. Please run migrations.',
-        code: ErrorCode.INTERNAL_ERROR,
+        code: ErrorCode.DATABASE_ERROR,
       }, 500);
     }
 
@@ -364,7 +364,7 @@ router.post('/import', async (c) => {
     });
   } catch (error) {
     logger.error('GOG import failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -393,7 +393,7 @@ router.post('/import-stream', async (c) => {
   // Get the GOG store ID for linking games
   const gogStore = await gameStoreRepository.getStoreBySlug('gog');
   if (!gogStore) {
-    return c.json({ success: false, error: 'GOG store not found in database. Please run migrations.', code: ErrorCode.INTERNAL_ERROR }, 500);
+    return c.json({ success: false, error: 'GOG store not found in database. Please run migrations.', code: ErrorCode.DATABASE_ERROR }, 500);
   }
 
   return new Response(

@@ -34,7 +34,9 @@
       "Bash(bun -e:*)",
       "Bash(bun outdated:*)",
       "Bash(bun pm:*)",
-      "Bash(bun update:*)"
+      "Bash(bun update:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx react-doctor:*)"
     ]
   }
 }

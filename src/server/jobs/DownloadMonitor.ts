@@ -1,20 +1,27 @@
 import { CronJob } from 'cron';
 import { downloadService } from '../services/DownloadService';
 import { logger } from '../utils/logger';
-import { QBittorrentError, ErrorCode } from '../utils/errors';
+import { QBittorrentError, SabnzbdError, ErrorCode } from '../utils/errors';
+
+interface ClientState {
+  connected: boolean;
+  lastErrorTime: number;
+  consecutiveFailures: number;
+}
 
 /**
  * Download Monitor Job
- * Runs every 30 seconds to sync download status from qBittorrent
+ * Runs every 30 seconds to sync download status from qBittorrent and SABnzbd
  */
 export class DownloadMonitor {
   private job: CronJob | null = null;
   private isRunning = false;
 
-  // Connection state tracking to avoid log spam
-  private isConnected = true;
-  private lastErrorTime: number = 0;
-  private consecutiveFailures = 0;
+  // Connection state tracking per client to avoid log spam
+  private clientState: Record<'qbittorrent' | 'sabnzbd', ClientState> = {
+    qbittorrent: { connected: true, lastErrorTime: 0, consecutiveFailures: 0 },
+    sabnzbd: { connected: true, lastErrorTime: 0, consecutiveFailures: 0 },
+  };
 
   // Only log "still offline" warning every 5 minutes
   private static readonly OFFLINE_LOG_INTERVAL_MS = 5 * 60 * 1000;
@@ -50,7 +57,7 @@ export class DownloadMonitor {
   }
 
   /**
-   * Sync download status
+   * Sync download status from both clients independently
    */
   private async sync() {
     if (this.isRunning) {
@@ -59,51 +66,80 @@ export class DownloadMonitor {
     }
 
     this.isRunning = true;
-
     try {
-      await downloadService.syncDownloadStatus();
+      // Sync both clients concurrently — they are independent
+      const results = await Promise.allSettled([
+        downloadService.syncDownloadStatus(),
+        downloadService.syncUsenetDownloadStatus(),
+      ]);
 
-      // Connection restored
-      if (!this.isConnected) {
-        logger.info('qBittorrent connection restored');
-        this.isConnected = true;
-        this.consecutiveFailures = 0;
+      // Handle qBittorrent result
+      if (results[0].status === 'fulfilled') {
+        this.handleClientSuccess('qbittorrent');
+      } else {
+        this.handleClientError('qbittorrent', results[0].reason, QBittorrentError, [
+          ErrorCode.QBITTORRENT_CONNECTION_FAILED,
+          ErrorCode.QBITTORRENT_NOT_CONFIGURED,
+        ]);
       }
-    } catch (error) {
-      this.handleSyncError(error);
+
+      // Handle SABnzbd result
+      if (results[1].status === 'fulfilled') {
+        this.handleClientSuccess('sabnzbd');
+      } else {
+        this.handleClientError('sabnzbd', results[1].reason, SabnzbdError, [
+          ErrorCode.SABNZBD_CONNECTION_FAILED,
+          ErrorCode.SABNZBD_NOT_CONFIGURED,
+        ]);
+      }
     } finally {
       this.isRunning = false;
     }
   }
 
   /**
-   * Handle sync errors with smart logging to avoid spam
+   * Handle successful sync for a client
    */
-  private handleSyncError(error: unknown) {
-    this.consecutiveFailures++;
-    const now = Date.now();
+  private handleClientSuccess(client: 'qbittorrent' | 'sabnzbd') {
+    const state = this.clientState[client];
+    if (!state.connected) {
+      const label = client === 'qbittorrent' ? 'qBittorrent' : 'SABnzbd';
+      logger.info(`${label} connection restored`);
+      state.connected = true;
+      state.consecutiveFailures = 0;
+    }
+  }
 
-    // Check if this is a connection error
+  /**
+   * Handle sync errors for a client
+   */
+  private handleClientError(
+    client: 'qbittorrent' | 'sabnzbd',
+    error: unknown,
+    errorClass: typeof QBittorrentError | typeof SabnzbdError,
+    connectionErrorCodes: ErrorCode[]
+  ) {
+    const state = this.clientState[client];
+    state.consecutiveFailures++;
+    const now = Date.now();
+    const label = client === 'qbittorrent' ? 'qBittorrent' : 'SABnzbd';
+    const syncType = client === 'qbittorrent' ? 'torrent' : 'usenet';
+
     const isConnectionError =
-      error instanceof QBittorrentError &&
-      (error.code === ErrorCode.QBITTORRENT_CONNECTION_FAILED ||
-       error.code === ErrorCode.QBITTORRENT_NOT_CONFIGURED);
+      error instanceof errorClass &&
+      connectionErrorCodes.includes(error.code);
 
     if (isConnectionError) {
-      if (this.isConnected) {
-        // First failure - log the error
-        logger.warn('qBittorrent is offline or unreachable. Downloads will not be monitored until connection is restored.');
-        this.isConnected = false;
-        this.lastErrorTime = now;
-      } else if (now - this.lastErrorTime > DownloadMonitor.OFFLINE_LOG_INTERVAL_MS) {
-        // Periodic reminder that it's still offline
-        logger.debug(`qBittorrent still offline (${this.consecutiveFailures} consecutive failures)`);
-        this.lastErrorTime = now;
+      if (state.connected) {
+        logger.warn(`${label} is offline or unreachable. ${syncType === 'torrent' ? 'Torrent' : 'Usenet'} downloads will not be monitored until connection is restored.`);
+        state.connected = false;
+        state.lastErrorTime = now;
+      } else if (now - state.lastErrorTime > DownloadMonitor.OFFLINE_LOG_INTERVAL_MS) {
+        logger.debug(`${label} still offline (${state.consecutiveFailures} consecutive failures)`);
+        state.lastErrorTime = now;
       }
-      // Otherwise, stay silent to avoid log spam
     } else {
-      // Non-connection errors should always be logged
-      logger.error('Download monitor sync failed:', error);
+      logger.error(`Download monitor ${syncType} sync failed:`, error);
     }
   }
 

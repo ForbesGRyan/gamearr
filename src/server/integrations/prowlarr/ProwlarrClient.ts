@@ -88,7 +88,7 @@ export class ProwlarrClient {
         );
       }
 
-      return response.json();
+      return await response.json() as T;
     } catch (error) {
       if (error instanceof ProwlarrError) {
         throw error;
@@ -228,6 +228,7 @@ export class ProwlarrClient {
       publishedAt: new Date(release.publishDate),
       quality: this.extractQuality(release.title),
       categories: categoryIds,
+      protocol: release.protocol,
     };
   }
 

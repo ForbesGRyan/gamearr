@@ -4,7 +4,7 @@ import { api, setAuthToken, getAuthToken, emitAuthEvent } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { GamepadIcon } from '../components/Icons';
 
-export function Login() {
+function Login() {
   const navigate = useNavigate();
   const { showToast } = useToast();
 
@@ -96,7 +96,6 @@ export function Login() {
                 className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 placeholder="Enter your username"
                 autoComplete="username"
-                autoFocus
               />
             </div>
 

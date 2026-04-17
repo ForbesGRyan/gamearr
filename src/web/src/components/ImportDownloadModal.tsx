@@ -163,7 +163,7 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
         importSource: download ? {
           type: 'download' as const,
           torrentName: download.name,
-          torrentHash: download.hash,
+          torrentHash: download.hash || download.id || '',
         } : undefined,
       });
 
@@ -213,7 +213,6 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search for a game..."
                 className="bg-gray-600 flex-1 px-4 py-2 min-h-[44px] rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-white"
-                autoFocus
               />
               <button
                 type="submit"
@@ -227,10 +226,11 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
             {/* Library Selector */}
             {libraries.length > 0 && (
               <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="import-download-library" className="block text-sm font-medium text-gray-300 mb-2">
                   Add to Library
                 </label>
                 <select
+                  id="import-download-library"
                   value={selectedLibraryId || ''}
                   onChange={(e) => setSelectedLibraryId(e.target.value ? Number(e.target.value) : null)}
                   className="w-full bg-gray-600 border border-gray-600 rounded px-4 py-2 min-h-[44px] text-white focus:border-blue-500 focus:outline-none"

@@ -13,7 +13,7 @@ interface TorrentRelease {
   indexer: string;
   size: number;
   seeders: number;
-  leechers: number;
+  leechers?: number;
   publishedAt: string;
   downloadUrl?: string;
   infoUrl?: string;
@@ -115,31 +115,6 @@ async function preloadTopTorrents(): Promise<TorrentRelease[] | null> {
     loadingState.topTorrents = false;
   }
   return cache.topTorrents;
-}
-
-// Start background preloading
-export function startBackgroundPreload(): void {
-  // Small delay to let the main page load first
-  setTimeout(async () => {
-    // Load popularity types first (needed for games)
-    const types = await preloadPopularityTypes();
-
-    // Then preload default popular games (type 2 = IGDB Visits)
-    await preloadPopularGames(2);
-
-    // Preload top torrents in parallel
-    preloadTopTorrents();
-
-    // Optionally preload other popularity types if we have them
-    if (types && types.length > 0) {
-      // Preload first 3 popularity types in background
-      for (const type of types.slice(0, 3)) {
-        if (type.id !== 2) {
-          preloadPopularGames(type.id);
-        }
-      }
-    }
-  }, 1000); // 1 second delay after app mount
 }
 
 // Hook to get cached data

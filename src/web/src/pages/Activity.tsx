@@ -21,6 +21,7 @@ import {
   sortDownloads,
   isPaused,
   isActiveDownload,
+  getDownloadId,
 } from '../components/activity';
 
 function Activity() {
@@ -118,26 +119,26 @@ function Activity() {
 
   // Check for active and paused downloads
   const hasActiveDownloads = useMemo(() => {
-    return downloads.some((d) => isActiveDownload(d.state));
+    return downloads.some((d) => isActiveDownload(d));
   }, [downloads]);
 
   const hasPausedDownloads = useMemo(() => {
-    return downloads.some((d) => isPaused(d.state));
+    return downloads.some((d) => isPaused(d));
   }, [downloads]);
 
   // Action handlers
-  const handlePause = async (hash: string) => {
+  const handlePause = async (id: string, client: 'qbittorrent' | 'sabnzbd') => {
     try {
-      await api.pauseDownload(hash);
+      await api.pauseDownload(id, client);
       loadDownloads();
     } catch (err) {
       setActionError('Failed to pause download');
     }
   };
 
-  const handleResume = async (hash: string) => {
+  const handleResume = async (id: string, client: 'qbittorrent' | 'sabnzbd') => {
     try {
-      await api.resumeDownload(hash);
+      await api.resumeDownload(id, client);
       loadDownloads();
     } catch (err) {
       setActionError('Failed to resume download');
@@ -166,7 +167,8 @@ function Activity() {
     if (!downloadToDelete) return;
 
     try {
-      await api.cancelDownload(downloadToDelete.hash, false);
+      const dlId = getDownloadId(downloadToDelete);
+      await api.cancelDownload(dlId, false, downloadToDelete.client);
       loadDownloads();
     } catch (err) {
       setActionError('Failed to delete download');
@@ -246,7 +248,7 @@ function Activity() {
       <ConfirmModal
         isOpen={downloadToDelete !== null}
         title="Delete Download"
-        message={downloadToDelete ? `Delete "${downloadToDelete.name}"?\n\nThis will remove the torrent but keep the downloaded files.` : ''}
+        message={downloadToDelete ? `Delete "${downloadToDelete.name}"?\n\nThis will remove the download but keep the downloaded files.` : ''}
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"

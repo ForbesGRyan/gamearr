@@ -27,8 +27,9 @@ export function LibraryPagination({
           Showing {startItem}-{endItem} of {totalItems} {itemLabel}
         </span>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-400">Per page:</label>
+          <label htmlFor="pagination-page-size" className="text-sm text-gray-400">Per page:</label>
           <select
+            id="pagination-page-size"
             value={pageSize}
             onChange={(e) => onPageSizeChange(parseInt(e.target.value, 10))}
             className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

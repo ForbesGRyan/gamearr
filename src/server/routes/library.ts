@@ -82,7 +82,7 @@ library.get('/scan/count', async (c) => {
     });
   } catch (error) {
     logger.error('Library scan count failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -106,7 +106,7 @@ library.get('/scan', async (c) => {
     });
   } catch (error) {
     logger.error('Library scan failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -130,7 +130,7 @@ library.post('/scan', async (c) => {
     });
   } catch (error) {
     logger.error('Library scan failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -171,7 +171,7 @@ library.post('/auto-match', zValidator('json', autoMatchSchema), async (c) => {
     });
   } catch (error) {
     logger.error('Auto-match failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -189,10 +189,11 @@ library.post('/match', zValidator('json', matchSchema), async (c) => {
       ? new Date(igdbGame.first_release_date * 1000).getFullYear()
       : null);
     const gameCoverUrl = igdbGame.coverUrl || igdbGame.cover?.url || null;
-    const gamePlatform = igdbGame.platforms?.[0]?.name || igdbGame.platforms?.[0] || 'PC';
+    const firstPlatform = igdbGame.platforms?.[0];
+    const gamePlatform = (typeof firstPlatform === 'object' && firstPlatform !== null ? firstPlatform.name : firstPlatform) || 'PC';
 
     // Check if game already exists
-    const existingGame = await gameService.findByIgdbId(gameIgdbId);
+    const existingGame = await gameService.findByIgdbId(gameIgdbId!);
 
     let game;
     let wasExisting = false;
@@ -216,8 +217,8 @@ library.post('/match', zValidator('json', matchSchema), async (c) => {
       // Create new game with downloaded status (since it's already in library)
       // Include metadata if available from GameSearchResult format
       game = await gameService.createGame({
-        igdbId: gameIgdbId,
-        title: gameTitle,
+        igdbId: gameIgdbId!,
+        title: gameTitle!,
         year: gameYear,
         coverUrl: gameCoverUrl,
         platform: gamePlatform,
@@ -263,7 +264,7 @@ library.post('/match', zValidator('json', matchSchema), async (c) => {
       return c.json({ success: false, error: error.message, code: ErrorCode.PATH_TRAVERSAL }, 403);
     }
     logger.error('Library match failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -305,7 +306,7 @@ library.post('/match-existing', zValidator('json', matchExistingSchema), async (
       return c.json({ success: false, error: error.message, code: ErrorCode.PATH_TRAVERSAL }, 403);
     }
     logger.error('Library match failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -339,7 +340,7 @@ library.post('/ignore', zValidator('json', folderPathSchema), async (c) => {
       return c.json({ success: false, error: error.message, code: ErrorCode.PATH_TRAVERSAL }, 403);
     }
     logger.error('Failed to ignore folder:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -373,7 +374,7 @@ library.post('/unignore', zValidator('json', folderPathSchema), async (c) => {
       return c.json({ success: false, error: error.message, code: ErrorCode.PATH_TRAVERSAL }, 403);
     }
     logger.error('Failed to unignore folder:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -390,7 +391,7 @@ library.get('/ignored', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to get ignored folders:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -416,7 +417,7 @@ library.get('/health/count', async (c) => {
     });
   } catch (error) {
     logger.error('Health count failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -434,7 +435,7 @@ library.get('/health/duplicates', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to find duplicate games:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -452,7 +453,7 @@ library.get('/health/loose-files', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to find loose files:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -478,7 +479,7 @@ library.post('/health/organize-file', zValidator('json', organizeFileSchema), as
       return c.json({ success: false, error: error.message, code: ErrorCode.PATH_TRAVERSAL }, 403);
     }
     logger.error('Failed to organize file:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 

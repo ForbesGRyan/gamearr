@@ -85,8 +85,9 @@ export default function ProwlarrStep({
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-2">Prowlarr URL *</label>
+          <label htmlFor="setup-prowlarr-url" className="block text-sm font-medium mb-2">Prowlarr URL *</label>
           <input
+            id="setup-prowlarr-url"
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
@@ -96,8 +97,9 @@ export default function ProwlarrStep({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">API Key *</label>
+          <label htmlFor="setup-prowlarr-api-key" className="block text-sm font-medium mb-2">API Key *</label>
           <input
+            id="setup-prowlarr-api-key"
             type="text"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}

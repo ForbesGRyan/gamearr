@@ -439,8 +439,9 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
           {/* Library Selector */}
           {libraries.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Library</label>
+              <label htmlFor="edit-game-library" className="block text-sm font-medium text-gray-300 mb-2">Library</label>
               <select
+                id="edit-game-library"
                 value={libraryId || ''}
                 onChange={(e) => setLibraryId(e.target.value ? Number(e.target.value) : null)}
                 className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -460,8 +461,9 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
 
           {/* Status Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
+            <label htmlFor="edit-game-status" className="block text-sm font-medium text-gray-300 mb-2">Status</label>
             <select
+              id="edit-game-status"
               value={status}
               onChange={(e) => setStatus(e.target.value as 'wanted' | 'downloading' | 'downloaded')}
               className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -477,11 +479,12 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
 
           {/* Folder Path */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="edit-game-folder-path" className="block text-sm font-medium text-gray-300 mb-2">
               Library Folder Path
             </label>
             <div className="flex gap-2">
               <input
+                id="edit-game-folder-path"
                 type="text"
                 value={folderPath}
                 onChange={(e) => setFolderPath(e.target.value)}
@@ -565,10 +568,11 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
 
               {/* Update Policy Selector */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="edit-game-update-policy" className="block text-sm font-medium text-gray-300 mb-2">
                   Update Policy
                 </label>
                 <select
+                  id="edit-game-update-policy"
                   value={updatePolicy}
                   onChange={(e) => setUpdatePolicy(e.target.value as 'notify' | 'auto' | 'ignore')}
                   className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"

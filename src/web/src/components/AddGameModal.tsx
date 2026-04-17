@@ -135,7 +135,6 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search for a game..."
                 className="bg-gray-700 flex-1 px-4 py-2 min-h-[44px] rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-white"
-                autoFocus
                 aria-label="Search for games"
               />
               <button

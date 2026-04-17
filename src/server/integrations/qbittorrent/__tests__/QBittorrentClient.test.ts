@@ -1,3 +1,4 @@
+// @ts-nocheck - Bun mock type tracking doesn't support .mock.calls indexing
 import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test';
 import { QBittorrentClient } from '../QBittorrentClient';
 import { QBittorrentError, ErrorCode } from '../../../utils/errors';

@@ -1,4 +1,5 @@
 import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
+import { sabnzbdClient } from '../integrations/sabnzbd/SabnzbdClient';
 import { discordClient } from '../integrations/discord/DiscordWebhookClient';
 import { releaseRepository } from '../repositories/ReleaseRepository';
 import { gameRepository } from '../repositories/GameRepository';
@@ -7,9 +8,8 @@ import { libraryService } from './LibraryService';
 import type { NewRelease, NewDownloadHistory, Release } from '../db/schema';
 import type { ScoredRelease } from './IndexerService';
 import type { TorrentInfo } from '../integrations/qbittorrent/types';
+import type { NzbDownloadInfo } from '../integrations/sabnzbd/types';
 import { logger } from '../utils/logger';
-import { db } from '../db';
-import { downloadHistory } from '../db/schema';
 import { NotConfiguredError, NotFoundError } from '../utils/errors';
 
 export interface GrabReleaseResult {
@@ -387,20 +387,29 @@ export class DownloadService {
   }
 
   /**
-   * Grab a release and send it to qBittorrent
+   * Grab a release and send it to the appropriate download client
    */
   async grabRelease(
     gameId: number,
     release: ScoredRelease
   ): Promise<GrabReleaseResult> {
-    if (!qbittorrentClient.isConfigured()) {
-      throw new NotConfiguredError('qBittorrent');
+    const protocol = release.protocol || 'torrent';
+
+    // Check the appropriate client is configured
+    if (protocol === 'usenet') {
+      if (!sabnzbdClient.isConfigured()) {
+        throw new NotConfiguredError('SABnzbd');
+      }
+    } else {
+      if (!qbittorrentClient.isConfigured()) {
+        throw new NotConfiguredError('qBittorrent');
+      }
     }
 
     // Check if dry-run mode is enabled
     const isDryRun = await settingsService.getDryRun();
 
-    logger.info(`${isDryRun ? '[DRY-RUN] ' : ''}Grabbing release: ${release.title} for game ID ${gameId}`);
+    logger.info(`${isDryRun ? '[DRY-RUN] ' : ''}Grabbing ${protocol} release: ${release.title} for game ID ${gameId}`);
 
     // Get game info
     const game = await gameRepository.findById(gameId);
@@ -408,23 +417,28 @@ export class DownloadService {
       throw new NotFoundError('Game', gameId);
     }
 
-    // Get category from library if available, otherwise use global setting
-    let category = await settingsService.getQBittorrentCategory();
-    if (game.libraryId) {
-      const library = await libraryService.getLibrary(game.libraryId);
-      if (library?.downloadCategory) {
-        category = library.downloadCategory;
+    // Get category from the appropriate client
+    let category: string;
+    if (protocol === 'usenet') {
+      category = await settingsService.getSabnzbdCategory();
+    } else {
+      category = await settingsService.getQBittorrentCategory();
+      if (game.libraryId) {
+        const library = await libraryService.getLibrary(game.libraryId);
+        if (library?.downloadCategory) {
+          category = library.downloadCategory;
+        }
       }
     }
     const tags = `gamearr,game-${gameId}`;
 
     if (isDryRun) {
-      // Log detailed information about what would be downloaded
       logger.info('═══════════════════════════════════════════════════════');
       logger.info('[DRY-RUN] Download Details:');
       logger.info('═══════════════════════════════════════════════════════');
       logger.info(`Game: ${game.title} (${game.year})`);
       logger.info(`Release: ${release.title}`);
+      logger.info(`Protocol: ${protocol}`);
       logger.info(`Indexer: ${release.indexer}`);
       logger.info(`Quality: ${release.quality || 'N/A'}`);
       logger.info(`Size: ${(release.size / (1024 * 1024 * 1024)).toFixed(2)} GB`);
@@ -436,9 +450,7 @@ export class DownloadService {
       logger.info(`Tags: ${tags}`);
       logger.info('═══════════════════════════════════════════════════════');
 
-      return {
-        releaseId: -1,
-      };
+      return { releaseId: -1 };
     }
 
     // Create release record
@@ -450,30 +462,47 @@ export class DownloadService {
       downloadUrl: release.downloadUrl,
       indexer: release.indexer,
       quality: release.quality || null,
+      protocol,
+      downloadClient: protocol === 'usenet' ? 'sabnzbd' : 'qbittorrent',
       grabbedAt: new Date(),
       status: 'pending',
     };
 
     const createdRelease = await releaseRepository.create(newRelease);
 
-    // Add to qBittorrent (category and tags already loaded above)
     try {
-      // Use magnetUrl as fallback if primary downloadUrl is a proxy URL that fails
-      const fallbackUrl = release.magnetUrl && release.magnetUrl !== release.downloadUrl
-        ? release.magnetUrl : undefined;
+      if (protocol === 'usenet') {
+        // Send to SABnzbd
+        const nzoId = await sabnzbdClient.addNzb(release.downloadUrl, { category });
 
-      // Include Prowlarr API key header for proxy URL authentication
-      const prowlarrApiKey = await settingsService.getSetting('prowlarr_api_key');
-      const fetchHeaders: Record<string, string> = {};
-      if (prowlarrApiKey) {
-        fetchHeaders['X-Api-Key'] = prowlarrApiKey;
+        // Store the nzo_id for reliable future matching
+        await releaseRepository.update(createdRelease.id, { downloadId: nzoId });
+      } else {
+        // Send to qBittorrent (existing torrent flow)
+        const fallbackUrl = release.magnetUrl && release.magnetUrl !== release.downloadUrl
+          ? release.magnetUrl : undefined;
+
+        const prowlarrApiKey = await settingsService.getSetting('prowlarr_api_key');
+        const fetchHeaders: Record<string, string> = {};
+        if (prowlarrApiKey) {
+          fetchHeaders['X-Api-Key'] = prowlarrApiKey;
+        }
+
+        await qbittorrentClient.addTorrent(release.downloadUrl, {
+          category,
+          tags,
+          paused: 'false',
+        }, fallbackUrl, fetchHeaders);
+
+        // Try to find and store the torrent hash asynchronously
+        this.tryFindAndStoreHash(
+          createdRelease.id,
+          release.title,
+          release.size,
+          gameId,
+          release.downloadUrl
+        ).catch(err => logger.error('Background hash storage failed:', err));
       }
-
-      await qbittorrentClient.addTorrent(release.downloadUrl, {
-        category,
-        tags,
-        paused: 'false',
-      }, fallbackUrl, fetchHeaders);
 
       // Update release status to downloading
       await releaseRepository.updateStatus(createdRelease.id, 'downloading');
@@ -481,68 +510,189 @@ export class DownloadService {
       // Update game status to downloading
       await gameRepository.update(gameId, { status: 'downloading' });
 
-      logger.info(`Release grabbed successfully: ${release.title}`);
+      logger.info(`Release grabbed successfully (${protocol}): ${release.title}`);
 
-      // Try to find and store the torrent hash for reliable future matching
-      // This is done asynchronously to not block the response
-      this.tryFindAndStoreHash(
-        createdRelease.id,
-        release.title,
-        release.size,
-        gameId,
-        release.downloadUrl
-      ).catch(err => logger.error('Background hash storage failed:', err));
-
-      return {
-        releaseId: createdRelease.id,
-      };
+      return { releaseId: createdRelease.id };
     } catch (error) {
-      // If adding to qBittorrent fails, mark release as failed
       await releaseRepository.updateStatus(createdRelease.id, 'failed');
-
       throw error;
     }
   }
 
   /**
-   * Get all active downloads
+   * Sync usenet download status from SABnzbd
+   */
+  async syncUsenetDownloadStatus() {
+    if (!sabnzbdClient.isConfigured()) return;
+
+    try {
+      const downloads = await sabnzbdClient.getAllDownloads();
+      const activeReleases = await releaseRepository.findActiveDownloads();
+
+      // Filter to usenet releases only
+      const usenetReleases = activeReleases.filter(
+        r => r.downloadClient === 'sabnzbd'
+      );
+
+      const releaseStatusUpdates: Array<{
+        id: number;
+        status: 'pending' | 'downloading' | 'completed' | 'failed';
+      }> = [];
+      const gameIdsToMarkDownloaded: number[] = [];
+      const completedReleases: string[] = [];
+
+      for (const release of usenetReleases) {
+        // Match by stored downloadId (nzo_id)
+        const match = downloads.find(d => d.id === release.downloadId);
+        if (!match) {
+          logger.debug(`No SABnzbd match found for release ${release.id}: "${release.title}"`);
+          continue;
+        }
+
+        let newStatus: 'pending' | 'downloading' | 'completed' | 'failed' = 'downloading';
+
+        if (match.status === 'Completed' || match.progress >= 1) {
+          newStatus = 'completed';
+          if (release.status !== 'completed') {
+            completedReleases.push(release.title);
+            gameIdsToMarkDownloaded.push(release.gameId);
+          }
+        } else if (match.status === 'Failed') {
+          newStatus = 'failed';
+        }
+
+        if (release.status !== newStatus) {
+          releaseStatusUpdates.push({ id: release.id, status: newStatus });
+        }
+      }
+
+      for (const completed of completedReleases) {
+        logger.info(`Usenet download completed: ${completed}`);
+      }
+
+      if (releaseStatusUpdates.length > 0) {
+        await releaseRepository.batchUpdateStatus(releaseStatusUpdates);
+      }
+
+      await this.handleCompletedGames(gameIdsToMarkDownloaded);
+    } catch (error) {
+      // Rethrow to let DownloadMonitor handle connection state tracking
+      throw error;
+    }
+  }
+
+  /**
+   * Get all active downloads (unified: torrents + usenet)
    * Filters to configured category and optionally includes completed downloads
    */
   async getActiveDownloads(includeCompleted: boolean = false) {
-    try {
-      const torrents = await qbittorrentClient.getTorrents();
+    const results: Array<{
+      hash?: string;
+      id?: string;
+      name: string;
+      size: number;
+      progress: number;
+      downloadSpeed: number;
+      eta: number | string;
+      state?: string;
+      status?: string;
+      category: string;
+      tags?: string;
+      savePath?: string;
+      addedOn?: Date;
+      completionOn?: Date;
+      gameId: number | null;
+      client: 'qbittorrent' | 'sabnzbd';
+    }> = [];
 
-      // Get configured category filter from settings
-      const categoryFilter = await settingsService.getQBittorrentCategory();
+    // Fetch from both clients concurrently
+    const fetchTorrents = async () => {
+      if (!qbittorrentClient.isConfigured()) return;
+      try {
+        const [torrents, categoryFilter] = await Promise.all([
+          qbittorrentClient.getTorrents(),
+          settingsService.getQBittorrentCategory(),
+        ]);
 
-      logger.info(`getActiveDownloads: includeCompleted=${includeCompleted}, categoryFilter="${categoryFilter}", totalTorrents=${torrents.length}`);
+        const filteredTorrents = torrents.filter((torrent) => {
+          const isInCategory = !categoryFilter ||
+            torrent.category === categoryFilter ||
+            torrent.category.startsWith(categoryFilter + '/');
+          const isCompleted = torrent.progress >= 1;
+          return isInCategory && (includeCompleted || !isCompleted);
+        });
 
-      // Filter torrents based on category and completion status
-      const filteredTorrents = torrents.filter((torrent) => {
-        // Apply category filter (if configured)
-        // Support hierarchical categories: "Games" matches "Games" and "Games/PC"
-        const isInCategory = !categoryFilter ||
-          torrent.category === categoryFilter ||
-          torrent.category.startsWith(categoryFilter + '/');
-        const isCompleted = torrent.progress >= 1;
+        for (const torrent of filteredTorrents) {
+          results.push({
+            hash: torrent.hash,
+            name: torrent.name,
+            size: torrent.size,
+            progress: torrent.progress,
+            downloadSpeed: torrent.downloadSpeed,
+            eta: torrent.eta,
+            state: torrent.state,
+            category: torrent.category,
+            tags: torrent.tags,
+            savePath: torrent.savePath,
+            addedOn: torrent.addedOn,
+            completionOn: torrent.completionOn,
+            gameId: this.parseGameIdFromTags(torrent.tags),
+            client: 'qbittorrent',
+          });
+        }
+      } catch (error) {
+        logger.error('Failed to get torrent downloads:', error);
+      }
+    };
 
-        // Include if: in category AND (includeCompleted OR not completed)
-        const include = isInCategory && (includeCompleted || !isCompleted);
+    const fetchUsenet = async () => {
+      if (!sabnzbdClient.isConfigured()) return;
+      try {
+        const [sabCategory, nzbDownloads, activeReleases] = await Promise.all([
+          settingsService.getSabnzbdCategory(),
+          sabnzbdClient.getAllDownloads(),
+          releaseRepository.findActiveDownloads(),
+        ]);
 
-        return include;
-      });
+        const filteredNzbs = nzbDownloads.filter((nzb) => {
+          const isInCategory = !sabCategory || nzb.category === sabCategory;
+          const isCompleted = nzb.progress >= 1;
+          return isInCategory && (includeCompleted || !isCompleted);
+        });
 
-      logger.info(`getActiveDownloads: returning ${filteredTorrents.length} torrents`);
+        // Look up game IDs from release records for usenet downloads
+        const nzoIdToGameId = new Map<string, number>();
+        for (const release of activeReleases) {
+          if (release.downloadClient === 'sabnzbd' && release.downloadId) {
+            nzoIdToGameId.set(release.downloadId, release.gameId);
+          }
+        }
 
-      // Map torrents to include gameId from tags
-      return filteredTorrents.map((torrent) => ({
-        ...torrent,
-        gameId: this.parseGameIdFromTags(torrent.tags),
-      }));
-    } catch (error) {
-      logger.error('Failed to get active downloads:', error);
-      throw error;
-    }
+        for (const nzb of filteredNzbs) {
+          results.push({
+            id: nzb.id,
+            name: nzb.name,
+            size: nzb.size,
+            progress: nzb.progress,
+            downloadSpeed: nzb.downloadSpeed,
+            eta: nzb.eta,
+            status: nzb.status,
+            category: nzb.category,
+            savePath: nzb.savePath,
+            completionOn: nzb.completionOn,
+            gameId: nzoIdToGameId.get(nzb.id) ?? null,
+            client: 'sabnzbd',
+          });
+        }
+      } catch (error) {
+        logger.error('Failed to get usenet downloads:', error);
+      }
+    };
+
+    await Promise.all([fetchTorrents(), fetchUsenet()]);
+
+    logger.info(`getActiveDownloads: returning ${results.length} downloads`);
+    return results;
   }
 
   /**
@@ -572,14 +722,25 @@ export class DownloadService {
   /**
    * Cancel/delete a download
    */
-  async cancelDownload(hash: string, deleteFiles: boolean = false) {
-    logger.info(`Cancelling download: ${hash}`);
+  async cancelDownload(id: string, deleteFiles: boolean = false, client?: 'qbittorrent' | 'sabnzbd') {
+    logger.info(`Cancelling download: ${id} (client: ${client || 'auto'})`);
 
     try {
-      await qbittorrentClient.deleteTorrents([hash], deleteFiles);
+      if (client === 'sabnzbd') {
+        await sabnzbdClient.deleteDownload(id, deleteFiles);
+      } else {
+        await qbittorrentClient.deleteTorrents([id], deleteFiles);
+      }
 
-      // Update release status in database if we have a matching release
-      const release = await releaseRepository.findByTorrentHash(hash);
+      // Update release status in database
+      let release;
+      if (client === 'sabnzbd') {
+        const activeReleases = await releaseRepository.findActiveDownloads();
+        release = activeReleases.find(r => r.downloadId === id);
+      } else {
+        release = await releaseRepository.findByTorrentHash(id);
+      }
+
       if (release) {
         await releaseRepository.updateStatus(release.id, 'failed');
         logger.info(`Updated release ${release.id} status to failed`);
@@ -595,10 +756,14 @@ export class DownloadService {
   /**
    * Pause a download
    */
-  async pauseDownload(hash: string) {
+  async pauseDownload(id: string, client?: 'qbittorrent' | 'sabnzbd') {
     try {
-      await qbittorrentClient.pauseTorrents([hash]);
-      logger.info(`Download paused: ${hash}`);
+      if (client === 'sabnzbd') {
+        await sabnzbdClient.pauseDownload(id);
+      } else {
+        await qbittorrentClient.pauseTorrents([id]);
+      }
+      logger.info(`Download paused: ${id}`);
     } catch (error) {
       logger.error('Failed to pause download:', error);
       throw error;
@@ -608,10 +773,14 @@ export class DownloadService {
   /**
    * Resume a download
    */
-  async resumeDownload(hash: string) {
+  async resumeDownload(id: string, client?: 'qbittorrent' | 'sabnzbd') {
     try {
-      await qbittorrentClient.resumeTorrents([hash]);
-      logger.info(`Download resumed: ${hash}`);
+      if (client === 'sabnzbd') {
+        await sabnzbdClient.resumeDownload(id);
+      } else {
+        await qbittorrentClient.resumeTorrents([id]);
+      }
+      logger.info(`Download resumed: ${id}`);
     } catch (error) {
       logger.error('Failed to resume download:', error);
       throw error;
@@ -619,12 +788,18 @@ export class DownloadService {
   }
 
   /**
-   * Pause all downloads
+   * Pause all downloads across both clients
    */
   async pauseAllDownloads() {
     try {
-      // 'all' is a special value that pauses all torrents in qBittorrent
-      await qbittorrentClient.pauseTorrents(['all']);
+      const promises: Promise<void>[] = [];
+      if (qbittorrentClient.isConfigured()) {
+        promises.push(qbittorrentClient.pauseTorrents(['all']));
+      }
+      if (sabnzbdClient.isConfigured()) {
+        promises.push(sabnzbdClient.pauseQueue());
+      }
+      await Promise.all(promises);
       logger.info('All downloads paused');
     } catch (error) {
       logger.error('Failed to pause all downloads:', error);
@@ -633,12 +808,18 @@ export class DownloadService {
   }
 
   /**
-   * Resume all downloads
+   * Resume all downloads across both clients
    */
   async resumeAllDownloads() {
     try {
-      // 'all' is a special value that resumes all torrents in qBittorrent
-      await qbittorrentClient.resumeTorrents(['all']);
+      const promises: Promise<void>[] = [];
+      if (qbittorrentClient.isConfigured()) {
+        promises.push(qbittorrentClient.resumeTorrents(['all']));
+      }
+      if (sabnzbdClient.isConfigured()) {
+        promises.push(sabnzbdClient.resumeQueue());
+      }
+      await Promise.all(promises);
       logger.info('All downloads resumed');
     } catch (error) {
       logger.error('Failed to resume all downloads:', error);
@@ -698,6 +879,12 @@ export class DownloadService {
       const torrents = await qbittorrentClient.getTorrents();
       const activeReleases = await releaseRepository.findActiveDownloads();
 
+      // Only sync torrent releases here; usenet releases are handled by syncUsenetDownloadStatus().
+      // Null downloadClient preserves backwards compat for releases created before the column existed.
+      const torrentReleases = activeReleases.filter(
+        r => r.downloadClient === 'qbittorrent' || r.downloadClient === null
+      );
+
       // Collect updates to perform in batch
       const releaseStatusUpdates: Array<{
         id: number;
@@ -707,7 +894,7 @@ export class DownloadService {
       const gameIdsToMarkDownloaded: number[] = [];
       const completedReleases: string[] = [];
 
-      for (const release of activeReleases) {
+      for (const release of torrentReleases) {
         // Use robust multi-criteria matching algorithm
         const matchResult = this.findMatchingTorrent(release, torrents);
 
@@ -785,21 +972,7 @@ export class DownloadService {
         await releaseRepository.batchUpdateStatus(statusOnlyUpdates);
       }
 
-      // Batch update all game statuses in a single query
-      // Use Set to deduplicate game IDs
-      const uniqueGameIds = [...new Set(gameIdsToMarkDownloaded)];
-      await gameRepository.batchUpdateStatus(uniqueGameIds, 'downloaded');
-
-      // Assign library to games that don't have one yet
-      // This happens when downloads complete and the game needs a library assignment
-      if (uniqueGameIds.length > 0) {
-        await this.assignLibrariesToGames(uniqueGameIds);
-      }
-
-      // Send Discord notifications for completed downloads
-      if (uniqueGameIds.length > 0 && discordClient.isConfigured()) {
-        await this.sendDownloadCompleteNotifications(uniqueGameIds);
-      }
+      await this.handleCompletedGames(gameIdsToMarkDownloaded);
     } catch (error) {
       // Rethrow to let DownloadMonitor handle connection state tracking
       throw error;
@@ -859,10 +1032,33 @@ export class DownloadService {
   }
 
   /**
+   * Handle post-completion tasks for downloaded games:
+   * mark as downloaded, assign libraries, send notifications.
+   */
+  private async handleCompletedGames(gameIds: number[]): Promise<void> {
+    const uniqueGameIds = [...new Set(gameIds)];
+    if (uniqueGameIds.length === 0) return;
+
+    await gameRepository.batchUpdateStatus(uniqueGameIds, 'downloaded');
+    await this.assignLibrariesToGames(uniqueGameIds);
+
+    if (discordClient.isConfigured()) {
+      await this.sendDownloadCompleteNotifications(uniqueGameIds);
+    }
+  }
+
+  /**
    * Test qBittorrent connection
    */
   async testConnection(): Promise<boolean> {
     return qbittorrentClient.testConnection();
+  }
+
+  /**
+   * Test SABnzbd connection
+   */
+  async testSabnzbdConnection(): Promise<boolean> {
+    return sabnzbdClient.testConnection();
   }
 }
 

@@ -41,6 +41,10 @@ const SETTINGS_KEYS = {
   // Cache settings
   TRENDING_GAMES_CACHE_INTERVAL: 'trending_games_cache_interval',
   TOP_TORRENTS_CACHE_INTERVAL: 'top_torrents_cache_interval',
+  // SABnzbd settings
+  SABNZBD_HOST: 'sabnzbd_host',
+  SABNZBD_API_KEY: 'sabnzbd_api_key',
+  SABNZBD_CATEGORY: 'sabnzbd_category',
   // Notification settings
   DISCORD_WEBHOOK_URL: 'discord_webhook_url',
 };
@@ -55,6 +59,8 @@ const ENV_VAR_FALLBACKS: Record<string, string> = {
   igdb_client_id: 'IGDB_CLIENT_ID',
   igdb_client_secret: 'IGDB_CLIENT_SECRET',
   library_path: 'LIBRARY_PATH',
+  sabnzbd_host: 'SABNZBD_HOST',
+  sabnzbd_api_key: 'SABNZBD_API_KEY',
   discord_webhook_url: 'DISCORD_WEBHOOK_URL',
 };
 
@@ -317,6 +323,14 @@ export class SettingsService {
     logger.info(`Setting top torrents cache interval: ${validMinutes} minutes`);
     await settingsRepository.setJSON(SETTINGS_KEYS.TOP_TORRENTS_CACHE_INTERVAL, validMinutes);
     this.invalidateCache(SETTINGS_KEYS.TOP_TORRENTS_CACHE_INTERVAL);
+  }
+
+  /**
+   * Get SABnzbd category
+   */
+  async getSabnzbdCategory(): Promise<string> {
+    const category = await this.getCached(SETTINGS_KEYS.SABNZBD_CATEGORY);
+    return category || 'gamearr';
   }
 
   /**

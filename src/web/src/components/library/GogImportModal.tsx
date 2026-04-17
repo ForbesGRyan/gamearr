@@ -96,8 +96,8 @@ export function GogImportModal({
                       {error.includes('\n') && (
                         <div className="mt-2 max-h-32 overflow-y-auto">
                           <ul className={`text-sm ${isSuccess ? 'text-green-300' : 'text-red-300'} space-y-1`}>
-                            {error.split('\n').slice(1).map((err, i) => (
-                              <li key={i} className="flex items-start gap-2">
+                            {error.split('\n').slice(1).map((err) => (
+                              <li key={err} className="flex items-start gap-2">
                                 <span className={`${isSuccess ? 'text-green-500' : 'text-red-500'} mt-0.5`}>-</span>
                                 <span>{err}</span>
                               </li>
@@ -196,6 +196,8 @@ export function GogImportModal({
                 {filteredGames.map((game) => (
                   <div
                     key={game.id}
+                    role="button"
+                    tabIndex={game.alreadyInLibrary ? -1 : 0}
                     className={`flex items-center gap-3 p-3 rounded-lg border transition cursor-pointer ${
                       game.alreadyInLibrary
                         ? 'bg-gray-700/30 border-gray-700 opacity-50 cursor-not-allowed'
@@ -204,6 +206,12 @@ export function GogImportModal({
                         : 'bg-gray-700/50 border-gray-600 hover:border-gray-500'
                     }`}
                     onClick={() => !game.alreadyInLibrary && onToggleGame(game.id)}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === ' ') && !game.alreadyInLibrary) {
+                        e.preventDefault();
+                        onToggleGame(game.id);
+                      }
+                    }}
                   >
                     <input
                       type="checkbox"

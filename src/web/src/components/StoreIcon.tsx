@@ -77,12 +77,12 @@ function StoreIcon({ store, stores, className = '' }: StoreIconProps) {
   if (stores && stores.length > 0) {
     return (
       <span className="inline-flex items-center gap-1">
-        {stores.map((storeInfo, index) => {
+        {stores.map((storeInfo) => {
           const slugLower = storeInfo.slug.toLowerCase();
           const config = storeConfig[slugLower] || storeConfig.other;
           return (
             <span
-              key={storeInfo.slug + index}
+              key={storeInfo.slug}
               className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${config.bgColor} ${config.textColor} ${className}`}
               title={storeInfo.name}
             >
@@ -104,12 +104,12 @@ function StoreIcon({ store, stores, className = '' }: StoreIconProps) {
 
   return (
     <span className="inline-flex items-center gap-1">
-      {storeList.map((storeName, index) => {
+      {storeList.map((storeName) => {
         const storeLower = storeName.toLowerCase();
         const config = storeConfig[storeLower] || storeConfig.other;
         return (
           <span
-            key={index}
+            key={storeName}
             className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${config.bgColor} ${config.textColor} ${className}`}
             title={config.name}
           >

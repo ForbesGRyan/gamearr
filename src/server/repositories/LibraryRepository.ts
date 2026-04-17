@@ -104,8 +104,8 @@ export class LibraryRepository {
   async delete(id: number): Promise<boolean> {
     logger.info(`Deleting library ID: ${id}`);
 
-    const result = await db.delete(libraries).where(eq(libraries.id, id));
-    return result.changes > 0;
+    const result = await db.delete(libraries).where(eq(libraries.id, id)).returning();
+    return result.length > 0;
   }
 
   /**

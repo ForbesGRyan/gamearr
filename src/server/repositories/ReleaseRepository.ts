@@ -14,6 +14,9 @@ const releaseFields = {
   indexer: releases.indexer,
   quality: releases.quality,
   torrentHash: releases.torrentHash,
+  protocol: releases.protocol,
+  downloadClient: releases.downloadClient,
+  downloadId: releases.downloadId,
   grabbedAt: releases.grabbedAt,
   status: releases.status,
 };
@@ -139,8 +142,8 @@ export class ReleaseRepository {
   async delete(id: number): Promise<boolean> {
     logger.info(`Deleting release ID: ${id}`);
 
-    const result = await db.delete(releases).where(eq(releases.id, id));
-    return result.changes > 0;
+    const result = await db.delete(releases).where(eq(releases.id, id)).returning();
+    return result.length > 0;
   }
 
   /**
@@ -150,8 +153,8 @@ export class ReleaseRepository {
     if (ids.length === 0) return 0;
 
     logger.info(`Batch deleting ${ids.length} releases`);
-    const result = await db.delete(releases).where(inArray(releases.id, ids));
-    return result.changes;
+    const result = await db.delete(releases).where(inArray(releases.id, ids)).returning();
+    return result.length;
   }
 
   /**
@@ -160,8 +163,8 @@ export class ReleaseRepository {
   async deleteByGameId(gameId: number): Promise<number> {
     logger.info(`Deleting all releases for game ID: ${gameId}`);
 
-    const result = await db.delete(releases).where(eq(releases.gameId, gameId));
-    return result.changes;
+    const result = await db.delete(releases).where(eq(releases.gameId, gameId)).returning();
+    return result.length;
   }
 
   /**

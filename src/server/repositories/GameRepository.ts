@@ -31,6 +31,14 @@ const gameFields = {
   updatePolicy: games.updatePolicy,
   lastUpdateCheck: games.lastUpdateCheck,
   updateAvailable: games.updateAvailable,
+  hltbId: games.hltbId,
+  hltbMain: games.hltbMain,
+  hltbMainExtra: games.hltbMainExtra,
+  hltbCompletionist: games.hltbCompletionist,
+  hltbLastSync: games.hltbLastSync,
+  protonDbTier: games.protonDbTier,
+  protonDbScore: games.protonDbScore,
+  protonDbLastSync: games.protonDbLastSync,
   addedAt: games.addedAt,
 };
 
@@ -218,8 +226,8 @@ export class GameRepository {
   async delete(id: number): Promise<boolean> {
     logger.info(`Deleting game ID: ${id}`);
 
-    const result = await db.delete(games).where(eq(games.id, id));
-    return result.changes > 0;
+    const result = await db.delete(games).where(eq(games.id, id)).returning();
+    return result.length > 0;
   }
 
   /**

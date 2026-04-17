@@ -248,10 +248,11 @@ export default function LibrariesTab() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">
+                <label htmlFor="library-name" className="block text-sm text-gray-400 mb-1">
                   Name <span className="text-red-400">*</span>
                 </label>
                 <input
+                  id="library-name"
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -260,10 +261,11 @@ export default function LibrariesTab() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">
+                <label htmlFor="library-platform" className="block text-sm text-gray-400 mb-1">
                   Platform
                 </label>
                 <input
+                  id="library-platform"
                   type="text"
                   value={formData.platform}
                   onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
@@ -277,11 +279,12 @@ export default function LibrariesTab() {
             </div>
 
             <div>
-              <label className="block text-sm text-gray-400 mb-1">
+              <label htmlFor="library-path" className="block text-sm text-gray-400 mb-1">
                 Path <span className="text-red-400">*</span>
               </label>
               <div className="flex flex-col sm:flex-row gap-2">
                 <input
+                  id="library-path"
                   type="text"
                   value={formData.path}
                   onChange={(e) => {
@@ -308,11 +311,12 @@ export default function LibrariesTab() {
             </div>
 
             <div>
-              <label className="block text-sm text-gray-400 mb-1">
+              <label htmlFor="library-download-category" className="block text-sm text-gray-400 mb-1">
                 Download Category
               </label>
               <div className="flex flex-col sm:flex-row gap-2">
                 <select
+                  id="library-download-category"
                   value={formData.downloadCategory}
                   onChange={(e) => setFormData({ ...formData, downloadCategory: e.target.value })}
                   className="w-full sm:flex-1 px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
@@ -339,10 +343,11 @@ export default function LibrariesTab() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">
+                <label htmlFor="library-priority" className="block text-sm text-gray-400 mb-1">
                   Priority
                 </label>
                 <input
+                  id="library-priority"
                   type="number"
                   min={0}
                   max={100}

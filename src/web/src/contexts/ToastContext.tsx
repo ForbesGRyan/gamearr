@@ -13,6 +13,7 @@ export interface Toast {
 interface ToastContextValue {
   toasts: Toast[];
   addToast: (message: string, type: ToastType, duration?: number) => void;
+  showToast: (message: string, type: ToastType, duration?: number) => void;
   removeToast: (id: string) => void;
 }
 
@@ -72,7 +73,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
   }, []);
 
   return (
-    <ToastContext.Provider value={{ toasts, addToast, removeToast }}>
+    <ToastContext.Provider value={{ toasts, addToast, showToast: addToast, removeToast }}>
       {children}
     </ToastContext.Provider>
   );

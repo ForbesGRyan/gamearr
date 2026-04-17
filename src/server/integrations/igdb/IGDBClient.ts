@@ -109,7 +109,7 @@ export class IGDBClient {
         throw new IGDBError(`Authentication failed: ${response.statusText}`, ErrorCode.IGDB_AUTH_FAILED);
       }
 
-      const data: IGDBAuthResponse = await response.json();
+      const data = await response.json() as IGDBAuthResponse;
       this.accessToken = data.access_token;
       // Set expiry 5 minutes before actual expiry
       this.tokenExpiry = Date.now() + (data.expires_in - 300) * 1000;
@@ -158,7 +158,7 @@ export class IGDBClient {
       throw new IGDBError(`API error: ${response.statusText}`, ErrorCode.IGDB_ERROR);
     }
 
-    return response.json();
+    return await response.json() as T;
   }
 
   /**
@@ -307,7 +307,7 @@ export class IGDBClient {
       throw new IGDBError(`Multiquery error: ${response.statusText} - ${text}`, ErrorCode.IGDB_ERROR);
     }
 
-    return response.json();
+    return await response.json() as Array<{ name: string; result: IGDBGame[] }>;
   }
 
   /**

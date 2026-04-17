@@ -83,7 +83,7 @@ export default function UpdatesTab({
           {/* Enable/Disable */}
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-300">Enable Update Checking</label>
+              <label htmlFor="setting-update-check-enabled" className="block text-sm font-medium text-gray-300">Enable Update Checking</label>
               <p className="text-xs text-gray-500 mt-1">
                 Automatically check downloaded games for available updates
               </p>
@@ -104,8 +104,9 @@ export default function UpdatesTab({
 
           {/* Schedule */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Check Schedule</label>
+            <label htmlFor="setting-update-check-schedule" className="block text-sm font-medium text-gray-300 mb-2">Check Schedule</label>
             <select
+              id="setting-update-check-schedule"
               value={updateCheckSchedule}
               onChange={(e) => setUpdateCheckSchedule(e.target.value as 'hourly' | 'daily' | 'weekly')}
               disabled={!updateCheckEnabled}
@@ -122,8 +123,9 @@ export default function UpdatesTab({
 
           {/* Default Policy */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Default Update Policy</label>
+            <label htmlFor="setting-default-update-policy" className="block text-sm font-medium text-gray-300 mb-2">Default Update Policy</label>
             <select
+              id="setting-default-update-policy"
               value={defaultUpdatePolicy}
               onChange={(e) => setDefaultUpdatePolicy(e.target.value as 'notify' | 'auto' | 'ignore')}
               className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
@@ -180,10 +182,11 @@ export default function UpdatesTab({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           {/* Update/Patch Handling Mode */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="setting-update-patch-handling" className="block text-sm text-gray-400 mb-1">
               Update/Patch Handling
             </label>
             <select
+              id="setting-update-patch-handling"
               value={updatePatchHandling}
               onChange={(e) => setUpdatePatchHandling(e.target.value as 'penalize' | 'hide' | 'warn_only')}
               className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
@@ -199,10 +202,11 @@ export default function UpdatesTab({
 
           {/* Update/Patch Penalty */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="setting-update-patch-penalty" className="block text-sm text-gray-400 mb-1">
               Score Penalty
             </label>
             <input
+              id="setting-update-patch-penalty"
               type="number"
               min={0}
               max={200}

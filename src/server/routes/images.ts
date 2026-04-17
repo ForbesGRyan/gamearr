@@ -23,7 +23,7 @@ images.get('/cover/:gameId', async (c) => {
       c.header('Content-Type', 'image/jpeg');
       c.header('Cache-Control', 'public, max-age=31536000, immutable'); // 1 year
       c.header('X-Cache', 'HIT');
-      return c.body(cachedImage);
+      return c.body(cachedImage as any);
     }
 
     // Not cached - look up game to get source URL
@@ -53,7 +53,7 @@ images.get('/cover/:gameId', async (c) => {
       c.header('Content-Type', 'image/jpeg');
       c.header('Cache-Control', 'public, max-age=31536000, immutable');
       c.header('X-Cache', 'MISS');
-      return c.body(newCachedImage);
+      return c.body(newCachedImage as any);
     }
 
     // Fallback to redirect if something went wrong

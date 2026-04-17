@@ -15,7 +15,7 @@ indexers.get('/', async (c) => {
     return c.json({ success: true, data: indexerList });
   } catch (error) {
     logger.error('Failed to fetch indexers:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -51,7 +51,7 @@ indexers.get('/test', async (c) => {
     return c.json({ success: true, data: connected });
   } catch (error) {
     logger.error('Prowlarr connection test failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -121,7 +121,7 @@ indexers.get('/torrents', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to fetch torrents:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 

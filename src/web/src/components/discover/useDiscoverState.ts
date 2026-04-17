@@ -187,7 +187,7 @@ export function useDiscoverState() {
       }
       const response = await api.getPopularGames(type, 50);
       if (response.success && response.data) {
-        setPopularGames(response.data as PopularGame[]);
+        setPopularGames(response.data);
       } else {
         setError(response.error || 'Failed to load popular games');
       }

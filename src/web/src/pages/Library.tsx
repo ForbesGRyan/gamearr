@@ -138,7 +138,7 @@ function Library() {
 
   // Tab counts (loaded on mount for badges)
   const [scanCount, setScanCount] = useState<number | null>(null);
-  const [healthCount, setHealthCount] = useState<number | null>(null);
+  const [healthCount] = useState<number | null>(null);
   const [organizingFile, setOrganizingFile] = useState<string | null>(null);
   const [organizeError, setOrganizeError] = useState<string | null>(null);
   const [dismissedDuplicates, setDismissedDuplicates] = useState<Set<string>>(() => {
@@ -338,12 +338,7 @@ function Library() {
     try {
       const response = await api.scanLibrary();
       if (response.success && response.data) {
-        const { count, matchedCount, unmatchedCount, folders } = response.data as {
-          count: number;
-          matchedCount: number;
-          unmatchedCount: number;
-          folders: LibraryFolder[];
-        };
+        const { count, matchedCount, unmatchedCount, folders } = response.data;
         setLibraryFolders(folders);
         setIsScanLoaded(true);
         setScanMessage(
@@ -529,11 +524,13 @@ function Library() {
 
   const handleDismissDuplicate = useCallback((group: DuplicateGroup) => {
     const key = group.games.map((g) => g.id).sort().join('-');
-    const newDismissed = new Set(dismissedDuplicates);
-    newDismissed.add(key);
-    setDismissedDuplicates(newDismissed);
-    localStorage.setItem('dismissed-duplicates', JSON.stringify([...newDismissed]));
-  }, [dismissedDuplicates]);
+    setDismissedDuplicates((prev) => {
+      const newDismissed = new Set(prev);
+      newDismissed.add(key);
+      localStorage.setItem('dismissed-duplicates', JSON.stringify([...newDismissed]));
+      return newDismissed;
+    });
+  }, []);
 
   // Steam import handlers
   const handleOpenSteamImport = useCallback(async () => {
@@ -601,13 +598,13 @@ function Library() {
           const summary = `Imported ${result.imported}, skipped ${result.skipped}.`;
           const errorList = result.errors?.length ? `\n${result.errors.join('\n')}` : '';
           if (result.imported > 0 || result.skipped > 0 || result.errors?.length) {
-            setSteamError(summary + errorList);
+            setSteamError(() => summary + errorList);
           }
           setIsImportingSteam(false);
           setSteamImportProgress({ current: 0, total: 0, currentGame: '' });
         },
         (message) => {
-          setSteamError(message);
+          setSteamError(() => message);
           setIsImportingSteam(false);
           setSteamImportProgress({ current: 0, total: 0, currentGame: '' });
         }
@@ -685,13 +682,13 @@ function Library() {
           const summary = `Imported ${result.imported}, skipped ${result.skipped}.`;
           const errorList = result.errors?.length ? `\n${result.errors.join('\n')}` : '';
           if (result.imported > 0 || result.skipped > 0 || result.errors?.length) {
-            setGogError(summary + errorList);
+            setGogError(() => summary + errorList);
           }
           setIsImportingGog(false);
           setGogImportProgress({ current: 0, total: 0, currentGame: '' });
         },
         (message) => {
-          setGogError(message);
+          setGogError(() => message);
           setIsImportingGog(false);
           setGogImportProgress({ current: 0, total: 0, currentGame: '' });
         }

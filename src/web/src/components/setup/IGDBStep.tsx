@@ -67,8 +67,9 @@ export default function IGDBStep({
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-2">Client ID *</label>
+          <label htmlFor="setup-igdb-client-id" className="block text-sm font-medium mb-2">Client ID *</label>
           <input
+            id="setup-igdb-client-id"
             type="text"
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
@@ -78,8 +79,9 @@ export default function IGDBStep({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">Client Secret *</label>
+          <label htmlFor="setup-igdb-client-secret" className="block text-sm font-medium mb-2">Client Secret *</label>
           <input
+            id="setup-igdb-client-secret"
             type="password"
             value={clientSecret}
             onChange={(e) => setClientSecret(e.target.value)}

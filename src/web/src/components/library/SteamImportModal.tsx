@@ -98,8 +98,8 @@ export function SteamImportModal({
                       {error.includes('\n') && (
                         <div className="mt-2 max-h-32 overflow-y-auto">
                           <ul className={`text-sm ${isSuccess ? 'text-green-300' : 'text-red-300'} space-y-1`}>
-                            {error.split('\n').slice(1).map((err, i) => (
-                              <li key={i} className="flex items-start gap-2">
+                            {error.split('\n').slice(1).map((err) => (
+                              <li key={err} className="flex items-start gap-2">
                                 <span className={`${isSuccess ? 'text-green-500' : 'text-red-500'} mt-0.5`}>-</span>
                                 <span>{err}</span>
                               </li>
@@ -156,8 +156,9 @@ export function SteamImportModal({
 
                   {/* Min Playtime */}
                   <div className="flex items-center gap-2">
-                    <label className="text-sm text-gray-400 whitespace-nowrap">Min playtime:</label>
+                    <label htmlFor="steam-import-min-playtime" className="text-sm text-gray-400 whitespace-nowrap">Min playtime:</label>
                     <select
+                      id="steam-import-min-playtime"
                       value={minPlaytime}
                       onChange={(e) => onMinPlaytimeChange(Number(e.target.value))}
                       className="bg-gray-600 border border-gray-500 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -174,8 +175,9 @@ export function SteamImportModal({
 
                   {/* Sort by */}
                   <div className="flex items-center gap-2">
-                    <label className="text-sm text-gray-400 whitespace-nowrap">Sort by:</label>
+                    <label htmlFor="steam-import-sort-by" className="text-sm text-gray-400 whitespace-nowrap">Sort by:</label>
                     <select
+                      id="steam-import-sort-by"
                       value={sortBy}
                       onChange={(e) => onSortChange(e.target.value as 'playtime' | 'name')}
                       className="bg-gray-600 border border-gray-500 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -229,6 +231,8 @@ export function SteamImportModal({
                 {filteredGames.map((game) => (
                   <div
                     key={game.appId}
+                    role="button"
+                    tabIndex={game.alreadyInLibrary ? -1 : 0}
                     className={`flex items-center gap-3 p-3 rounded-lg border transition cursor-pointer ${
                       game.alreadyInLibrary
                         ? 'bg-gray-700/30 border-gray-700 opacity-50 cursor-not-allowed'
@@ -237,6 +241,12 @@ export function SteamImportModal({
                         : 'bg-gray-700/50 border-gray-600 hover:border-gray-500'
                     }`}
                     onClick={() => !game.alreadyInLibrary && onToggleGame(game.appId)}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === ' ') && !game.alreadyInLibrary) {
+                        e.preventDefault();
+                        onToggleGame(game.appId);
+                      }
+                    }}
                   >
                     <input
                       type="checkbox"

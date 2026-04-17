@@ -420,8 +420,8 @@ async function checkDatabase(): Promise<ServiceStatus> {
  */
 async function checkIGDBConfig(): Promise<ServiceStatus> {
   try {
-    const clientId = await settingsService.getIGDBClientId();
-    const clientSecret = await settingsService.getIGDBClientSecret();
+    const clientId = await settingsService.getSetting('igdb_client_id');
+    const clientSecret = await settingsService.getSetting('igdb_client_secret');
 
     if (!clientId || !clientSecret) {
       return {

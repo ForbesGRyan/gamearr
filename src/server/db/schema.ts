@@ -133,6 +133,9 @@ export const releases = sqliteTable('releases', {
   indexer: text('indexer').notNull(),
   quality: text('quality'),
   torrentHash: text('torrent_hash'), // qBittorrent torrent hash for reliable matching
+  protocol: text('protocol').default('torrent'), // 'torrent' or 'usenet'
+  downloadClient: text('download_client'), // 'qbittorrent' or 'sabnzbd'
+  downloadId: text('download_id'), // Client-specific ID (nzo_id for SABnzbd)
   grabbedAt: integer('grabbed_at', { mode: 'timestamp' }),
   status: text('status', {
     enum: ['pending', 'downloading', 'completed', 'failed']
@@ -141,6 +144,7 @@ export const releases = sqliteTable('releases', {
   gameIdIdx: index('releases_game_id_idx').on(table.gameId),
   statusIdx: index('releases_status_idx').on(table.status),
   torrentHashIdx: index('releases_torrent_hash_idx').on(table.torrentHash),
+  downloadClientIdx: index('releases_download_client_idx').on(table.downloadClient),
 }));
 
 export const downloadHistory = sqliteTable('download_history', {

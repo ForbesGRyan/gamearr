@@ -109,7 +109,7 @@ export class GogClient {
 
     if (!response.ok) {
       const text = await response.text();
-      logger.error('GOG token exchange failed:', response.status, text);
+      logger.error(`GOG token exchange failed: ${response.status} ${text}`);
       throw new GogError(`Token exchange failed: ${response.status} ${response.statusText}`, ErrorCode.GOG_AUTH_FAILED);
     }
 

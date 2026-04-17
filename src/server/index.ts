@@ -56,6 +56,7 @@ import { sessionCleanupJob } from './jobs/SessionCleanupJob';
 import { qbittorrentClient } from './integrations/qbittorrent/QBittorrentClient';
 import { prowlarrClient } from './integrations/prowlarr/ProwlarrClient';
 import { igdbClient } from './integrations/igdb/IGDBClient';
+import { sabnzbdClient } from './integrations/sabnzbd/SabnzbdClient';
 import { discordClient } from './integrations/discord/DiscordWebhookClient';
 import { settingsService } from './services/SettingsService';
 import { libraryService } from './services/LibraryService';
@@ -145,7 +146,7 @@ app.onError((err, c) => {
     logger.warn(`[${appError.code}] ${appError.message}`);
   }
 
-  return c.json(formatErrorResponse(appError), appError.statusCode);
+  return c.json(formatErrorResponse(appError), appError.statusCode as any);
 });
 
 const port = process.env.PORT || 7878;
@@ -204,6 +205,18 @@ async function initializeClients() {
       logger.info('IGDB credentials loaded from environment');
     } else {
       logger.warn('IGDB not configured - add settings in Settings > Metadata');
+    }
+
+    // Load SABnzbd settings
+    const sabHost = await settingsService.getSetting('sabnzbd_host');
+    const sabApiKey = await settingsService.getSetting('sabnzbd_api_key');
+
+    if (sabHost && sabApiKey) {
+      sabnzbdClient.configure({ host: sabHost, apiKey: sabApiKey });
+    } else if (process.env.SABNZBD_HOST) {
+      logger.info('SABnzbd credentials loaded from environment');
+    } else {
+      logger.info('SABnzbd not configured - add settings in Settings > Downloads (optional)');
     }
 
     // Load Discord webhook settings

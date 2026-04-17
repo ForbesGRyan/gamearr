@@ -59,8 +59,9 @@ export default function LibraryStep({
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-2">Library Name</label>
+          <label htmlFor="setup-library-name" className="block text-sm font-medium mb-2">Library Name</label>
           <input
+            id="setup-library-name"
             type="text"
             value={libraryName}
             onChange={(e) => setLibraryName(e.target.value)}
@@ -70,8 +71,9 @@ export default function LibraryStep({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">Library Path *</label>
+          <label htmlFor="setup-library-path" className="block text-sm font-medium mb-2">Library Path *</label>
           <input
+            id="setup-library-path"
             type="text"
             value={libraryPath}
             onChange={(e) => setLibraryPath(e.target.value)}

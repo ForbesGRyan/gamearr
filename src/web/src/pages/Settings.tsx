@@ -80,6 +80,10 @@ function Settings() {
   const [qbUsername, setQbUsername] = useState('');
   const [qbPassword, setQbPassword] = useState('');
 
+  // SABnzbd settings
+  const [sabHost, setSabHost] = useState('');
+  const [sabApiKey, setSabApiKey] = useState('');
+
   // Dry-run mode (default ON for safety)
   const [dryRun, setDryRun] = useState(true);
 
@@ -143,6 +147,8 @@ function Settings() {
         minSeedersRes,
         trendingCacheRes,
         torrentsCacheRes,
+        sabHostRes,
+        sabApiKeyRes,
         discordWebhookRes,
         updatePatchHandlingRes,
         updatePatchPenaltyRes,
@@ -154,22 +160,24 @@ function Settings() {
         api.getSetting('qbittorrent_host'),
         api.getSetting('qbittorrent_username'),
         api.getSetting('qbittorrent_password'),
-        api.getSetting('dry_run'),
-        api.getSetting('update_check_enabled'),
+        api.getSetting<boolean>('dry_run'),
+        api.getSetting<boolean>('update_check_enabled'),
         api.getSetting('update_check_schedule'),
         api.getSetting('default_update_policy'),
         api.getSetting('steam_api_key'),
         api.getSetting('steam_id'),
         api.getSetting('gog_refresh_token'),
-        api.getSetting('rss_sync_interval'),
-        api.getSetting('search_scheduler_interval'),
-        api.getSetting('auto_grab_min_score'),
-        api.getSetting('auto_grab_min_seeders'),
-        api.getSetting('trending_games_cache_interval'),
-        api.getSetting('top_torrents_cache_interval'),
+        api.getSetting<number>('rss_sync_interval'),
+        api.getSetting<number>('search_scheduler_interval'),
+        api.getSetting<number>('auto_grab_min_score'),
+        api.getSetting<number>('auto_grab_min_seeders'),
+        api.getSetting<number>('trending_games_cache_interval'),
+        api.getSetting<number>('top_torrents_cache_interval'),
+        api.getSetting('sabnzbd_host'),
+        api.getSetting('sabnzbd_api_key'),
         api.getSetting('discord_webhook_url'),
         api.getSetting('update_patch_handling'),
-        api.getSetting('update_patch_penalty'),
+        api.getSetting<number>('update_patch_penalty'),
       ]);
 
       if (prowlarrUrlRes.success && prowlarrUrlRes.data) setProwlarrUrl(prowlarrUrlRes.data as string);
@@ -179,6 +187,8 @@ function Settings() {
       if (qbHostRes.success && qbHostRes.data) setQbHost(qbHostRes.data as string);
       if (qbUserRes.success && qbUserRes.data) setQbUsername(qbUserRes.data as string);
       if (qbPassRes.success && qbPassRes.data) setQbPassword(qbPassRes.data as string);
+      if (sabHostRes.success && sabHostRes.data) setSabHost(sabHostRes.data as string);
+      if (sabApiKeyRes.success && sabApiKeyRes.data) setSabApiKey(sabApiKeyRes.data as string);
       if (dryRunRes.success && dryRunRes.data !== undefined) setDryRun(dryRunRes.data as boolean);
       if (updateEnabledRes.success && updateEnabledRes.data !== undefined) setUpdateCheckEnabled(updateEnabledRes.data as boolean);
       if (updateScheduleRes.success && updateScheduleRes.data) setUpdateCheckSchedule(updateScheduleRes.data as 'hourly' | 'daily' | 'weekly');
@@ -324,8 +334,9 @@ function Settings() {
 
       {/* Mobile dropdown selector - visible only on small screens */}
       <div className="md:hidden mb-6">
-        <label className="block text-sm text-gray-400 mb-2">Settings Section</label>
+        <label htmlFor="settings-section" className="block text-sm text-gray-400 mb-2">Settings Section</label>
         <select
+          id="settings-section"
           value={activeTab}
           onChange={(e) => setActiveTab(e.target.value as SettingsTab)}
           className="w-full px-4 py-3 bg-gray-800 rounded-lg border border-gray-700 focus:border-blue-500 focus:outline-none text-white min-h-[44px]"
@@ -399,6 +410,10 @@ function Settings() {
               setQbUsername={setQbUsername}
               qbPassword={qbPassword}
               setQbPassword={setQbPassword}
+              sabHost={sabHost}
+              setSabHost={setSabHost}
+              sabApiKey={sabApiKey}
+              setSabApiKey={setSabApiKey}
               dryRun={dryRun}
               setDryRun={setDryRun}
             />

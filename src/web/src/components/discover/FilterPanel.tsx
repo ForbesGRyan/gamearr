@@ -40,7 +40,7 @@ export default function FilterPanel({
       <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4">
         {/* Genres */}
         <div className="w-full sm:w-auto sm:flex-1 sm:min-w-[200px]">
-          <label className="block text-sm text-gray-400 mb-2">Genres</label>
+          <span className="block text-sm text-gray-400 mb-2">Genres</span>
           <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
             {availableGenres.map(genre => (
               <button
@@ -63,7 +63,7 @@ export default function FilterPanel({
 
         {/* Themes */}
         <div className="w-full sm:w-auto sm:flex-1 sm:min-w-[200px]">
-          <label className="block text-sm text-gray-400 mb-2">Themes</label>
+          <span className="block text-sm text-gray-400 mb-2">Themes</span>
           <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
             {availableThemes.map(theme => (
               <button
@@ -86,7 +86,7 @@ export default function FilterPanel({
 
         {/* Multiplayer */}
         <div className="w-full sm:w-auto">
-          <label className="block text-sm text-gray-400 mb-2">Features</label>
+          <span className="block text-sm text-gray-400 mb-2">Features</span>
           <button
             onClick={onToggleMultiplayer}
             className={`text-xs px-3 py-2 min-h-[44px] sm:min-h-0 sm:px-2 sm:py-1 rounded transition ${

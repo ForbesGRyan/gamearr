@@ -118,8 +118,9 @@ function QBittorrentCategorySelector() {
         </div>
       ) : (
         <div>
-          <label className="block text-sm text-gray-300 mb-2">qBittorrent Category</label>
+          <label htmlFor="qb-category" className="block text-sm text-gray-300 mb-2">qBittorrent Category</label>
           <select
+            id="qb-category"
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
             className="bg-gray-600 w-full px-4 py-3 md:py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-white mb-4 text-base"

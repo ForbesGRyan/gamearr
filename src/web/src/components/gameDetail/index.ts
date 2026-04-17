@@ -5,4 +5,3 @@ export { default as GameReleasesSection } from './GameReleasesSection';
 export { default as GameUpdatesSection } from './GameUpdatesSection';
 export { default as GameHistorySection } from './GameHistorySection';
 export { default as GameEventsSection } from './GameEventsSection';
-export { default as GameIntegrationSection } from './GameIntegrationSection';

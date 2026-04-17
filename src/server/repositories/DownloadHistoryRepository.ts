@@ -112,8 +112,8 @@ export class DownloadHistoryRepository {
   async delete(id: number): Promise<boolean> {
     logger.info(`Deleting download history ID: ${id}`);
 
-    const result = await db.delete(downloadHistory).where(eq(downloadHistory.id, id));
-    return result.changes > 0;
+    const result = await db.delete(downloadHistory).where(eq(downloadHistory.id, id)).returning();
+    return result.length > 0;
   }
 
   /**
@@ -122,8 +122,8 @@ export class DownloadHistoryRepository {
   async deleteByGameId(gameId: number): Promise<number> {
     logger.info(`Deleting all download history for game ID: ${gameId}`);
 
-    const result = await db.delete(downloadHistory).where(eq(downloadHistory.gameId, gameId));
-    return result.changes;
+    const result = await db.delete(downloadHistory).where(eq(downloadHistory.gameId, gameId)).returning();
+    return result.length;
   }
 
   /**
@@ -132,8 +132,8 @@ export class DownloadHistoryRepository {
   async deleteByReleaseId(releaseId: number): Promise<number> {
     logger.info(`Deleting all download history for release ID: ${releaseId}`);
 
-    const result = await db.delete(downloadHistory).where(eq(downloadHistory.releaseId, releaseId));
-    return result.changes;
+    const result = await db.delete(downloadHistory).where(eq(downloadHistory.releaseId, releaseId)).returning();
+    return result.length;
   }
 }
 

@@ -4,7 +4,7 @@ import { api, setAuthToken } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { GamepadIcon } from '../components/Icons';
 
-export function Register() {
+function Register() {
   const navigate = useNavigate();
   const { showToast } = useToast();
 
@@ -126,7 +126,6 @@ export function Register() {
                 className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 placeholder="Choose a username (min. 3 characters)"
                 autoComplete="username"
-                autoFocus
                 minLength={3}
                 maxLength={50}
               />

@@ -41,7 +41,7 @@ librariesRouter.get('/', async (c) => {
     return c.json({ success: true, data: libraries });
   } catch (error) {
     logger.error('Failed to get libraries:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -54,7 +54,7 @@ librariesRouter.get('/platforms', async (c) => {
     return c.json({ success: true, data: platforms });
   } catch (error) {
     logger.error('Failed to get platforms:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -68,7 +68,7 @@ librariesRouter.post('/test-path', zValidator('json', testPathSchema), async (c)
     return c.json({ success: true, data: result });
   } catch (error) {
     logger.error('Failed to test path:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -82,7 +82,7 @@ librariesRouter.post('/', zValidator('json', createLibrarySchema), async (c) => 
     return c.json({ success: true, data: library }, 201);
   } catch (error) {
     logger.error('Failed to create library:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -103,7 +103,7 @@ librariesRouter.get('/:id', async (c) => {
     return c.json({ success: true, data: library });
   } catch (error) {
     logger.error(`Failed to get library ${id}:`, error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -125,7 +125,7 @@ librariesRouter.put('/:id', zValidator('json', updateLibrarySchema), async (c) =
     return c.json({ success: true, data: library });
   } catch (error) {
     logger.error(`Failed to update library ${id}:`, error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -146,7 +146,7 @@ librariesRouter.delete('/:id', async (c) => {
     return c.json({ success: true, message: 'Library deleted successfully' });
   } catch (error) {
     logger.error(`Failed to delete library ${id}:`, error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, Release, SearchResult } from '../api/client';
 import GameSelectionModal from '../components/GameSelectionModal';
@@ -20,33 +20,14 @@ function Search() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Get initial mode from URL params, default to 'games'
-  const initialMode = (searchParams.get('tab') as SearchMode) || 'games';
-  const [searchMode, setSearchMode] = useState<SearchMode>(
-    initialMode === 'releases' ? 'releases' : 'games'
-  );
+  // Derive search mode directly from URL - single source of truth
+  const searchMode: SearchMode = searchParams.get('tab') === 'releases' ? 'releases' : 'games';
 
   const [query, setQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
-
-  // Sync mode with URL params (for back/forward navigation)
-  useEffect(() => {
-    const tabParam = searchParams.get('tab') as SearchMode;
-    if (tabParam === 'releases' && searchMode !== 'releases') {
-      setSearchMode('releases');
-      setHasSearched(false);
-      setGameResults([]);
-      setReleases([]);
-    } else if (tabParam !== 'releases' && searchMode === 'releases') {
-      setSearchMode('games');
-      setHasSearched(false);
-      setGameResults([]);
-      setReleases([]);
-    }
-  }, [searchParams]);
 
   // Games search state
   const [gameResults, setGameResults] = useState<SearchResult[]>([]);
@@ -100,7 +81,6 @@ function Search() {
   };
 
   const handleModeChange = (mode: SearchMode) => {
-    setSearchMode(mode);
     setSearchParams({ tab: mode });
     setHasSearched(false);
     setGameResults([]);

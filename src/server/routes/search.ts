@@ -9,12 +9,22 @@ import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
 
 // Validation schemas
+// Validate URL uses allowed schemes only (prevent SSRF via file://, ftp://, etc.)
+const safeUrl = z.string().refine((url) => {
+  try {
+    const parsed = new URL(url);
+    return ['http:', 'https:', 'magnet:'].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+}, { message: 'URL must use http, https, or magnet protocol' });
+
 const grabReleaseSchema = z.object({
   gameId: z.number(),
   release: z.object({
     title: z.string(),
-    downloadUrl: z.string().optional(),
-    magnetUrl: z.string().optional(),
+    downloadUrl: safeUrl.optional(),
+    magnetUrl: safeUrl.optional(),
     size: z.number().optional(),
     seeders: z.number().optional(),
     leechers: z.number().optional(),
@@ -24,6 +34,7 @@ const grabReleaseSchema = z.object({
     infoUrl: z.string().optional(),
     categories: z.array(z.number()).optional(),
     score: z.number().optional(),
+    protocol: z.enum(['torrent', 'usenet']).optional(),
   }),
 });
 
@@ -56,7 +67,7 @@ search.get('/games', async (c) => {
     return c.json({ success: true, data: enrichedResults });
   } catch (error) {
     logger.error('IGDB search failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -71,8 +82,8 @@ search.get('/releases/:id', async (c) => {
   logger.info(`GET /api/v1/search/releases/${id}`);
 
   try {
-    // Get the game
-    const game = await gameService.getGameById(id);
+    // Get the game from repository (returns db Game type needed by searchForGame)
+    const game = await gameRepository.findById(id);
     if (!game) {
       return c.json({ success: false, error: 'Game not found', code: ErrorCode.NOT_FOUND }, 404);
     }
@@ -91,7 +102,7 @@ search.get('/releases/:id', async (c) => {
     });
   } catch (error) {
     logger.error('Release search failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -116,7 +127,7 @@ search.get('/releases', async (c) => {
     });
   } catch (error) {
     logger.error('Manual search failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -134,6 +145,7 @@ search.post('/grab', zValidator('json', grabReleaseSchema), async (c) => {
       title: release.title,
       size: release.size || 0,
       seeders: release.seeders || 0,
+      leechers: release.leechers || 0,
       downloadUrl: release.magnetUrl || release.downloadUrl || '',
       magnetUrl: release.magnetUrl || undefined,
       indexer: release.indexer || 'Unknown',
@@ -141,6 +153,8 @@ search.post('/grab', zValidator('json', grabReleaseSchema), async (c) => {
       publishedAt: release.publishedAt ? new Date(release.publishedAt) : release.publishDate ? new Date(release.publishDate) : new Date(),
       score: release.score || 0,
       matchConfidence: 'high' as const,
+      releaseType: 'full' as const,
+      protocol: release.protocol,
     };
 
     const result = await downloadService.grabRelease(gameId, scoredRelease);
@@ -154,7 +168,7 @@ search.post('/grab', zValidator('json', grabReleaseSchema), async (c) => {
     });
   } catch (error) {
     logger.error('Grab release failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 

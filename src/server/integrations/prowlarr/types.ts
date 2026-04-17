@@ -65,4 +65,5 @@ export interface ReleaseSearchResult {
   quality?: string;
   categories?: number[];
   releaseType?: 'full' | 'update' | 'patch' | 'dlc';
+  protocol?: 'torrent' | 'usenet';
 }

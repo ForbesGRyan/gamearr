@@ -66,10 +66,11 @@ export default function NotificationsTab({
         </p>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="setting-discord-webhook" className="block text-sm text-gray-400 mb-1">
               Webhook URL
             </label>
             <input
+              id="setting-discord-webhook"
               type="password"
               placeholder="https://discord.com/api/webhooks/..."
               value={discordWebhookUrl}

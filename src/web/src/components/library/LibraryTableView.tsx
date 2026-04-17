@@ -22,6 +22,13 @@ interface LibraryTableViewProps {
   onDelete: (game: Game) => void;
 }
 
+function SortIndicator({ column, sortColumn, sortDirection }: { column: SortColumn; sortColumn: SortColumn; sortDirection: 'asc' | 'desc' }) {
+  if (sortColumn !== column) {
+    return <span className="text-gray-500 ml-1">&#8597;</span>;
+  }
+  return <span className="text-blue-400 ml-1">{sortDirection === 'asc' ? '\u2191' : '\u2193'}</span>;
+}
+
 export function LibraryTableView({
   games,
   selectedGameIds,
@@ -38,13 +45,6 @@ export function LibraryTableView({
   onEdit,
   onDelete,
 }: LibraryTableViewProps) {
-  const SortIndicator = ({ column }: { column: SortColumn }) => {
-    if (sortColumn !== column) {
-      return <span className="text-gray-500 ml-1">&#8597;</span>;
-    }
-    return <span className="text-blue-400 ml-1">{sortDirection === 'asc' ? '\u2191' : '\u2193'}</span>;
-  };
-
   return (
     <div className="hidden md:block bg-gray-800 rounded-lg overflow-hidden">
       <table className="w-full">
@@ -71,19 +71,19 @@ export function LibraryTableView({
               className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-600 transition select-none"
               onClick={() => onSort('title')}
             >
-              Title<SortIndicator column="title" />
+              Title<SortIndicator column="title" sortColumn={sortColumn} sortDirection={sortDirection} />
             </th>
             <th
               className="text-left px-4 py-3 font-medium w-20 cursor-pointer hover:bg-gray-600 transition select-none"
               onClick={() => onSort('year')}
             >
-              Year<SortIndicator column="year" />
+              Year<SortIndicator column="year" sortColumn={sortColumn} sortDirection={sortDirection} />
             </th>
             <th
               className="text-left px-4 py-3 font-medium w-20 cursor-pointer hover:bg-gray-600 transition select-none"
               onClick={() => onSort('rating')}
             >
-              Rating<SortIndicator column="rating" />
+              Rating<SortIndicator column="rating" sortColumn={sortColumn} sortDirection={sortDirection} />
             </th>
             <th className="text-left px-4 py-3 font-medium w-40">
               Genres
@@ -99,13 +99,13 @@ export function LibraryTableView({
               className="text-left px-4 py-3 font-medium w-24 cursor-pointer hover:bg-gray-600 transition select-none"
               onClick={() => onSort('store')}
             >
-              Store<SortIndicator column="store" />
+              Store<SortIndicator column="store" sortColumn={sortColumn} sortDirection={sortDirection} />
             </th>
             <th
               className="text-left px-4 py-3 font-medium w-28 cursor-pointer hover:bg-gray-600 transition select-none"
               onClick={() => onSort('status')}
             >
-              Status<SortIndicator column="status" />
+              Status<SortIndicator column="status" sortColumn={sortColumn} sortDirection={sortDirection} />
             </th>
             <th className="text-right px-4 py-3 font-medium w-32">Actions</th>
           </tr>

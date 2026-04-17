@@ -11,7 +11,7 @@ const API_BASE = '/api/v1';
 const AUTH_TOKEN_KEY = 'gamearr_auth_token';
 
 // Event for auth state changes
-export type AuthEventType = 'login' | 'logout' | 'unauthorized';
+type AuthEventType = 'login' | 'logout' | 'unauthorized';
 type AuthEventListener = (event: AuthEventType) => void;
 const authEventListeners: Set<AuthEventListener> = new Set();
 
@@ -44,14 +44,14 @@ function handleUnauthorized(): void {
   emitAuthEvent('unauthorized');
 }
 
-export interface ApiResponse<T> {
+interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
 }
 
 // Request interfaces for API methods
-export interface AddGameRequest {
+interface AddGameRequest {
   igdbId: number;
   title?: string;
   year?: number;
@@ -74,7 +74,7 @@ export interface AddGameRequest {
   };
 }
 
-export interface UpdateGameRequest {
+interface UpdateGameRequest {
   title?: string;
   year?: number;
   platform?: string;
@@ -87,7 +87,7 @@ export interface UpdateGameRequest {
   libraryId?: number | null;
 }
 
-export interface ReleaseData {
+interface ReleaseData {
   title: string;
   size?: number;
   seeders?: number;
@@ -95,9 +95,10 @@ export interface ReleaseData {
   magnetUrl?: string;
   indexer: string;
   quality?: string;
+  protocol?: 'torrent' | 'usenet';
 }
 
-export interface SettingsUpdate {
+interface SettingsUpdate {
   prowlarr_url?: string;
   prowlarr_api_key?: string;
   qbittorrent_host?: string;
@@ -111,7 +112,7 @@ export interface SettingsUpdate {
   dry_run?: boolean;
 }
 
-export interface IGDBGame {
+interface IGDBGame {
   igdbId: number;
   title: string;
   year?: number;
@@ -125,14 +126,14 @@ export interface IGDBGame {
 }
 
 // Store info for games (from junction table)
-export interface GameStoreInfo {
+interface GameStoreInfo {
   name: string;
   slug: string;
   storeGameId?: string | null;
 }
 
 // Folder info for games (from game_folders table)
-export interface GameFolder {
+interface GameFolder {
   id: number;
   folderPath: string;
   version?: string | null;
@@ -173,17 +174,21 @@ export interface Game {
 }
 
 export interface Download {
-  hash: string;
+  hash?: string;
+  id?: string; // SABnzbd nzo_id
   name: string;
   size: number;
   progress: number;
   downloadSpeed: number;
-  uploadSpeed: number;
-  eta: number;
-  state: string;
-  savePath: string;
-  addedOn: string;
+  uploadSpeed?: number;
+  eta: number | string;
+  state?: string; // qBittorrent state
+  status?: string; // SABnzbd status
+  savePath?: string;
+  addedOn?: string;
+  completionOn?: string;
   gameId?: number | null;
+  client: 'qbittorrent' | 'sabnzbd';
 }
 
 export interface Release {
@@ -192,14 +197,17 @@ export interface Release {
   indexer: string;
   size: number;
   seeders: number;
+  leechers?: number;
   downloadUrl: string;
   magnetUrl?: string;
+  infoUrl?: string;
   publishedAt: string;
   quality?: string;
   score?: number;
   matchConfidence?: 'high' | 'medium' | 'low';
   categories?: number[];
   releaseType?: 'full' | 'update' | 'patch' | 'dlc';
+  protocol?: 'torrent' | 'usenet';
 }
 
 export interface SearchResult {
@@ -217,7 +225,7 @@ export interface SearchResult {
   existingGameId?: number | null;
 }
 
-export interface SystemStatus {
+interface SystemStatus {
   version: string;
   uptime: number;
   database: boolean;
@@ -225,7 +233,7 @@ export interface SystemStatus {
   qbittorrent: boolean;
 }
 
-export interface SetupStatus {
+interface SetupStatus {
   isComplete: boolean;
   steps: {
     library: { configured: boolean; required: boolean };
@@ -249,12 +257,14 @@ export interface Indexer {
   };
 }
 
-export interface Settings {
+interface Settings {
   prowlarr_url?: string;
   prowlarr_api_key?: string;
   qbittorrent_host?: string;
   qbittorrent_username?: string;
   qbittorrent_password?: string;
+  sabnzbd_host?: string;
+  sabnzbd_api_key?: string;
   igdb_client_id?: string;
   igdb_client_secret?: string;
   library_path?: string;
@@ -263,19 +273,23 @@ export interface Settings {
   dry_run?: boolean;
 }
 
-export interface Category {
+interface Category {
   id: number;
   name: string;
   subCategories?: Category[];
 }
 
-export interface LibraryFolder {
+interface LibraryFolder {
   folderName: string;
   parsedTitle: string;
+  cleanedTitle: string;
   parsedYear?: number;
+  parsedVersion?: string;
   matched: boolean;
   gameId?: number;
   path: string;
+  libraryName?: string;
+  relativePath?: string;
 }
 
 export interface GameUpdate {
@@ -294,9 +308,9 @@ export interface GameUpdate {
 }
 
 // Integration types (HLTB, ProtonDB)
-export type ProtonDBTier = 'native' | 'platinum' | 'gold' | 'silver' | 'bronze' | 'borked' | 'pending';
+type ProtonDBTier = 'native' | 'platinum' | 'gold' | 'silver' | 'bronze' | 'borked' | 'pending';
 
-export interface HLTBDisplayData {
+interface HLTBDisplayData {
   hltbId: string | null;
   main: number | null; // Hours
   mainExtra: number | null; // Hours
@@ -307,7 +321,7 @@ export interface HLTBDisplayData {
   lastSync: Date | null;
 }
 
-export interface ProtonDBDisplayData {
+interface ProtonDBDisplayData {
   tier: ProtonDBTier | null;
   tierLabel: string;
   tierColor: string;
@@ -317,7 +331,7 @@ export interface ProtonDBDisplayData {
   lastSync: Date | null;
 }
 
-export interface GameIntegrationData {
+interface GameIntegrationData {
   hltb: HLTBDisplayData;
   protonDb: ProtonDBDisplayData;
 }
@@ -370,13 +384,6 @@ export interface SteamImportEventData {
   igdbId: number;
 }
 
-export interface DownloadImportEventData {
-  torrentName: string;
-  torrentHash: string;
-  matchedTitle: string;
-  igdbId: number;
-}
-
 export interface GogImportEventData {
   gogId: number;
   gogTitle: string;
@@ -400,9 +407,17 @@ export interface FolderMatchedEventData {
   igdbId: number;
 }
 
-export interface PopularityType {
+interface PopularityType {
   id: number;
   name: string;
+}
+
+interface PopularGame {
+  game: SearchResult;
+  popularityValue: number;
+  popularityType: number;
+  rank: number;
+  inLibrary: boolean;
 }
 
 export interface SteamGame {
@@ -421,13 +436,19 @@ export interface GogGame {
   alreadyInLibrary: boolean;
 }
 
-export interface LibraryDuplicate {
-  igdbId: number;
-  title: string;
-  games: Game[];
+interface LibraryDuplicate {
+  games: Array<{
+    id: number;
+    title: string;
+    year?: number;
+    status: string;
+    folderPath?: string;
+    size?: number;
+  }>;
+  similarity: number;
 }
 
-export interface LooseFile {
+interface LooseFile {
   path: string;
   name: string;
   size: number;
@@ -441,7 +462,7 @@ export interface LogFile {
   viewable: boolean;
 }
 
-export interface LogFileContent {
+interface LogFileContent {
   content: string;
   totalLines: number;
 }
@@ -478,14 +499,14 @@ export interface AuthStatus {
   hasUsers: boolean;
 }
 
-export interface LoginResponse {
+interface LoginResponse {
   user: AuthUser;
   token: string;
   expiresAt: string;
   message?: string;
 }
 
-export interface RegisterResponse {
+interface RegisterResponse {
   user: AuthUser;
   token: string;
   expiresAt: string;
@@ -532,9 +553,9 @@ class ApiClient {
     try {
       // Include auth token if available
       const authToken = getAuthToken();
-      const headers: HeadersInit = {
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...options?.headers,
+        ...(options?.headers as Record<string, string>),
       };
       if (authToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
@@ -739,20 +760,24 @@ class ApiClient {
     return this.request<Download>(`/downloads/${hash}`);
   }
 
-  async cancelDownload(hash: string, deleteFiles: boolean = false): Promise<ApiResponse<void>> {
-    return this.request<void>(`/downloads/${hash}?deleteFiles=${deleteFiles}`, {
+  async cancelDownload(id: string, deleteFiles: boolean = false, client?: 'qbittorrent' | 'sabnzbd'): Promise<ApiResponse<void>> {
+    const params = new URLSearchParams({ deleteFiles: String(deleteFiles) });
+    if (client) params.set('client', client);
+    return this.request<void>(`/downloads/${id}?${params}`, {
       method: 'DELETE',
     });
   }
 
-  async pauseDownload(hash: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/downloads/${hash}/pause`, {
+  async pauseDownload(id: string, client?: 'qbittorrent' | 'sabnzbd'): Promise<ApiResponse<void>> {
+    const params = client ? `?client=${client}` : '';
+    return this.request<void>(`/downloads/${id}/pause${params}`, {
       method: 'POST',
     });
   }
 
-  async resumeDownload(hash: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/downloads/${hash}/resume`, {
+  async resumeDownload(id: string, client?: 'qbittorrent' | 'sabnzbd'): Promise<ApiResponse<void>> {
+    const params = client ? `?client=${client}` : '';
+    return this.request<void>(`/downloads/${id}/resume${params}`, {
       method: 'POST',
     });
   }
@@ -807,8 +832,8 @@ class ApiClient {
     });
   }
 
-  async getCategories(): Promise<ApiResponse<Category[]>> {
-    return this.request<Category[]>('/settings/categories');
+  async getCategories(): Promise<ApiResponse<{ available: Category[]; groups: { name: string; categories: { id: number; name: string; description: string }[] }[]; default: number[] }>> {
+    return this.request<{ available: Category[]; groups: { name: string; categories: { id: number; name: string; description: string }[] }[]; default: number[] }>('/settings/categories');
   }
 
   async getSelectedCategories(): Promise<ApiResponse<number[]>> {
@@ -857,6 +882,10 @@ class ApiClient {
 
   async testQbittorrentConnection(): Promise<ApiResponse<boolean>> {
     return this.request<boolean>('/downloads/test');
+  }
+
+  async testSabnzbdConnection(): Promise<ApiResponse<boolean>> {
+    return this.request<boolean>('/downloads/test-sabnzbd');
   }
 
   async testSteamConnection(): Promise<ApiResponse<boolean>> {
@@ -1071,8 +1100,8 @@ class ApiClient {
     return this.request<{ count: number; duplicatesCount: number; looseFilesCount: number }>('/library/health/count');
   }
 
-  async scanLibrary(): Promise<ApiResponse<LibraryFolder[]>> {
-    return this.request<LibraryFolder[]>('/library/scan', {
+  async scanLibrary(): Promise<ApiResponse<{ folders: LibraryFolder[]; count: number; matchedCount: number; unmatchedCount: number }>> {
+    return this.request<{ folders: LibraryFolder[]; count: number; matchedCount: number; unmatchedCount: number }>('/library/scan', {
       method: 'POST',
     });
   }
@@ -1150,8 +1179,8 @@ class ApiClient {
     return this.request<PopularityType[]>('/discover/popularity-types');
   }
 
-  async getPopularGames(type: number, limit: number = 20): Promise<ApiResponse<SearchResult[]>> {
-    return this.request<SearchResult[]>(`/discover/popular?type=${type}&limit=${limit}`);
+  async getPopularGames(type: number, limit: number = 20): Promise<ApiResponse<PopularGame[]>> {
+    return this.request<PopularGame[]>(`/discover/popular?type=${type}&limit=${limit}`);
   }
 
   // Indexer Torrents

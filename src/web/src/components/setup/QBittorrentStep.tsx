@@ -98,8 +98,9 @@ export default function QBittorrentStep({
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-2">Host URL *</label>
+          <label htmlFor="setup-qb-host" className="block text-sm font-medium mb-2">Host URL *</label>
           <input
+            id="setup-qb-host"
             type="text"
             value={host}
             onChange={(e) => setHost(e.target.value)}
@@ -109,8 +110,9 @@ export default function QBittorrentStep({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">Username *</label>
+          <label htmlFor="setup-qb-username" className="block text-sm font-medium mb-2">Username *</label>
           <input
+            id="setup-qb-username"
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -120,8 +122,9 @@ export default function QBittorrentStep({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">Password</label>
+          <label htmlFor="setup-qb-password" className="block text-sm font-medium mb-2">Password</label>
           <input
+            id="setup-qb-password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

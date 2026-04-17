@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { downloadService } from '../services/DownloadService';
 import { settingsService } from '../services/SettingsService';
 import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
+import { sabnzbdClient } from '../integrations/sabnzbd/SabnzbdClient';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
 
@@ -17,7 +18,7 @@ downloads.get('/', async (c) => {
     return c.json({ success: true, data: activeDownloads });
   } catch (error) {
     logger.error('Failed to get downloads:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -31,7 +32,7 @@ downloads.post('/pause-all', async (c) => {
     return c.json({ success: true, message: 'All downloads paused successfully' });
   } catch (error) {
     logger.error('Failed to pause all downloads:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -44,7 +45,7 @@ downloads.post('/resume-all', async (c) => {
     return c.json({ success: true, message: 'All downloads resumed successfully' });
   } catch (error) {
     logger.error('Failed to resume all downloads:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -71,7 +72,28 @@ downloads.get('/test', async (c) => {
     return c.json({ success: true, data: connected });
   } catch (error) {
     logger.error('qBittorrent connection test failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
+  }
+});
+
+// GET /api/v1/downloads/test-sabnzbd - Test SABnzbd connection
+// NOTE: Must be defined BEFORE /:hash route
+downloads.get('/test-sabnzbd', async (c) => {
+  logger.info('GET /api/v1/downloads/test-sabnzbd');
+
+  try {
+    const sabHost = await settingsService.getSetting('sabnzbd_host');
+    const sabApiKey = await settingsService.getSetting('sabnzbd_api_key');
+
+    if (sabHost && sabApiKey) {
+      sabnzbdClient.configure({ host: sabHost, apiKey: sabApiKey });
+    }
+
+    const connected = await downloadService.testSabnzbdConnection();
+    return c.json({ success: true, data: connected });
+  } catch (error) {
+    logger.error('SABnzbd connection test failed:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -90,51 +112,60 @@ downloads.get('/:hash', async (c) => {
     return c.json({ success: true, data: download });
   } catch (error) {
     logger.error('Failed to get download:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
+
+// Validate and parse the 'client' query parameter
+function parseClientParam(raw: string | undefined): 'qbittorrent' | 'sabnzbd' | undefined {
+  if (raw === 'qbittorrent' || raw === 'sabnzbd') return raw;
+  return undefined;
+}
 
 // DELETE /api/v1/downloads/:hash - Cancel download
 downloads.delete('/:hash', async (c) => {
   const hash = c.req.param('hash');
   const deleteFiles = c.req.query('deleteFiles') === 'true';
+  const client = parseClientParam(c.req.query('client'));
 
-  logger.info(`DELETE /api/v1/downloads/${hash}`);
+  logger.info(`DELETE /api/v1/downloads/${hash} (client: ${client || 'auto'})`);
 
   try {
-    await downloadService.cancelDownload(hash, deleteFiles);
+    await downloadService.cancelDownload(hash, deleteFiles, client);
     return c.json({ success: true, message: 'Download cancelled successfully' });
   } catch (error) {
     logger.error('Failed to cancel download:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
 // POST /api/v1/downloads/:hash/pause - Pause download
 downloads.post('/:hash/pause', async (c) => {
   const hash = c.req.param('hash');
+  const client = parseClientParam(c.req.query('client'));
   logger.info(`POST /api/v1/downloads/${hash}/pause`);
 
   try {
-    await downloadService.pauseDownload(hash);
+    await downloadService.pauseDownload(hash, client);
     return c.json({ success: true, message: 'Download paused successfully' });
   } catch (error) {
     logger.error('Failed to pause download:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
 // POST /api/v1/downloads/:hash/resume - Resume download
 downloads.post('/:hash/resume', async (c) => {
   const hash = c.req.param('hash');
+  const client = parseClientParam(c.req.query('client'));
   logger.info(`POST /api/v1/downloads/${hash}/resume`);
 
   try {
-    await downloadService.resumeDownload(hash);
+    await downloadService.resumeDownload(hash, client);
     return c.json({ success: true, message: 'Download resumed successfully' });
   } catch (error) {
     logger.error('Failed to resume download:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 

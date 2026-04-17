@@ -56,7 +56,7 @@ function PageLoader() {
       {/* Game grid */}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-6">
         {[...Array(8)].map((_, i) => (
-          <div key={i} className="bg-gray-800 rounded-lg overflow-hidden">
+          <div key={`skeleton-${i}`} className="bg-gray-800 rounded-lg overflow-hidden">
             <div className="aspect-[2/3] bg-gray-700"></div>
             <div className="p-3">
               <div className="h-4 bg-gray-700 rounded mb-2"></div>
@@ -156,7 +156,7 @@ function UserMenu() {
       {isOpen && (
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
+          <div className="fixed inset-0 z-10" role="presentation" onClick={() => setIsOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setIsOpen(false); }} />
 
           {/* Dropdown */}
           <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-20">

@@ -15,6 +15,10 @@ interface DownloadsTabProps {
   setQbUsername: (username: string) => void;
   qbPassword: string;
   setQbPassword: (password: string) => void;
+  sabHost: string;
+  setSabHost: (host: string) => void;
+  sabApiKey: string;
+  setSabApiKey: (apiKey: string) => void;
   dryRun: boolean;
   setDryRun: (value: boolean) => void;
 }
@@ -26,12 +30,18 @@ export default function DownloadsTab({
   setQbUsername,
   qbPassword,
   setQbPassword,
+  sabHost,
+  setSabHost,
+  sabApiKey,
+  setSabApiKey,
   dryRun,
   setDryRun,
 }: DownloadsTabProps) {
   const { addToast } = useToast();
   const [qbTest, setQbTest] = useState<ConnectionTestResult>({ status: 'idle' });
+  const [sabTest, setSabTest] = useState<ConnectionTestResult>({ status: 'idle' });
   const [isSavingQb, setIsSavingQb] = useState(false);
+  const [isSavingSab, setIsSavingSab] = useState(false);
   const [isSavingDryRun, setIsSavingDryRun] = useState(false);
 
   const handleSaveQb = useCallback(async () => {
@@ -69,6 +79,44 @@ export default function DownloadsTab({
     }
   }, []);
 
+  const handleSaveSab = useCallback(async () => {
+    if (!sabHost.trim()) {
+      addToast('SABnzbd host is required', 'error');
+      return;
+    }
+    if (!sabApiKey.trim()) {
+      addToast('SABnzbd API key is required', 'error');
+      return;
+    }
+
+    setIsSavingSab(true);
+    try {
+      await Promise.all([
+        api.updateSetting('sabnzbd_host', sabHost.trim()),
+        api.updateSetting('sabnzbd_api_key', sabApiKey.trim()),
+      ]);
+      addToast('SABnzbd settings saved!', 'success');
+    } catch {
+      addToast('Failed to save SABnzbd settings', 'error');
+    } finally {
+      setIsSavingSab(false);
+    }
+  }, [sabHost, sabApiKey, addToast]);
+
+  const testSabConnection = useCallback(async () => {
+    setSabTest({ status: 'testing' });
+    try {
+      const response = await api.testSabnzbdConnection();
+      if (response.success && response.data) {
+        setSabTest({ status: 'success', message: 'Connected successfully!' });
+      } else {
+        setSabTest({ status: 'error', message: response.error || 'Connection failed' });
+      }
+    } catch {
+      setSabTest({ status: 'error', message: 'Connection test failed' });
+    }
+  }, []);
+
   const handleToggleDryRun = useCallback(async () => {
     setIsSavingDryRun(true);
     try {
@@ -96,16 +144,18 @@ export default function DownloadsTab({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
           </svg>
           qBittorrent
+          <span className="text-xs bg-green-900/50 text-green-400 px-2 py-0.5 rounded">Torrents</span>
         </h3>
         <p className="text-gray-400 mb-4 text-sm md:text-base">
-          Configure qBittorrent Web UI connection for download management.
+          Configure qBittorrent Web UI connection for torrent download management.
         </p>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="setting-qb-host" className="block text-sm text-gray-400 mb-1">
               Host <span className="text-red-400">*</span>
             </label>
             <input
+              id="setting-qb-host"
               type="text"
               placeholder="http://localhost:8080"
               value={qbHost}
@@ -114,8 +164,9 @@ export default function DownloadsTab({
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Username</label>
+            <label htmlFor="setting-qb-username" className="block text-sm text-gray-400 mb-1">Username</label>
             <input
+              id="setting-qb-username"
               type="text"
               placeholder="admin"
               value={qbUsername}
@@ -124,8 +175,9 @@ export default function DownloadsTab({
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Password</label>
+            <label htmlFor="setting-qb-password" className="block text-sm text-gray-400 mb-1">Password</label>
             <input
+              id="setting-qb-password"
               type="password"
               placeholder="adminadmin"
               value={qbPassword}
@@ -162,6 +214,74 @@ export default function DownloadsTab({
       {/* qBittorrent Category Filter */}
       <QBittorrentCategorySelector />
 
+      {/* SABnzbd Settings */}
+      <div className="bg-gray-800 rounded-lg p-4 md:p-6">
+        <h3 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 flex items-center gap-2">
+          <svg className="w-5 h-5 md:w-6 md:h-6 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+          SABnzbd
+          <span className="text-xs bg-purple-900/50 text-purple-400 px-2 py-0.5 rounded">Usenet</span>
+        </h3>
+        <p className="text-gray-400 mb-4 text-sm md:text-base">
+          Configure SABnzbd connection for Usenet/NZB download management. Optional — only needed if you use Usenet indexers in Prowlarr.
+        </p>
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="setting-sab-host" className="block text-sm text-gray-400 mb-1">
+              Host <span className="text-red-400">*</span>
+            </label>
+            <input
+              id="setting-sab-host"
+              type="text"
+              placeholder="http://localhost:8080"
+              value={sabHost}
+              onChange={(e) => setSabHost(e.target.value)}
+              className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
+            />
+          </div>
+          <div>
+            <label htmlFor="setting-sab-apikey" className="block text-sm text-gray-400 mb-1">
+              API Key <span className="text-red-400">*</span>
+            </label>
+            <input
+              id="setting-sab-apikey"
+              type="password"
+              placeholder="Your SABnzbd API key"
+              value={sabApiKey}
+              onChange={(e) => setSabApiKey(e.target.value)}
+              className="w-full px-4 py-3 md:py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-base"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Found in SABnzbd Settings &gt; General &gt; API Key
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={handleSaveSab}
+              disabled={isSavingSab}
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
+            >
+              {isSavingSab ? 'Saving...' : 'Save'}
+            </button>
+            <button
+              onClick={testSabConnection}
+              disabled={sabTest.status === 'testing'}
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
+            >
+              {sabTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
+            </button>
+          </div>
+          {sabTest.status !== 'idle' && sabTest.status !== 'testing' && (
+            <p className={`text-sm mt-2 ${
+              sabTest.status === 'success' ? 'text-green-400' : 'text-red-400'
+            }`}>
+              {sabTest.message}
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* Dry-Run Mode */}
       <div className="bg-gray-800 rounded-lg p-4 md:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -173,7 +293,7 @@ export default function DownloadsTab({
               Dry-Run Mode
             </h3>
             <p className="text-gray-400 text-sm">
-              When enabled, Gamearr will log what it would download but won't actually send torrents to qBittorrent.
+              When enabled, Gamearr will log what it would download but won't actually send releases to download clients.
               Useful for testing your configuration.
             </p>
           </div>

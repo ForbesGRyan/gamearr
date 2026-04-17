@@ -75,10 +75,11 @@ export default function IndexersTab({
         </p>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="setting-prowlarr-url" className="block text-sm text-gray-400 mb-1">
               Prowlarr URL <span className="text-red-400">*</span>
             </label>
             <input
+              id="setting-prowlarr-url"
               type="text"
               placeholder="http://localhost:9696"
               value={prowlarrUrl}
@@ -87,8 +88,9 @@ export default function IndexersTab({
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">API Key</label>
+            <label htmlFor="setting-prowlarr-api-key" className="block text-sm text-gray-400 mb-1">API Key</label>
             <input
+              id="setting-prowlarr-api-key"
               type="password"
               placeholder="Your Prowlarr API Key"
               value={prowlarrApiKey}

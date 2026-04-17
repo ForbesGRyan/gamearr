@@ -48,8 +48,9 @@ function GameResultCard({
               <span className="text-sm text-gray-400">{game.platforms[0]}</span>
             ) : (
               <>
-                <label className="text-sm text-gray-400">Platform:</label>
+                <label htmlFor={`platform-${game.igdbId}`} className="text-sm text-gray-400">Platform:</label>
                 <select
+                  id={`platform-${game.igdbId}`}
                   value={displayPlatform}
                   onChange={(e) => onPlatformChange(game.igdbId, e.target.value)}
                   className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"

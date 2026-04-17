@@ -205,6 +205,7 @@ function CategorySelector() {
               return (
                 <label
                   key={category.id}
+                  aria-label={category.name || `Category ${category.id}`}
                   className={`flex items-start p-3 rounded cursor-pointer transition min-h-[44px] ${
                     isSelected
                       ? 'bg-blue-900 bg-opacity-30 border border-blue-700'

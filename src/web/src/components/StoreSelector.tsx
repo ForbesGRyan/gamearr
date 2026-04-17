@@ -4,7 +4,7 @@ interface StoreSelectorProps {
   label?: string;
 }
 
-export const AVAILABLE_STORES = [
+const AVAILABLE_STORES = [
   { value: 'Steam', label: 'Steam' },
   { value: 'Epic Games', label: 'Epic Games' },
   { value: 'GOG', label: 'GOG' },

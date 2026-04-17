@@ -469,8 +469,9 @@ function SecurityTab() {
                     <div className="space-y-3">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div>
-                          <label className="block text-sm text-gray-400 mb-1">Username</label>
+                          <label htmlFor="security-disabled-new-username" className="block text-sm text-gray-400 mb-1">Username</label>
                           <input
+                            id="security-disabled-new-username"
                             type="text"
                             value={newUsername}
                             onChange={(e) => setNewUsername(e.target.value)}
@@ -479,8 +480,9 @@ function SecurityTab() {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm text-gray-400 mb-1">Password</label>
+                          <label htmlFor="security-disabled-new-password" className="block text-sm text-gray-400 mb-1">Password</label>
                           <input
+                            id="security-disabled-new-password"
                             type="password"
                             value={newUserPassword}
                             onChange={(e) => setNewUserPassword(e.target.value)}
@@ -489,8 +491,9 @@ function SecurityTab() {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm text-gray-400 mb-1">Role</label>
+                          <label htmlFor="security-disabled-new-role" className="block text-sm text-gray-400 mb-1">Role</label>
                           <select
+                            id="security-disabled-new-role"
                             value={newUserRole}
                             onChange={(e) => setNewUserRole(e.target.value as 'admin' | 'user' | 'viewer')}
                             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
@@ -566,8 +569,9 @@ function SecurityTab() {
                     </h5>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-sm text-gray-400 mb-1">New Password</label>
+                        <label htmlFor="security-reset-password" className="block text-sm text-gray-400 mb-1">New Password</label>
                         <input
+                          id="security-reset-password"
                           type="password"
                           value={resetPassword}
                           onChange={(e) => setResetPassword(e.target.value)}
@@ -577,8 +581,9 @@ function SecurityTab() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-400 mb-1">Confirm Password</label>
+                        <label htmlFor="security-reset-confirm-password" className="block text-sm text-gray-400 mb-1">Confirm Password</label>
                         <input
+                          id="security-reset-confirm-password"
                           type="password"
                           value={resetConfirmPassword}
                           onChange={(e) => setResetConfirmPassword(e.target.value)}
@@ -621,8 +626,9 @@ function SecurityTab() {
 
               <form onSubmit={handleEnableAuthWithUser} className="space-y-4 max-w-md">
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">Admin Username</label>
+                  <label htmlFor="security-enable-username" className="block text-sm text-gray-400 mb-2">Admin Username</label>
                   <input
+                    id="security-enable-username"
                     type="text"
                     value={enableUsername}
                     onChange={(e) => setEnableUsername(e.target.value)}
@@ -632,8 +638,9 @@ function SecurityTab() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">Password</label>
+                  <label htmlFor="security-enable-password" className="block text-sm text-gray-400 mb-2">Password</label>
                   <input
+                    id="security-enable-password"
                     type="password"
                     value={enablePassword}
                     onChange={(e) => setEnablePassword(e.target.value)}
@@ -643,8 +650,9 @@ function SecurityTab() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">Confirm Password</label>
+                  <label htmlFor="security-enable-confirm-password" className="block text-sm text-gray-400 mb-2">Confirm Password</label>
                   <input
+                    id="security-enable-confirm-password"
                     type="password"
                     value={enableConfirmPassword}
                     onChange={(e) => setEnableConfirmPassword(e.target.value)}
@@ -694,8 +702,9 @@ function SecurityTab() {
         <h3 className="text-lg font-semibold mb-4">Change Password</h3>
         <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Current Password</label>
+            <label htmlFor="security-current-password" className="block text-sm text-gray-400 mb-2">Current Password</label>
             <input
+              id="security-current-password"
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
@@ -704,8 +713,9 @@ function SecurityTab() {
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-2">New Password</label>
+            <label htmlFor="security-new-password" className="block text-sm text-gray-400 mb-2">New Password</label>
             <input
+              id="security-new-password"
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -715,8 +725,9 @@ function SecurityTab() {
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Confirm New Password</label>
+            <label htmlFor="security-confirm-new-password" className="block text-sm text-gray-400 mb-2">Confirm New Password</label>
             <input
+              id="security-confirm-new-password"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
@@ -861,8 +872,9 @@ function SecurityTab() {
               <h4 className="font-medium">Create New User</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">Username</label>
+                  <label htmlFor="security-add-username" className="block text-sm text-gray-400 mb-2">Username</label>
                   <input
+                    id="security-add-username"
                     type="text"
                     value={newUsername}
                     onChange={(e) => setNewUsername(e.target.value)}
@@ -871,8 +883,9 @@ function SecurityTab() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">Password</label>
+                  <label htmlFor="security-add-password" className="block text-sm text-gray-400 mb-2">Password</label>
                   <input
+                    id="security-add-password"
                     type="password"
                     value={newUserPassword}
                     onChange={(e) => setNewUserPassword(e.target.value)}
@@ -881,8 +894,9 @@ function SecurityTab() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">Role</label>
+                  <label htmlFor="security-add-role" className="block text-sm text-gray-400 mb-2">Role</label>
                   <select
+                    id="security-add-role"
                     value={newUserRole}
                     onChange={(e) => setNewUserRole(e.target.value as 'admin' | 'user' | 'viewer')}
                     className="w-full px-4 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:border-blue-500"

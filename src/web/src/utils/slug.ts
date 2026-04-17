@@ -3,7 +3,7 @@
  * "Elden Ring" -> "elden-ring"
  * "The Witcher 3: Wild Hunt" -> "the-witcher-3-wild-hunt"
  */
-export function generateSlug(title: string): string {
+function generateSlug(title: string): string {
   return title
     .toLowerCase()
     .replace(/['']/g, '')           // Remove apostrophes
@@ -19,7 +19,7 @@ export function generateSlug(title: string): string {
  * "PC (Microsoft Windows)" -> "pc"
  * "PlayStation 5" -> "playstation-5"
  */
-export function normalizePlatformSlug(platform: string): string {
+function normalizePlatformSlug(platform: string): string {
   const lower = platform.toLowerCase();
 
   // Normalize all PC variants to just "pc"

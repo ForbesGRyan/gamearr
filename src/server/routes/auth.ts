@@ -56,7 +56,7 @@ auth.get('/status', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to get auth status:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -89,7 +89,7 @@ auth.post('/login', zValidator('json', loginSchema), async (c) => {
     });
   } catch (error) {
     logger.error('Login failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -116,7 +116,7 @@ auth.post('/logout', async (c) => {
     });
   } catch (error) {
     logger.error('Logout failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -169,7 +169,7 @@ auth.post('/register', zValidator('json', registerSchema), async (c) => {
     });
   } catch (error) {
     logger.error('Registration failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -202,7 +202,7 @@ auth.get('/me', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to get current user:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -242,7 +242,7 @@ auth.post('/change-password', zValidator('json', changePasswordSchema), async (c
     });
   } catch (error) {
     logger.error('Failed to change password:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -274,7 +274,7 @@ auth.post('/api-key', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to generate API key:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -305,7 +305,7 @@ auth.delete('/api-key', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to revoke API key:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -325,7 +325,7 @@ auth.get('/users', adminMiddleware, async (c) => {
     });
   } catch (error) {
     logger.error('Failed to get users:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -355,7 +355,7 @@ auth.post('/users', adminMiddleware, zValidator('json', createUserSchema), async
       }, 409);
     }
 
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -403,7 +403,7 @@ auth.delete('/users/:id', adminMiddleware, async (c) => {
     });
   } catch (error) {
     logger.error('Failed to delete user:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -455,7 +455,7 @@ auth.post('/users/:id/reset-password', adminMiddleware, zValidator('json', reset
     });
   } catch (error) {
     logger.error('Failed to reset password:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -478,7 +478,7 @@ auth.post('/enable', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to enable auth:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -501,7 +501,7 @@ auth.post('/disable', adminMiddleware, async (c) => {
     });
   } catch (error) {
     logger.error('Failed to disable auth:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 

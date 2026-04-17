@@ -83,7 +83,7 @@ router.get('/test', async (c) => {
     }
   } catch (error) {
     logger.error('Steam connection test failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -140,7 +140,7 @@ router.get('/owned-games', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to get owned Steam games:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -319,7 +319,7 @@ router.post('/import', async (c) => {
     });
   } catch (error) {
     logger.error('Steam import failed:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 

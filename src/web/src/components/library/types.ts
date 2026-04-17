@@ -140,4 +140,5 @@ export interface LibraryInfo {
   id: number;
   name: string;
   platform?: string | null;
+  priority?: number;
 }

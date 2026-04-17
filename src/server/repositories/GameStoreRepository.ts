@@ -56,6 +56,14 @@ const gameFields = {
   updatePolicy: games.updatePolicy,
   lastUpdateCheck: games.lastUpdateCheck,
   updateAvailable: games.updateAvailable,
+  hltbId: games.hltbId,
+  hltbMain: games.hltbMain,
+  hltbMainExtra: games.hltbMainExtra,
+  hltbCompletionist: games.hltbCompletionist,
+  hltbLastSync: games.hltbLastSync,
+  protonDbTier: games.protonDbTier,
+  protonDbScore: games.protonDbScore,
+  protonDbLastSync: games.protonDbLastSync,
   addedAt: games.addedAt,
 };
 

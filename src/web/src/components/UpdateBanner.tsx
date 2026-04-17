@@ -146,4 +146,3 @@ export function UpdateBanner({ className = '' }: UpdateBannerProps) {
   );
 }
 
-export default UpdateBanner;

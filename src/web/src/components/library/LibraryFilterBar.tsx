@@ -1,6 +1,8 @@
 import { MagnifyingGlassIcon } from '../Icons';
 import type { Filters, SortColumn, SortDirection, StatusFilter, MonitoredFilter, LibraryInfo } from './types';
 
+const EMPTY_LIBRARIES: LibraryInfo[] = [];
+
 interface LibraryFilterBarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
@@ -30,7 +32,7 @@ export function LibraryFilterBar({
   activeFilterCount,
   filteredCount,
   totalCount,
-  libraries = [],
+  libraries = EMPTY_LIBRARIES,
 }: LibraryFilterBarProps) {
   const toggleGenreFilter = (genre: string) => {
     onFiltersChange({
@@ -58,6 +60,7 @@ export function LibraryFilterBar({
       genres: [],
       gameModes: [],
       libraryId: 'all',
+      stores: [],
     });
   };
 
@@ -87,8 +90,9 @@ export function LibraryFilterBar({
 
         {/* Sort Dropdown */}
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label className="text-sm text-gray-400 shrink-0">Sort:</label>
+          <label htmlFor="filter-sort" className="text-sm text-gray-400 shrink-0">Sort:</label>
           <select
+            id="filter-sort"
             value={`${sortColumn}-${sortDirection}`}
             onChange={(e) => {
               const [col, dir] = e.target.value.split('-') as [SortColumn, SortDirection];
@@ -113,8 +117,9 @@ export function LibraryFilterBar({
 
         {/* Status Filter */}
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label className="text-sm text-gray-400 shrink-0">Status:</label>
+          <label htmlFor="filter-status" className="text-sm text-gray-400 shrink-0">Status:</label>
           <select
+            id="filter-status"
             value={filters.status}
             onChange={(e) => onFiltersChange({ ...filters, status: e.target.value as StatusFilter })}
             className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
@@ -128,8 +133,9 @@ export function LibraryFilterBar({
 
         {/* Monitored Filter */}
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label className="text-sm text-gray-400 shrink-0">Monitored:</label>
+          <label htmlFor="filter-monitored" className="text-sm text-gray-400 shrink-0">Monitored:</label>
           <select
+            id="filter-monitored"
             value={filters.monitored}
             onChange={(e) => onFiltersChange({ ...filters, monitored: e.target.value as MonitoredFilter })}
             className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
@@ -143,8 +149,9 @@ export function LibraryFilterBar({
         {/* Library Filter */}
         {libraries.length > 0 && (
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <label className="text-sm text-gray-400 shrink-0">Library:</label>
+            <label htmlFor="filter-library" className="text-sm text-gray-400 shrink-0">Library:</label>
             <select
+              id="filter-library"
               value={filters.libraryId}
               onChange={(e) => {
                 const value = e.target.value;
@@ -169,9 +176,10 @@ export function LibraryFilterBar({
         {/* Genre Filter */}
         {allGenres.length > 0 && (
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <label className="text-sm text-gray-400 shrink-0">Genres:</label>
+            <label htmlFor="filter-genres" className="text-sm text-gray-400 shrink-0">Genres:</label>
             <div className="relative flex-1 sm:flex-none">
               <select
+                id="filter-genres"
                 value=""
                 onChange={(e) => {
                   if (e.target.value) toggleGenreFilter(e.target.value);
@@ -194,9 +202,10 @@ export function LibraryFilterBar({
         {/* Game Modes Filter */}
         {allGameModes.length > 0 && (
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <label className="text-sm text-gray-400 shrink-0">Modes:</label>
+            <label htmlFor="filter-modes" className="text-sm text-gray-400 shrink-0">Modes:</label>
             <div className="relative flex-1 sm:flex-none">
               <select
+                id="filter-modes"
                 value=""
                 onChange={(e) => {
                   if (e.target.value) toggleGameModeFilter(e.target.value);

@@ -13,7 +13,7 @@ export default function TrendingControls({
   popularityTypes,
   selectedType,
   activeFilterCount,
-  showFilters,
+  showFilters: _showFilters,
   onToggleFilters,
   onSelectedTypeChange,
 }: TrendingControlsProps) {
@@ -37,8 +37,9 @@ export default function TrendingControls({
           </span>
         )}
       </button>
-      <label className="text-sm text-gray-400">Ranked by:</label>
+      <label htmlFor="trending-ranked-by" className="text-sm text-gray-400">Ranked by:</label>
       <select
+        id="trending-ranked-by"
         value={selectedType}
         onChange={(e) => onSelectedTypeChange(parseInt(e.target.value))}
         className="bg-gray-800 border border-gray-700 rounded px-3 py-2 min-h-[44px] text-white focus:outline-none focus:border-blue-500"

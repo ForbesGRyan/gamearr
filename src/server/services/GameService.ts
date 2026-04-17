@@ -468,9 +468,10 @@ export class GameService {
 
     const result = await db
       .delete(games)
-      .where(inArray(games.id, gameIds));
+      .where(inArray(games.id, gameIds))
+      .returning();
 
-    return { deleted: result.changes || gameIds.length };
+    return { deleted: result.length || gameIds.length };
   }
 
   /**

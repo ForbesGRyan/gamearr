@@ -6,6 +6,7 @@ import { downloadService } from '../services/DownloadService';
 import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
 import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
 import { igdbClient } from '../integrations/igdb/IGDBClient';
+import { sabnzbdClient } from '../integrations/sabnzbd/SabnzbdClient';
 import { discordClient } from '../integrations/discord/DiscordWebhookClient';
 import { ALL_CATEGORIES, DEFAULT_CATEGORIES, CATEGORY_GROUPS } from '../../shared/categories';
 import { logger } from '../utils/logger';
@@ -21,6 +22,9 @@ const ALLOWED_SETTINGS = new Set([
   'qbittorrent_username',
   'qbittorrent_password',
   'qbittorrent_category',
+  'sabnzbd_host',
+  'sabnzbd_api_key',
+  'sabnzbd_category',
   'igdb_client_id',
   'igdb_client_secret',
   'steam_api_key',
@@ -81,7 +85,7 @@ settings.get('/', async (c) => {
     return c.json({ success: true, data: allSettings });
   } catch (error) {
     logger.error('Failed to get settings:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -94,7 +98,7 @@ settings.get('/dry-run', async (c) => {
     return c.json({ success: true, data: dryRun });
   } catch (error) {
     logger.error('Failed to get dry-run status:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -114,7 +118,7 @@ settings.put('/dry-run', zValidator('json', dryRunSchema), async (c) => {
     });
   } catch (error) {
     logger.error('Failed to update dry-run status:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -133,7 +137,7 @@ settings.get('/categories', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to get categories:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -146,7 +150,7 @@ settings.get('/categories/selected', async (c) => {
     return c.json({ success: true, data: categories });
   } catch (error) {
     logger.error('Failed to get selected categories:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -181,7 +185,7 @@ settings.put('/categories', zValidator('json', categoriesSchema), async (c) => {
     });
   } catch (error) {
     logger.error('Failed to update categories:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -208,7 +212,7 @@ settings.get('/qbittorrent/categories', async (c) => {
     return c.json({ success: true, data: categories });
   } catch (error) {
     logger.error('Failed to get qBittorrent categories:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -221,7 +225,7 @@ settings.get('/qbittorrent/category', async (c) => {
     return c.json({ success: true, data: category });
   } catch (error) {
     logger.error('Failed to get qBittorrent category:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -241,7 +245,7 @@ settings.put('/qbittorrent/category', zValidator('json', qbCategorySchema), asyn
     });
   } catch (error) {
     logger.error('Failed to update qBittorrent category:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -264,7 +268,7 @@ settings.put('/', async (c) => {
         {
           success: false,
           error: `Cannot modify protected settings: ${protectedAttempts.join(', ')}`,
-          code: ErrorCode.FORBIDDEN,
+          code: ErrorCode.PERMISSION_DENIED,
         },
         403
       );
@@ -297,7 +301,7 @@ settings.put('/', async (c) => {
     return c.json({ success: true, message: 'Settings updated successfully' });
   } catch (error) {
     logger.error('Failed to update settings:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -305,6 +309,22 @@ settings.put('/', async (c) => {
 settings.get('/:key', async (c) => {
   const key = c.req.param('key');
   logger.info(`GET /api/v1/settings/${key}`);
+
+  // Security: Block access to protected settings (auth hashes, etc.)
+  if (PROTECTED_SETTINGS.has(key)) {
+    return c.json(
+      { success: false, error: `Cannot read protected setting: ${key}`, code: ErrorCode.PERMISSION_DENIED },
+      403
+    );
+  }
+
+  // Security: Only allow reading known settings
+  if (!ALLOWED_SETTINGS.has(key)) {
+    return c.json(
+      { success: false, error: `Unknown setting: ${key}`, code: ErrorCode.VALIDATION_ERROR },
+      400
+    );
+  }
 
   try {
     const value = await settingsService.getSetting(key);
@@ -323,7 +343,7 @@ settings.get('/:key', async (c) => {
     return c.json({ success: true, data: value });
   } catch (error) {
     logger.error(`Failed to get setting ${key}:`, error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -340,7 +360,7 @@ settings.put('/:key', zValidator('json', settingValueSchema), async (c) => {
         {
           success: false,
           error: `Cannot modify protected setting: ${key}`,
-          code: ErrorCode.FORBIDDEN,
+          code: ErrorCode.PERMISSION_DENIED,
         },
         403
       );
@@ -398,6 +418,15 @@ settings.put('/:key', zValidator('json', settingValueSchema), async (c) => {
       }
     }
 
+    if (key.startsWith('sabnzbd_')) {
+      const host = await settingsService.getSetting('sabnzbd_host');
+      const apiKey = await settingsService.getSetting('sabnzbd_api_key');
+      if (host && apiKey) {
+        sabnzbdClient.configure({ host, apiKey });
+        logger.info('SABnzbd client reconfigured with new settings');
+      }
+    }
+
     if (key === 'discord_webhook_url') {
       const webhookUrl = await settingsService.getSetting('discord_webhook_url');
       if (webhookUrl) {
@@ -413,7 +442,7 @@ settings.put('/:key', zValidator('json', settingValueSchema), async (c) => {
     });
   } catch (error) {
     logger.error(`Failed to update setting ${key}:`, error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 

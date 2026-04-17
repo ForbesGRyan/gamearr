@@ -62,7 +62,14 @@ export function formatSpeed(bytesPerSec: number): string {
  * @param seconds Number of seconds
  * @returns Formatted duration string (e.g., "2h 30m")
  */
-export function formatETA(seconds: number): string {
+export function formatETA(eta: number | string): string {
+  // Handle SABnzbd string ETAs like "0:01:30"
+  if (typeof eta === 'string') {
+    if (eta === '0:00:00' || !eta) return '∞';
+    return eta;
+  }
+
+  const seconds = eta;
   if (seconds <= 0 || seconds === 8640000) return '∞';
 
   const hours = Math.floor(seconds / 3600);

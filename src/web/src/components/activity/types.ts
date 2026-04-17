@@ -8,13 +8,47 @@ export const validStatusFilters: StatusFilter[] = ['all', 'downloading', 'seedin
 export const validSortFields: SortField[] = ['name', 'progress', 'size', 'downloadSpeed', 'uploadSpeed', 'added'];
 export const validSortDirections: SortDirection[] = ['asc', 'desc'];
 
-export interface StatusInfo {
+interface StatusInfo {
   label: string;
   color: 'green' | 'blue' | 'yellow' | 'red' | 'gray';
 }
 
+/**
+ * Get a unique identifier for a download (hash for torrents, nzo_id for usenet)
+ */
+export function getDownloadId(download: Download): string {
+  return download.hash || download.id || '';
+}
+
+/**
+ * Get the effective state string, normalizing between qBittorrent and SABnzbd
+ */
+function getEffectiveState(download: Download): string {
+  if (download.client === 'sabnzbd') {
+    // Map SABnzbd status to qBittorrent-like state strings
+    const status = download.status || '';
+    switch (status) {
+      case 'Downloading':
+      case 'Fetching':
+        return 'downloading';
+      case 'Queued':
+        return 'queuedDL';
+      case 'Paused':
+        return 'pausedDL';
+      case 'Completed':
+        return 'completed';
+      case 'Failed':
+        return 'error';
+      default:
+        return status.toLowerCase();
+    }
+  }
+  return download.state || '';
+}
+
 // Utility functions for download state
-export function getStateColor(state: string): string {
+export function getStateColor(download: Download): string {
+  const state = getEffectiveState(download);
   if (state.includes('downloading') || state.includes('metaDL')) {
     return 'text-blue-400';
   } else if (state.includes('uploading') || state.includes('UP')) {
@@ -29,28 +63,39 @@ export function getStateColor(state: string): string {
   return 'text-gray-400';
 }
 
-export function isPaused(state: string): boolean {
+export function getStateLabel(download: Download): string {
+  if (download.client === 'sabnzbd') {
+    return download.status || 'Unknown';
+  }
+  return download.state || 'Unknown';
+}
+
+export function isPaused(download: Download): boolean {
+  const state = getEffectiveState(download);
   return state.includes('paused') || state.includes('stopped');
 }
 
-export function isActiveDownload(state: string): boolean {
-  // Active means downloading, checking, or seeding - anything that's not paused or completed
-  return !isPaused(state) &&
+export function isActiveDownload(download: Download): boolean {
+  const state = getEffectiveState(download);
+  return !isPaused(download) &&
     !state.includes('completed') &&
     state !== 'stalledUP' &&
     state !== 'forcedUP';
 }
 
-export function getStatusCategory(state: string): StatusFilter {
+function getStatusCategory(download: Download): StatusFilter {
+  const state = getEffectiveState(download);
   if (state.includes('downloading') || state.includes('metaDL')) return 'downloading';
   if (state.includes('uploading') || state.includes('UP') || state.includes('stalled')) return 'seeding';
   if (state.includes('paused') || state.includes('stopped')) return 'paused';
   if (state.includes('error')) return 'error';
   if (state.includes('checking')) return 'checking';
+  if (state.includes('completed') || state.includes('queued')) return 'completed';
   return 'completed';
 }
 
-export function getStatusInfo(state: string): StatusInfo {
+export function getStatusInfo(download: Download): StatusInfo {
+  const state = getEffectiveState(download);
   if (state.includes('downloading') || state.includes('metaDL')) {
     return { label: 'Downloading', color: 'blue' };
   } else if (state.includes('uploading') || state.includes('UP') || state.includes('stalled')) {
@@ -61,6 +106,8 @@ export function getStatusInfo(state: string): StatusInfo {
     return { label: 'Error', color: 'red' };
   } else if (state.includes('checking')) {
     return { label: 'Checking', color: 'gray' };
+  } else if (state.includes('queued')) {
+    return { label: 'Queued', color: 'gray' };
   }
   return { label: 'Completed', color: 'green' };
 }
@@ -87,10 +134,10 @@ export function sortDownloads(
         comparison = a.downloadSpeed - b.downloadSpeed;
         break;
       case 'uploadSpeed':
-        comparison = a.uploadSpeed - b.uploadSpeed;
+        comparison = (a.uploadSpeed || 0) - (b.uploadSpeed || 0);
         break;
       case 'added':
-        comparison = new Date(a.addedOn).getTime() - new Date(b.addedOn).getTime();
+        comparison = new Date(a.addedOn || 0).getTime() - new Date(b.addedOn || 0).getTime();
         break;
     }
     return sortDirection === 'asc' ? comparison : -comparison;
@@ -113,7 +160,7 @@ export function filterDownloads(
 
   // Status filter
   if (statusFilter !== 'all') {
-    result = result.filter((d) => getStatusCategory(d.state) === statusFilter);
+    result = result.filter((d) => getStatusCategory(d) === statusFilter);
   }
 
   return result;

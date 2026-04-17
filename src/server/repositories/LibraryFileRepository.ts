@@ -171,8 +171,8 @@ export class LibraryFileRepository {
   async delete(folderPath: string): Promise<boolean> {
     logger.info(`Deleting library file: ${folderPath}`);
 
-    const result = await db.delete(libraryFiles).where(eq(libraryFiles.folderPath, folderPath));
-    return result.changes > 0;
+    const result = await db.delete(libraryFiles).where(eq(libraryFiles.folderPath, folderPath)).returning();
+    return result.length > 0;
   }
 
   /**
@@ -181,8 +181,8 @@ export class LibraryFileRepository {
   async clearAll(): Promise<number> {
     logger.info('Clearing all library files');
 
-    const result = await db.delete(libraryFiles);
-    return result.changes;
+    const result = await db.delete(libraryFiles).returning();
+    return result.length;
   }
 }
 

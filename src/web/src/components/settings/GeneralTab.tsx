@@ -76,10 +76,11 @@ export default function GeneralTab({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           {/* RSS Sync Interval */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="setting-rss-sync-interval" className="block text-sm text-gray-400 mb-1">
               RSS Sync Interval (minutes)
             </label>
             <input
+              id="setting-rss-sync-interval"
               type="number"
               min={5}
               max={1440}
@@ -94,10 +95,11 @@ export default function GeneralTab({
 
           {/* Search Scheduler Interval */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="setting-search-interval" className="block text-sm text-gray-400 mb-1">
               Search Interval (minutes)
             </label>
             <input
+              id="setting-search-interval"
               type="number"
               min={5}
               max={1440}
@@ -112,10 +114,11 @@ export default function GeneralTab({
 
           {/* Auto-Grab Min Score */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="setting-min-quality-score" className="block text-sm text-gray-400 mb-1">
               Minimum Quality Score
             </label>
             <input
+              id="setting-min-quality-score"
               type="number"
               min={0}
               max={500}
@@ -130,10 +133,11 @@ export default function GeneralTab({
 
           {/* Auto-Grab Min Seeders */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="setting-min-seeders" className="block text-sm text-gray-400 mb-1">
               Minimum Seeders
             </label>
             <input
+              id="setting-min-seeders"
               type="number"
               min={0}
               max={100}
@@ -167,10 +171,11 @@ export default function GeneralTab({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           {/* Trending Games Cache Interval */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="setting-trending-cache" className="block text-sm text-gray-400 mb-1">
               Trending Games Cache (minutes)
             </label>
             <input
+              id="setting-trending-cache"
               type="number"
               min={5}
               max={60}
@@ -185,10 +190,11 @@ export default function GeneralTab({
 
           {/* Top Torrents Cache Interval */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="setting-torrents-cache" className="block text-sm text-gray-400 mb-1">
               Top Torrents Cache (minutes)
             </label>
             <input
+              id="setting-torrents-cache"
               type="number"
               min={1}
               max={30}

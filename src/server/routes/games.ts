@@ -96,7 +96,7 @@ games.get('/', async (c) => {
     return c.json({ success: true, data: allGames });
   } catch (error) {
     logger.error('Failed to get games:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -132,7 +132,7 @@ games.post('/', zValidator('json', addGameSchema), async (c) => {
     if (errorMessage.toLowerCase().includes('already') || errorMessage.toLowerCase().includes('duplicate')) {
       return c.json({ success: false, error: errorMessage, code: ErrorCode.CONFLICT }, 409);
     }
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -155,7 +155,7 @@ games.put('/batch', zValidator('json', batchUpdateSchema), async (c) => {
     return c.json({ success: true, data: result });
   } catch (error) {
     logger.error('Failed to batch update games:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -169,7 +169,7 @@ games.delete('/batch', zValidator('json', batchDeleteSchema), async (c) => {
     return c.json({ success: true, data: result });
   } catch (error) {
     logger.error('Failed to batch delete games:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -188,7 +188,7 @@ games.get('/lookup/:platform/:slug', async (c) => {
     return c.json({ success: true, data: game });
   } catch (error) {
     logger.error('Failed to lookup game:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -208,7 +208,7 @@ games.get('/:id', async (c) => {
     return c.json({ success: true, data: game });
   } catch (error) {
     logger.error('Failed to get game:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -229,7 +229,7 @@ games.put('/:id', zValidator('json', updateGameSchema), async (c) => {
     return c.json({ success: true, data: game });
   } catch (error) {
     logger.error('Failed to update game:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -250,7 +250,7 @@ games.delete('/:id', async (c) => {
     if (errorMessage.toLowerCase().includes('not found')) {
       return c.json({ success: false, error: errorMessage, code: ErrorCode.NOT_FOUND }, 404);
     }
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -267,7 +267,7 @@ games.get('/:id/releases', async (c) => {
     return c.json({ success: true, data: releases });
   } catch (error) {
     logger.error('Failed to get game releases:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -284,7 +284,7 @@ games.get('/:id/history', async (c) => {
     return c.json({ success: true, data: history });
   } catch (error) {
     logger.error('Failed to get game history:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -301,7 +301,7 @@ games.get('/:id/events', async (c) => {
     return c.json({ success: true, data: events });
   } catch (error) {
     logger.error('Failed to get game events:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -321,7 +321,7 @@ games.patch('/:id/toggle-monitor', async (c) => {
     return c.json({ success: true, data: game });
   } catch (error) {
     logger.error('Failed to toggle monitor:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -347,7 +347,7 @@ games.patch('/:id/rematch', zValidator('json', rematchGameSchema), async (c) => 
     return c.json({ success: true, data: game });
   } catch (error) {
     logger.error('Failed to rematch game:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -379,7 +379,7 @@ games.put('/:id/stores', zValidator('json', updateStoresSchema), async (c) => {
     return c.json({ success: true, data: updatedGame });
   } catch (error) {
     logger.error('Failed to update game stores:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -412,7 +412,7 @@ games.get(':id/folders', async (c) => {
     return c.json({ success: true, data: folders });
   } catch (error) {
     logger.error('Failed to get game folders:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -452,7 +452,7 @@ games.post(':id/folders', zValidator('json', addFolderSchema), async (c) => {
     return c.json({ success: true, data: folder });
   } catch (error) {
     logger.error('Failed to add game folder:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -478,7 +478,7 @@ games.put(':id/folders/:folderId', zValidator('json', updateFolderSchema), async
     return c.json({ success: true, data: updatedFolder });
   } catch (error) {
     logger.error('Failed to update game folder:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -503,7 +503,7 @@ games.delete(':id/folders/:folderId', async (c) => {
     return c.json({ success: true, data: { deleted: true } });
   } catch (error) {
     logger.error('Failed to delete game folder:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -530,7 +530,7 @@ games.post(':id/folders/:folderId/primary', async (c) => {
     return c.json({ success: true, data: updatedFolder });
   } catch (error) {
     logger.error('Failed to set primary folder:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -552,11 +552,11 @@ games.get('/:id/integrations', async (c) => {
       return c.json({ success: false, error: 'Game not found', code: ErrorCode.NOT_FOUND }, 404);
     }
 
-    const data = integrationService.getIntegrationData(game);
+    const data = integrationService.getIntegrationData(game as any);
     return c.json({ success: true, data });
   } catch (error) {
     logger.error('Failed to get integration data:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -573,7 +573,7 @@ games.post('/:id/integrations/sync', async (c) => {
     return c.json({ success: true, data });
   } catch (error) {
     logger.error('Failed to sync integration data:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -590,7 +590,7 @@ games.post('/:id/hltb/sync', async (c) => {
     return c.json({ success: true, data });
   } catch (error) {
     logger.error('Failed to sync HLTB data:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -607,7 +607,7 @@ games.post('/:id/protondb/sync', async (c) => {
     return c.json({ success: true, data });
   } catch (error) {
     logger.error('Failed to sync ProtonDB data:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -626,7 +626,7 @@ games.post('/batch/hltb/sync', zValidator('json', batchSyncSchema), async (c) =>
     return c.json({ success: true, data: result });
   } catch (error) {
     logger.error('Failed to batch sync HLTB:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -640,7 +640,7 @@ games.post('/batch/protondb/sync', zValidator('json', batchSyncSchema), async (c
     return c.json({ success: true, data: result });
   } catch (error) {
     logger.error('Failed to batch sync ProtonDB:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 

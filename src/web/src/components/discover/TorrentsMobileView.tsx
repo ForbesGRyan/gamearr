@@ -72,11 +72,11 @@ export default function TorrentsMobileView({
 
       {/* Torrent cards */}
       <div className="space-y-3">
-        {torrents.map((torrent, index) => {
+        {torrents.map((torrent) => {
           const seederStatus = getSeederStatus(torrent.seeders);
           return (
             <MobileCard
-              key={index}
+              key={`${torrent.title}-${torrent.indexer}-${torrent.size}`}
               title={torrent.title}
               subtitle={torrent.quality}
               status={seederStatus}

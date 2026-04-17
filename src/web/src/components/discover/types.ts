@@ -51,7 +51,7 @@ export interface TorrentRelease {
   indexer: string;
   size: number;
   seeders: number;
-  leechers: number;
+  leechers?: number;
   publishedAt: string;
   downloadUrl?: string;
   infoUrl?: string;

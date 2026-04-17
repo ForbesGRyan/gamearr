@@ -73,8 +73,8 @@ export default function TorrentsTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {torrents.map((torrent, index) => (
-                <tr key={index} className="hover:bg-gray-700/50 transition">
+              {torrents.map((torrent) => (
+                <tr key={`${torrent.title}-${torrent.indexer}-${torrent.size}`} className="hover:bg-gray-700/50 transition">
                   <td className="px-4 py-3">
                     <div className="flex flex-col">
                       <button

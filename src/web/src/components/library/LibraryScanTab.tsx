@@ -2,8 +2,7 @@ import { useState, useMemo } from 'react';
 import { GamepadIcon, MagnifyingGlassIcon } from '../Icons';
 import StoreSelector from '../StoreSelector';
 import { LibraryPagination } from './LibraryPagination';
-import type { LibraryFolder, AutoMatchSuggestion } from './types';
-import type { Library } from '../../api/client';
+import type { LibraryFolder, AutoMatchSuggestion, LibraryInfo } from './types';
 
 type SortField = 'name' | 'year' | 'path' | 'library';
 type SortDirection = 'asc' | 'desc';
@@ -16,7 +15,7 @@ interface LibraryScanTabProps {
   autoMatchSuggestions: Record<string, AutoMatchSuggestion>;
   isAutoMatching: Record<string, boolean>;
   selectedStores: Record<string, string[]>;
-  libraries: Library[];
+  libraries: LibraryInfo[];
   selectedLibrary: Record<string, number | undefined>;
   isBackgroundAutoMatching: boolean;
   backgroundAutoMatchProgress: { current: number; total: number };
@@ -83,7 +82,7 @@ export function LibraryScanTab({
         priority: lib.priority,
         label: lib.platform ? `${lib.name} (${lib.platform})` : lib.name,
       }))
-      .sort((a, b) => a.priority - b.priority);
+      .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
   }, [libraries]);
 
   // Filter and sort folders
@@ -338,8 +337,9 @@ export function LibraryScanTab({
 
               {/* Sort Dropdown */}
               <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-400">Sort:</label>
+                <label htmlFor="scan-sort" className="text-sm text-gray-400">Sort:</label>
                 <select
+                  id="scan-sort"
                   value={sortField}
                   onChange={(e) => handleSortChange(e.target.value as SortField)}
                   className="bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
@@ -555,10 +555,11 @@ export function LibraryScanTab({
                         </div>
                         {libraries.length > 0 && (
                           <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
+                            <label htmlFor={`scan-library-${folder.path}`} className="block text-sm font-medium text-gray-300 mb-2">
                               Add to Library
                             </label>
                             <select
+                              id={`scan-library-${folder.path}`}
                               value={selectedLibrary[folder.path] || ''}
                               onChange={(e) => onLibraryChange(folder.path, e.target.value ? Number(e.target.value) : undefined)}
                               className="w-full bg-gray-600 border border-gray-600 rounded px-4 py-2 text-white focus:border-blue-500 focus:outline-none"

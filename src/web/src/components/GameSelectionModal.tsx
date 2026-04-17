@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { api } from '../api/client';
 import { CloseIcon } from './Icons';
 
@@ -21,10 +21,20 @@ interface GameSelectionModalProps {
 
 function GameSelectionModal({ isOpen, onClose, onSelect, releaseName }: GameSelectionModalProps) {
   const [games, setGames] = useState<Game[]>([]);
-  const [filteredGames, setFilteredGames] = useState<Game[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const filteredGames = useMemo(() => {
+    if (searchQuery.trim() === '') {
+      return games;
+    }
+    const query = searchQuery.toLowerCase();
+    return games.filter((game) =>
+      game.title.toLowerCase().includes(query) ||
+      game.platform.toLowerCase().includes(query)
+    );
+  }, [searchQuery, games]);
 
   useEffect(() => {
     if (isOpen) {
@@ -46,20 +56,6 @@ function GameSelectionModal({ isOpen, onClose, onSelect, releaseName }: GameSele
     }
   }, [isOpen, onClose]);
 
-  useEffect(() => {
-    if (searchQuery.trim() === '') {
-      setFilteredGames(games);
-    } else {
-      const query = searchQuery.toLowerCase();
-      setFilteredGames(
-        games.filter((game) =>
-          game.title.toLowerCase().includes(query) ||
-          game.platform.toLowerCase().includes(query)
-        )
-      );
-    }
-  }, [searchQuery, games]);
-
   const loadGames = async () => {
     setIsLoading(true);
     setError(null);
@@ -68,9 +64,7 @@ function GameSelectionModal({ isOpen, onClose, onSelect, releaseName }: GameSele
       const response = await api.getGames();
 
       if (response.success && response.data) {
-        const gameList = response.data as Game[];
-        setGames(gameList);
-        setFilteredGames(gameList);
+        setGames(response.data as Game[]);
       } else {
         setError(response.error || 'Failed to load games');
       }

@@ -1,5 +1,4 @@
 // Library component exports
-export { LibraryFilterBar } from './LibraryFilterBar';
 export { LibraryPagination } from './LibraryPagination';
 export { BulkActionToolbar } from './BulkActionToolbar';
 export { SteamImportModal } from './SteamImportModal';
@@ -23,22 +22,8 @@ export { useLibraryGames } from './useLibraryGames';
 
 // Type exports
 export type {
-  Game,
-  SimilarGame,
   LibraryFolder,
   AutoMatchSuggestion,
   LooseFile,
   DuplicateGroup,
-  DuplicateGameInfo,
-  ViewMode,
-  SortColumn,
-  SortDirection,
-  StatusFilter,
-  MonitoredFilter,
-  Filters,
-  SteamGame,
-  SteamImportProgress,
-  GogGame,
-  GogImportProgress,
-  LibraryInfo,
 } from './types';

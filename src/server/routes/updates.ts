@@ -85,7 +85,7 @@ updates.get('/', async (c) => {
     return c.json({ success: true, data: updatesWithGames });
   } catch (error) {
     logger.error('Failed to get updates:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -111,7 +111,7 @@ updates.post('/check', async (c) => {
     return c.json({ success: true, data: result });
   } catch (error) {
     logger.error('Failed to check for updates:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -128,7 +128,7 @@ updates.post('/:id/grab', async (c) => {
     return c.json({ success: true, data: { grabbed: true } });
   } catch (error) {
     logger.error('Failed to grab update:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -145,7 +145,7 @@ updates.post('/:id/dismiss', async (c) => {
     return c.json({ success: true, data: { dismissed: true } });
   } catch (error) {
     logger.error('Failed to dismiss update:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -162,7 +162,7 @@ updates.get('/games/:id', async (c) => {
     return c.json({ success: true, data: gameUpdates });
   } catch (error) {
     logger.error('Failed to get game updates:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -198,7 +198,7 @@ updates.post('/games/:id/check', async (c) => {
     });
   } catch (error) {
     logger.error('Failed to check game for updates:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 
@@ -222,7 +222,7 @@ updates.put('/games/:id/policy', zValidator('json', updatePolicySchema), async (
     return c.json({ success: true, data: updatedGame });
   } catch (error) {
     logger.error('Failed to set update policy:', error);
-    return c.json(formatErrorResponse(error), getHttpStatusCode(error));
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });
 

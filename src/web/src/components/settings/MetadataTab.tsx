@@ -247,10 +247,11 @@ export default function MetadataTab({
             Register an application in the Twitch Developer Console. Use <span className="text-gray-400 font-mono break-all">http://localhost</span> for the OAuth Redirect URL.
           </p>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="setting-igdb-client-id" className="block text-sm text-gray-400 mb-1">
               Client ID <span className="text-red-400">*</span>
             </label>
             <input
+              id="setting-igdb-client-id"
               type="text"
               placeholder="Your IGDB Client ID"
               value={igdbClientId}
@@ -259,10 +260,11 @@ export default function MetadataTab({
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="setting-igdb-client-secret" className="block text-sm text-gray-400 mb-1">
               Client Secret <span className="text-red-400">*</span>
             </label>
             <input
+              id="setting-igdb-client-secret"
               type="password"
               placeholder="Your IGDB Client Secret"
               value={igdbClientSecret}
@@ -305,10 +307,11 @@ export default function MetadataTab({
         </p>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="setting-steam-api-key" className="block text-sm text-gray-400 mb-1">
               Steam API Key
             </label>
             <input
+              id="setting-steam-api-key"
               type="password"
               placeholder="Your Steam Web API Key"
               value={steamApiKey}
@@ -320,10 +323,11 @@ export default function MetadataTab({
             </p>
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="setting-steam-id" className="block text-sm text-gray-400 mb-1">
               Steam ID
             </label>
             <input
+              id="setting-steam-id"
               type="text"
               placeholder="Your 64-bit Steam ID"
               value={steamId}

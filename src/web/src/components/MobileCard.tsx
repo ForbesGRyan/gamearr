@@ -7,7 +7,7 @@ interface MobileCardField {
 
 interface MobileCardStatus {
   label: string;
-  color: 'green' | 'blue' | 'yellow' | 'red' | 'gray';
+  color: 'green' | 'blue' | 'yellow' | 'red' | 'gray' | 'purple' | 'cyan';
 }
 
 interface MobileCardProps {
@@ -19,6 +19,7 @@ interface MobileCardProps {
   fields: MobileCardField[];
   actions?: React.ReactNode;
   onClick?: () => void;
+  children?: React.ReactNode;
 }
 
 const statusColors = {
@@ -27,6 +28,8 @@ const statusColors = {
   yellow: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
   red: 'bg-red-500/20 text-red-400 border-red-500/30',
   gray: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+  purple: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  cyan: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
 };
 
 export function MobileCard({
@@ -102,8 +105,8 @@ export function MobileCard({
         {/* Fields grid */}
         {fields.length > 0 && (
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            {fields.map((field, index) => (
-              <div key={index} className="flex flex-col">
+            {fields.map((field) => (
+              <div key={field.label} className="flex flex-col">
                 <span className="text-gray-500 text-xs">{field.label}</span>
                 <span className="text-gray-200 truncate">{field.value}</span>
               </div>

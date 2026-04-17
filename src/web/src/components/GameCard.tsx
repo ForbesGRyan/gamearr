@@ -1,4 +1,4 @@
-import React, { useState, memo } from 'react';
+import { useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import StoreIcon, { GameStoreInfo } from './StoreIcon';
 import ConfirmModal from './ConfirmModal';
@@ -70,7 +70,6 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
               className="w-full h-full object-cover"
               loading={priority ? 'eager' : 'lazy'}
               decoding="async"
-              fetchpriority={priority ? 'high' : 'auto'}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-500 text-4xl">

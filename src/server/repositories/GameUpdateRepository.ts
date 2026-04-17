@@ -170,8 +170,8 @@ export class GameUpdateRepository {
   async delete(id: number): Promise<boolean> {
     logger.info(`Deleting game update ID: ${id}`);
 
-    const result = await db.delete(gameUpdates).where(eq(gameUpdates.id, id));
-    return result.changes > 0;
+    const result = await db.delete(gameUpdates).where(eq(gameUpdates.id, id)).returning();
+    return result.length > 0;
   }
 
   /**
@@ -180,8 +180,8 @@ export class GameUpdateRepository {
   async deleteByGameId(gameId: number): Promise<number> {
     logger.info(`Deleting all updates for game ID: ${gameId}`);
 
-    const result = await db.delete(gameUpdates).where(eq(gameUpdates.gameId, gameId));
-    return result.changes;
+    const result = await db.delete(gameUpdates).where(eq(gameUpdates.gameId, gameId)).returning();
+    return result.length;
   }
 
   /**
