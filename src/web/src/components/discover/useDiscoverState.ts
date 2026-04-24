@@ -2,12 +2,14 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
+import { unwrap } from '../../queries/unwrap';
 import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../../utils/constants';
 import {
   usePopularityTypes,
   usePopularGames,
   useTopTorrents,
   useAddGame,
+  useGrabRelease,
   queryKeys,
 } from '../../queries';
 import {
@@ -138,6 +140,7 @@ export function useDiscoverState() {
 
   // Add-game mutation
   const addGameMutation = useAddGame();
+  const grabReleaseMutation = useGrabRelease();
 
   // Helper to clean torrent title for game search
   const cleanTorrentTitle = useCallback((title: string): string => {
@@ -216,21 +219,22 @@ export function useDiscoverState() {
       const gameName = cleanTorrentTitle(selectedTorrent.title);
       setModalGameSearch(gameName);
 
-      const searchGames = async () => {
+      const runSearch = async () => {
         if (!gameName) return;
         setIsSearchingGames(true);
         try {
-          const response = await api.searchGames(gameName);
-          if (response.success && response.data) {
-            setModalGameResults(response.data as GameSearchResult[]);
-          }
+          const data = await queryClient.fetchQuery({
+            queryKey: queryKeys.search.games(gameName),
+            queryFn: async () => unwrap(await api.searchGames(gameName)),
+          });
+          setModalGameResults(data as GameSearchResult[]);
         } catch {
           // Silently fail
         } finally {
           setIsSearchingGames(false);
         }
       };
-      searchGames();
+      runSearch();
     }
   }, [selectedTorrent, cleanTorrentTitle]);
 
@@ -332,18 +336,20 @@ export function useDiscoverState() {
     e.preventDefault();
     if (!modalGameSearch.trim()) return;
 
+    const trimmed = modalGameSearch.trim();
     setIsSearchingGames(true);
     try {
-      const response = await api.searchGames(modalGameSearch.trim());
-      if (response.success && response.data) {
-        setModalGameResults(response.data as GameSearchResult[]);
-      }
-    } catch {
-      setError('Failed to search games');
+      const data = await queryClient.fetchQuery({
+        queryKey: queryKeys.search.games(trimmed),
+        queryFn: async () => unwrap(await api.searchGames(trimmed)),
+      });
+      setModalGameResults(data as GameSearchResult[]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to search games');
     } finally {
       setIsSearchingGames(false);
     }
-  }, [modalGameSearch]);
+  }, [modalGameSearch, queryClient]);
 
   const handleAddTorrentToLibrary = useCallback(async () => {
     if (!selectedGame || !selectedTorrent?.downloadUrl) return;
@@ -366,12 +372,11 @@ export function useDiscoverState() {
       }
 
       if (gameId === null) {
-        const gamesResponse = await api.getGames();
-        if (!gamesResponse.success || !gamesResponse.data) {
-          setError('Failed to find game');
-          return;
-        }
-        const existingGame = gamesResponse.data.find(g => g.igdbId === selectedGame.igdbId);
+        const games = await queryClient.fetchQuery({
+          queryKey: queryKeys.games.list(),
+          queryFn: async () => unwrap(await api.getGames()),
+        });
+        const existingGame = games.find(g => g.igdbId === selectedGame.igdbId);
         if (!existingGame) {
           setError('Failed to find game');
           return;
@@ -379,16 +384,18 @@ export function useDiscoverState() {
         gameId = existingGame.id;
       }
 
-      const grabResponse = await api.grabRelease(gameId, {
-        title: selectedTorrent.title,
-        size: selectedTorrent.size,
-        seeders: selectedTorrent.seeders,
-        downloadUrl: selectedTorrent.downloadUrl,
-        indexer: selectedTorrent.indexer,
-        quality: selectedTorrent.quality,
-      });
-
-      if (grabResponse.success) {
+      try {
+        await grabReleaseMutation.mutateAsync({
+          gameId,
+          release: {
+            title: selectedTorrent.title,
+            size: selectedTorrent.size,
+            seeders: selectedTorrent.seeders,
+            downloadUrl: selectedTorrent.downloadUrl,
+            indexer: selectedTorrent.indexer,
+            quality: selectedTorrent.quality,
+          },
+        });
         invalidatePopularGames();
         setSuccessMessage(`Added "${selectedGame.title}" and started download!`);
         setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
@@ -396,15 +403,15 @@ export function useDiscoverState() {
         setSelectedGame(null);
         setModalGameSearch('');
         setModalGameResults([]);
-      } else {
-        setError(grabResponse.error || 'Failed to grab release');
+      } catch (grabErr) {
+        setError(grabErr instanceof Error ? grabErr.message : 'Failed to grab release');
       }
-    } catch {
-      setError('Failed to add to library');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add to library');
     } finally {
       setIsAddingToLibrary(false);
     }
-  }, [selectedGame, selectedTorrent, addGameMutation, invalidatePopularGames]);
+  }, [selectedGame, selectedTorrent, addGameMutation, grabReleaseMutation, invalidatePopularGames, queryClient]);
 
   const handleCloseModal = useCallback(() => {
     setSelectedTorrent(null);

@@ -1146,6 +1146,17 @@ class ApiClient {
     });
   }
 
+  async getLibraryScan(): Promise<ApiResponse<{ folders: LibraryFolder[]; count: number; matchedCount: number; unmatchedCount: number }>> {
+    return this.request<{ folders: LibraryFolder[]; count: number; matchedCount: number; unmatchedCount: number }>('/library/scan');
+  }
+
+  async ignoreLibraryFolder(folderPath: string): Promise<ApiResponse<void>> {
+    return this.request<void>('/library/ignore', {
+      method: 'POST',
+      body: JSON.stringify({ folderPath }),
+    });
+  }
+
   async autoMatchFolder(parsedTitle: string, parsedYear?: number): Promise<ApiResponse<SearchResult | null>> {
     return this.request<SearchResult | null>('/library/auto-match', {
       method: 'POST',

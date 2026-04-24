@@ -10,6 +10,26 @@ export function useLibraryScanCount() {
   });
 }
 
+export function useLibraryScan(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: [...queryKeys.libraries.all, 'scan'] as const,
+    queryFn: async () => unwrap(await api.getLibraryScan()),
+    enabled: options?.enabled ?? true,
+    staleTime: 30_000,
+  });
+}
+
+export function useIgnoreLibraryFolder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (folderPath: string) =>
+      unwrap(await api.ignoreLibraryFolder(folderPath)),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...queryKeys.libraries.all, 'scan'] });
+    },
+  });
+}
+
 export function useLibraryHealthCount() {
   return useQuery({
     queryKey: queryKeys.libraries.healthCount(),

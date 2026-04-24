@@ -15,7 +15,9 @@ import {
   useAutoMatchFolder,
   useMatchLibraryFolder,
   useOrganizeLooseFile,
+  useIgnoreLibraryFolder,
 } from '../queries/library';
+import { useUpdateGameStores } from '../queries/games';
 
 // Import library-specific components and hooks
 import {
@@ -148,6 +150,7 @@ function Library() {
   const autoMatchMutation = useAutoMatchFolder();
   const matchFolderMutation = useMatchLibraryFolder();
   const organizeLooseFileMutation = useOrganizeLooseFile();
+  const updateGameStoresMutation = useUpdateGameStores();
 
   const isScanning = scanLibraryMutation.isPending;
   const isHealthLoading = duplicatesQuery.isFetching || looseFilesQuery.isFetching;
@@ -239,13 +242,11 @@ function Library() {
 
   // Data loading
   // Load the cached library scan (GET) on demand (tab visit / after match).
-  // This endpoint has no api client wrapper, so use fetch directly.
   const loadScanData = useCallback(async () => {
     try {
-      const response = await fetch('/api/v1/library/scan');
-      const data = await response.json();
-      if (data.success && data.data) {
-        const { folders } = data.data;
+      const response = await api.getLibraryScan();
+      if (response.success && response.data) {
+        const { folders } = response.data;
         setLibraryFolders(folders);
         setIsScanLoaded(true);
       }
@@ -356,25 +357,17 @@ function Library() {
     loadScanData();
   }, [loadGames, loadScanData]);
 
+  const ignoreFolderMutation = useIgnoreLibraryFolder();
   const handleIgnoreFolder = useCallback(async (folderPath: string) => {
     try {
-      const response = await fetch('/api/v1/library/ignore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderPath }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        await loadScanData();
-        setScanMessage('Folder ignored successfully');
-        setTimeout(() => setScanMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
-      } else {
-        setError(data.error || 'Failed to ignore folder');
-      }
-    } catch {
-      setError('Failed to ignore folder');
+      await ignoreFolderMutation.mutateAsync(folderPath);
+      await loadScanData();
+      setScanMessage('Folder ignored successfully');
+      setTimeout(() => setScanMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to ignore folder');
     }
-  }, [loadScanData, setError]);
+  }, [ignoreFolderMutation, loadScanData, setError]);
 
   const handleAutoMatch = useCallback(async (folder: LibraryFolder) => {
     setIsAutoMatching((prev) => ({ ...prev, [folder.path]: true }));
@@ -456,7 +449,7 @@ function Library() {
 
       // If multiple stores selected, update stores via the dedicated endpoint
       if (folderStores.length > 0) {
-        await api.updateGameStores(matched.id, folderStores);
+        await updateGameStoresMutation.mutateAsync({ id: matched.id, stores: folderStores });
       }
       setAutoMatchSuggestions((prev) => {
         const newSuggestions = { ...prev };
