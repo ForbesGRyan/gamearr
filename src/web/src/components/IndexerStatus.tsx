@@ -1,33 +1,10 @@
-import { useState, useEffect } from 'react';
-import { api, Indexer } from '../api/client';
+import { useIndexers } from '../queries/indexers';
 
 function IndexerStatus() {
-  const [indexers, setIndexers] = useState<Indexer[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadIndexers();
-  }, []);
-
-  const loadIndexers = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await api.getIndexers();
-
-      if (response.success && response.data) {
-        setIndexers(response.data);
-      } else {
-        setError(response.error || 'Failed to load indexers');
-      }
-    } catch (err) {
-      setError('Failed to load indexers');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const { data, isLoading, error, refetch, isFetching } = useIndexers();
+  const indexers = data ?? [];
+  const errorMessage =
+    error instanceof Error ? error.message : error ? 'Failed to load indexers' : null;
 
   const getProtocolBadgeColor = (protocol: string) => {
     return protocol === 'torrent' ? 'bg-blue-700' : 'bg-purple-700';
@@ -51,16 +28,17 @@ function IndexerStatus() {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg md:text-xl font-semibold">Indexers</h3>
         <button
-          onClick={loadIndexers}
-          className="text-sm text-blue-400 hover:text-blue-300 transition px-3 py-2 -mr-2 min-h-[44px] flex items-center"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="text-sm text-blue-400 hover:text-blue-300 transition px-3 py-2 -mr-2 min-h-[44px] flex items-center disabled:opacity-50"
         >
           Refresh
         </button>
       </div>
 
-      {error && (
+      {errorMessage && (
         <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded text-red-200 text-sm">
-          {error}
+          {errorMessage}
         </div>
       )}
 
