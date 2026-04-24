@@ -40,6 +40,11 @@ const ALLOWED_SETTINGS = new Set([
   'update_check_enabled',
   'update_check_schedule',
   'default_update_policy',
+  'update_patch_handling',
+  'update_patch_penalty',
+  // Discovery cache settings
+  'trending_games_cache_interval',
+  'top_torrents_cache_interval',
   // Feature flags
   'dry_run',
   // Network settings

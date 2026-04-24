@@ -18,8 +18,13 @@ export function useSetting<T = string>(
     queryKey: queryKeys.settings.byKey(key),
     queryFn: async (): Promise<T | null> => {
       const res = await api.getSetting<T>(key);
+      // Treat a not-yet-configured / server-rejected setting as "no value"
+      // rather than a hard error. This matches the pre-migration behavior
+      // where Settings.tsx silently ignored per-key failures and fell back
+      // to defaults, and prevents one bad/renamed key from blocking the
+      // whole Settings page.
       if (!res.success) {
-        throw new Error(res.error ?? `Failed to load setting ${key}`);
+        return null;
       }
       return (res.data ?? null) as T | null;
     },
