@@ -4,3 +4,4 @@ export { unwrap, ApiError } from './unwrap';
 export * from './libraries';
 export * from './games';
 export * from './auth';
+export * from './downloads';
