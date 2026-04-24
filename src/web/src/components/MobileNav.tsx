@@ -24,7 +24,7 @@ function NavItem({ linkProps, label, onClick }: NavItemProps) {
   return (
     <Link
       {...(rest as LinkOptions)}
-      activeOptions={{ exact: end }}
+      activeOptions={{ exact: end, explicitUndefined: true }}
       onClick={onClick}
       className={NAV_BASE}
       activeProps={{ className: NAV_ACTIVE }}
@@ -123,7 +123,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
         {/* Navigation */}
         <nav className="p-4 overflow-y-auto h-[calc(100%-72px)]">
           <NavGroup title="Library">
-            <NavItem linkProps={{ to: '/', end: true }} label="Games" onClick={onClose} />
+            <NavItem linkProps={{ to: '/', search: { tab: undefined }, end: true }} label="Games" onClick={onClose} />
             <NavItem linkProps={{ to: '/', search: { tab: 'scan' } }} label="Import" onClick={onClose} />
             <NavItem linkProps={{ to: '/', search: { tab: 'health' } }} label="Health" onClick={onClose} />
           </NavGroup>
@@ -139,7 +139,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
           </NavGroup>
 
           <NavGroup title="Settings">
-            <NavItem linkProps={{ to: '/settings' }} label="General" onClick={onClose} />
+            <NavItem linkProps={{ to: '/settings', search: { tab: undefined } }} label="General" onClick={onClose} />
             <NavItem linkProps={{ to: '/settings', search: { tab: 'libraries' } }} label="Libraries" onClick={onClose} />
             <NavItem linkProps={{ to: '/settings', search: { tab: 'indexers' } }} label="Indexers" onClick={onClose} />
             <NavItem linkProps={{ to: '/settings', search: { tab: 'downloads' } }} label="Downloads" onClick={onClose} />
