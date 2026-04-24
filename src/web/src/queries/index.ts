@@ -2,6 +2,7 @@ export { queryClient } from './client';
 export { queryKeys } from './keys';
 export { unwrap, ApiError } from './unwrap';
 export * from './libraries';
+export * from './library';
 export * from './games';
 export * from './auth';
 export * from './downloads';

@@ -1,3 +1,5 @@
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../queries/keys';
 import type { ViewMode } from './types';
 
 type Tab = 'games' | 'scan' | 'health';
@@ -11,7 +13,6 @@ interface LibraryHeaderProps {
   onViewModeChange: (mode: ViewMode) => void;
   onAddGame: () => void;
   onScanLibrary: () => void;
-  onRefreshHealth: () => void;
 }
 
 export function LibraryHeader({
@@ -23,8 +24,13 @@ export function LibraryHeader({
   onViewModeChange,
   onAddGame,
   onScanLibrary,
-  onRefreshHealth,
 }: LibraryHeaderProps) {
+  const queryClient = useQueryClient();
+  const handleRefreshHealth = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.libraries.duplicates() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.libraries.looseFiles() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.libraries.healthCount() });
+  };
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
       <div>
@@ -85,7 +91,7 @@ export function LibraryHeader({
         )}
         {activeTab === 'health' && (
           <button
-            onClick={onRefreshHealth}
+            onClick={handleRefreshHealth}
             disabled={isHealthLoading}
             className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
