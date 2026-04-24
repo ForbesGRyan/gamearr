@@ -138,7 +138,8 @@ export function useTestSabnzbdConnection() {
 
 export function useTestSteamConnection() {
   return useMutation({
-    mutationFn: async () => unwrap(await api.testSteamConnection()),
+    mutationFn: async (config?: { apiKey: string; steamId: string }) =>
+      unwrap(await api.testSteamConnection(config)),
   });
 }
 
@@ -151,7 +152,8 @@ export function useTestDiscordConnection() {
 
 export function useTestGogConnection() {
   return useMutation({
-    mutationFn: async () => unwrap(await api.testGogConnection()),
+    mutationFn: async (config?: { refreshToken: string }) =>
+      unwrap(await api.testGogConnection(config)),
   });
 }
 

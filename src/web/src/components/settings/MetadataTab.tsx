@@ -56,9 +56,13 @@ export default function MetadataTab({
   const exchangeGogCode = useExchangeGogCode();
 
   const testGogConnection = useCallback(async () => {
+    if (!gogRefreshToken.trim()) {
+      setGogTest({ status: 'error', message: 'No GOG refresh token. Sign in with GOG first.' });
+      return;
+    }
     setGogTest({ status: 'testing' });
     try {
-      const data = await testGog.mutateAsync();
+      const data = await testGog.mutateAsync({ refreshToken: gogRefreshToken.trim() });
       if (data.connected) {
         setGogTest({
           status: 'success',
@@ -73,7 +77,7 @@ export default function MetadataTab({
         error instanceof ApiError ? error.message : 'Connection test failed';
       setGogTest({ status: 'error', message });
     }
-  }, [testGog]);
+  }, [gogRefreshToken, testGog]);
 
   // Check GOG connection on mount if token exists
   useEffect(() => {
@@ -118,16 +122,30 @@ export default function MetadataTab({
   }, [steamApiKey, steamId, addToast, updateSetting]);
 
   const testSteamConnection = useCallback(async () => {
+    if (!steamApiKey.trim() || !steamId.trim()) {
+      setSteamTest({ status: 'error', message: 'Enter API key and Steam ID first' });
+      return;
+    }
     setSteamTest({ status: 'testing' });
     try {
-      await testSteam.mutateAsync();
-      setSteamTest({ status: 'success', message: 'Connected successfully!' });
+      const data = await testSteam.mutateAsync({
+        apiKey: steamApiKey.trim(),
+        steamId: steamId.trim(),
+      });
+      if (data.connected) {
+        setSteamTest({
+          status: 'success',
+          message: data.playerName ? `Connected as ${data.playerName}` : 'Connected successfully!',
+        });
+      } else {
+        setSteamTest({ status: 'error', message: 'Connection failed' });
+      }
     } catch (error) {
       const message =
         error instanceof ApiError ? error.message : 'Connection test failed';
       setSteamTest({ status: 'error', message });
     }
-  }, [testSteam]);
+  }, [steamApiKey, steamId, testSteam]);
 
   const handleSaveGog = useCallback(async () => {
     setIsSavingGog(true);

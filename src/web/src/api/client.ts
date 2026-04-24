@@ -904,8 +904,13 @@ class ApiClient {
     });
   }
 
-  async testSteamConnection(): Promise<ApiResponse<boolean>> {
-    return this.request<boolean>('/steam/test');
+  async testSteamConnection(
+    config?: { apiKey: string; steamId: string }
+  ): Promise<ApiResponse<{ connected: boolean; playerName?: string }>> {
+    return this.request<{ connected: boolean; playerName?: string }>('/steam/test', {
+      method: 'POST',
+      body: config ? JSON.stringify(config) : undefined,
+    });
   }
 
   async testDiscordConnection(
@@ -1020,8 +1025,13 @@ class ApiClient {
     });
   }
 
-  async testGogConnection(): Promise<ApiResponse<{ connected: boolean; username?: string }>> {
-    return this.request<{ connected: boolean; username?: string }>('/gog/test');
+  async testGogConnection(
+    config?: { refreshToken: string }
+  ): Promise<ApiResponse<{ connected: boolean; username?: string }>> {
+    return this.request<{ connected: boolean; username?: string }>('/gog/test', {
+      method: 'POST',
+      body: config ? JSON.stringify(config) : undefined,
+    });
   }
 
   async getGogOwnedGames(): Promise<ApiResponse<GogGame[]>> {

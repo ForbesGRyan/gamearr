@@ -51,12 +51,29 @@ function normalizeTitle(title: string): string {
 
 /**
  * Test Steam connection
- * GET /api/v1/steam/test
+ * POST /api/v1/steam/test
+ * Optional body: { apiKey, steamId } to test unsaved credentials via a
+ * transient client. Empty body falls back to the saved settings.
  */
-router.get('/test', async (c) => {
+router.post('/test', async (c) => {
   try {
-    const apiKey = await settingsService.getSetting('steam_api_key');
-    const steamId = await settingsService.getSetting('steam_id');
+    let body: { apiKey?: string; steamId?: string } | null = null;
+    try {
+      const raw = await c.req.text();
+      if (raw) body = JSON.parse(raw);
+    } catch {
+      body = null;
+    }
+
+    let apiKey: string | null;
+    let steamId: string | null;
+    if (body && body.apiKey && body.steamId) {
+      apiKey = body.apiKey;
+      steamId = body.steamId;
+    } else {
+      apiKey = (await settingsService.getSetting('steam_api_key')) as string | null;
+      steamId = (await settingsService.getSetting('steam_id')) as string | null;
+    }
 
     if (!apiKey || !steamId) {
       return c.json({
@@ -66,7 +83,7 @@ router.get('/test', async (c) => {
       }, 400);
     }
 
-    const client = new SteamClient(apiKey as string, steamId as string);
+    const client = new SteamClient(apiKey, steamId);
     const result = await client.testConnection();
 
     if (result.success) {
