@@ -11,3 +11,4 @@ export * from './discover';
 export * from './updates';
 export * from './settings';
 export * from './indexers';
+export * from './system';
