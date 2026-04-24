@@ -54,11 +54,15 @@ export default function IndexersTab({
     }
     setProwlarrTest({ status: 'testing' });
     try {
-      await testProwlarr.mutateAsync({
+      const connected = await testProwlarr.mutateAsync({
         url: prowlarrUrl.trim(),
         apiKey: prowlarrApiKey.trim(),
       });
-      setProwlarrTest({ status: 'success', message: 'Connected successfully!' });
+      if (connected) {
+        setProwlarrTest({ status: 'success', message: 'Connected successfully!' });
+      } else {
+        setProwlarrTest({ status: 'error', message: 'Connection failed. Check URL and API key.' });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Connection test failed';
       setProwlarrTest({ status: 'error', message });

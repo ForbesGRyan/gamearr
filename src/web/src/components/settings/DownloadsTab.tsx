@@ -81,12 +81,16 @@ export default function DownloadsTab({
     }
     setQbTest({ status: 'testing' });
     try {
-      await testQb.mutateAsync({
+      const connected = await testQb.mutateAsync({
         host: qbHost.trim(),
         username: qbUsername,
         password: qbPassword,
       });
-      setQbTest({ status: 'success', message: 'Connected successfully!' });
+      if (connected) {
+        setQbTest({ status: 'success', message: 'Connected successfully!' });
+      } else {
+        setQbTest({ status: 'error', message: 'Connection failed. Check host and credentials.' });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Connection failed';
       setQbTest({ status: 'error', message });
@@ -124,11 +128,15 @@ export default function DownloadsTab({
     }
     setSabTest({ status: 'testing' });
     try {
-      await testSab.mutateAsync({
+      const connected = await testSab.mutateAsync({
         host: sabHost.trim(),
         apiKey: sabApiKey.trim(),
       });
-      setSabTest({ status: 'success', message: 'Connected successfully!' });
+      if (connected) {
+        setSabTest({ status: 'success', message: 'Connected successfully!' });
+      } else {
+        setSabTest({ status: 'error', message: 'Connection failed. Check host and API key.' });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Connection failed';
       setSabTest({ status: 'error', message });
