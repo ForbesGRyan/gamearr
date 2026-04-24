@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react';
-import { api } from '../../api/client';
+import { useCallback } from 'react';
 import { useToast } from '../../contexts/ToastContext';
+import { useUpdateSetting } from '../../queries/settings';
+import { useCheckAllUpdates } from '../../queries/updates';
 
 interface UpdatesTabProps {
   updateCheckEnabled: boolean;
@@ -28,43 +29,34 @@ export default function UpdatesTab({
   setUpdatePatchPenalty,
 }: UpdatesTabProps) {
   const { addToast } = useToast();
-  const [isSavingUpdateSettings, setIsSavingUpdateSettings] = useState(false);
-  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+  const updateSetting = useUpdateSetting();
+  const checkAllUpdates = useCheckAllUpdates();
 
   const handleSaveUpdateSettings = useCallback(async () => {
-    setIsSavingUpdateSettings(true);
     try {
       await Promise.all([
-        api.updateSetting('update_check_enabled', updateCheckEnabled),
-        api.updateSetting('update_check_schedule', updateCheckSchedule),
-        api.updateSetting('default_update_policy', defaultUpdatePolicy),
-        api.updateSetting('update_patch_handling', updatePatchHandling),
-        api.updateSetting('update_patch_penalty', updatePatchPenalty),
+        updateSetting.mutateAsync({ key: 'update_check_enabled', value: updateCheckEnabled }),
+        updateSetting.mutateAsync({ key: 'update_check_schedule', value: updateCheckSchedule }),
+        updateSetting.mutateAsync({ key: 'default_update_policy', value: defaultUpdatePolicy }),
+        updateSetting.mutateAsync({ key: 'update_patch_handling', value: updatePatchHandling }),
+        updateSetting.mutateAsync({ key: 'update_patch_penalty', value: updatePatchPenalty }),
       ]);
       addToast('Update check settings saved!', 'success');
     } catch {
       addToast('Failed to save update check settings', 'error');
-    } finally {
-      setIsSavingUpdateSettings(false);
     }
-  }, [updateCheckEnabled, updateCheckSchedule, defaultUpdatePolicy, updatePatchHandling, updatePatchPenalty, addToast]);
+  }, [updateCheckEnabled, updateCheckSchedule, defaultUpdatePolicy, updatePatchHandling, updatePatchPenalty, addToast, updateSetting]);
 
   const handleCheckUpdatesNow = useCallback(async () => {
-    setIsCheckingUpdates(true);
     try {
-      const response = await api.checkAllUpdates();
-      if (response.success && response.data) {
-        const { checked, updatesFound } = response.data as { checked: number; updatesFound: number };
-        addToast(`Checked ${checked} games, found ${updatesFound} updates`, 'success');
-      } else {
-        addToast(response.error || 'Failed to check for updates', 'error');
-      }
-    } catch {
-      addToast('Failed to check for updates', 'error');
-    } finally {
-      setIsCheckingUpdates(false);
+      const data = await checkAllUpdates.mutateAsync();
+      const { checked, updatesFound } = data as { checked: number; updatesFound: number };
+      addToast(`Checked ${checked} games, found ${updatesFound} updates`, 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to check for updates';
+      addToast(message, 'error');
     }
-  }, [addToast]);
+  }, [addToast, checkAllUpdates]);
 
   return (
     <>
@@ -143,10 +135,10 @@ export default function UpdatesTab({
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <button
               onClick={handleCheckUpdatesNow}
-              disabled={isCheckingUpdates || !updateCheckEnabled}
+              disabled={checkAllUpdates.isPending || !updateCheckEnabled}
               className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 flex items-center justify-center gap-2 min-h-[44px]"
             >
-              {isCheckingUpdates ? (
+              {checkAllUpdates.isPending ? (
                 <>
                   <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -232,10 +224,10 @@ export default function UpdatesTab({
 
         <button
           onClick={handleSaveUpdateSettings}
-          disabled={isSavingUpdateSettings}
+          disabled={updateSetting.isPending}
           className="mt-4 w-full md:w-auto bg-green-600 hover:bg-green-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
         >
-          {isSavingUpdateSettings ? 'Saving...' : 'Save Settings'}
+          {updateSetting.isPending ? 'Saving...' : 'Save Settings'}
         </button>
       </div>
     </>
