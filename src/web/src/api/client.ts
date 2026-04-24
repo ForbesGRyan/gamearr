@@ -876,16 +876,32 @@ class ApiClient {
   }
 
   // Connection tests
-  async testProwlarrConnection(): Promise<ApiResponse<boolean>> {
-    return this.request<boolean>('/indexers/test');
+  // Pass credentials to test un-saved form values; omit to test saved settings.
+  async testProwlarrConnection(
+    config?: { url: string; apiKey: string }
+  ): Promise<ApiResponse<boolean>> {
+    return this.request<boolean>('/indexers/test', {
+      method: 'POST',
+      body: config ? JSON.stringify(config) : undefined,
+    });
   }
 
-  async testQbittorrentConnection(): Promise<ApiResponse<boolean>> {
-    return this.request<boolean>('/downloads/test');
+  async testQbittorrentConnection(
+    config?: { host: string; username?: string; password?: string }
+  ): Promise<ApiResponse<boolean>> {
+    return this.request<boolean>('/downloads/test', {
+      method: 'POST',
+      body: config ? JSON.stringify(config) : undefined,
+    });
   }
 
-  async testSabnzbdConnection(): Promise<ApiResponse<boolean>> {
-    return this.request<boolean>('/downloads/test-sabnzbd');
+  async testSabnzbdConnection(
+    config?: { host: string; apiKey: string }
+  ): Promise<ApiResponse<boolean>> {
+    return this.request<boolean>('/downloads/test-sabnzbd', {
+      method: 'POST',
+      body: config ? JSON.stringify(config) : undefined,
+    });
   }
 
   async testSteamConnection(): Promise<ApiResponse<boolean>> {

@@ -68,7 +68,11 @@ export default function DownloadsTab({
   const testQbConnection = useCallback(async () => {
     setQbTest({ status: 'testing' });
     try {
-      const response = await api.testQbittorrentConnection();
+      const response = await api.testQbittorrentConnection({
+        host: qbHost.trim(),
+        username: qbUsername,
+        password: qbPassword,
+      });
       if (response.success && response.data) {
         setQbTest({ status: 'success', message: 'Connected successfully!' });
       } else {
@@ -77,7 +81,7 @@ export default function DownloadsTab({
     } catch {
       setQbTest({ status: 'error', message: 'Connection test failed' });
     }
-  }, []);
+  }, [qbHost, qbUsername, qbPassword]);
 
   const handleSaveSab = useCallback(async () => {
     if (!sabHost.trim()) {
@@ -106,7 +110,10 @@ export default function DownloadsTab({
   const testSabConnection = useCallback(async () => {
     setSabTest({ status: 'testing' });
     try {
-      const response = await api.testSabnzbdConnection();
+      const response = await api.testSabnzbdConnection({
+        host: sabHost.trim(),
+        apiKey: sabApiKey.trim(),
+      });
       if (response.success && response.data) {
         setSabTest({ status: 'success', message: 'Connected successfully!' });
       } else {
@@ -115,7 +122,7 @@ export default function DownloadsTab({
     } catch {
       setSabTest({ status: 'error', message: 'Connection test failed' });
     }
-  }, []);
+  }, [sabHost, sabApiKey]);
 
   const handleToggleDryRun = useCallback(async () => {
     setIsSavingDryRun(true);

@@ -1,10 +1,23 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
 import { downloadService } from '../services/DownloadService';
 import { settingsService } from '../services/SettingsService';
-import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
-import { sabnzbdClient } from '../integrations/sabnzbd/SabnzbdClient';
+import { QBittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
+import { SabnzbdClient } from '../integrations/sabnzbd/SabnzbdClient';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
+
+const qbTestSchema = z.object({
+  host: z.string().min(1),
+  username: z.string().optional().default(''),
+  password: z.string().optional().default(''),
+});
+
+const sabTestSchema = z.object({
+  host: z.string().min(1),
+  apiKey: z.string().min(1),
+});
 
 const downloads = new Hono();
 
@@ -49,26 +62,45 @@ downloads.post('/resume-all', async (c) => {
   }
 });
 
-// GET /api/v1/downloads/test - Test qBittorrent connection
+// POST /api/v1/downloads/test - Test qBittorrent connection
+// Accepts credentials in body to test form values without persisting them.
+// Falls back to saved settings if body is empty/absent.
 // NOTE: Must be defined BEFORE /:hash route to avoid "test" being treated as a hash
-downloads.get('/test', async (c) => {
-  logger.info('GET /api/v1/downloads/test');
+downloads.post('/test', async (c) => {
+  logger.info('POST /api/v1/downloads/test');
 
   try {
-    // Reload settings and reconfigure client before testing
-    const qbHost = await settingsService.getSetting('qbittorrent_host');
-    const qbUsername = await settingsService.getSetting('qbittorrent_username');
-    const qbPassword = await settingsService.getSetting('qbittorrent_password');
+    let host: string | null | undefined;
+    let username: string;
+    let password: string;
 
-    if (qbHost) {
-      qbittorrentClient.configure({
-        host: qbHost,
-        username: qbUsername || '',
-        password: qbPassword || '',
-      });
+    // Try parsing body; may be empty (legacy behavior: test saved settings)
+    let body: unknown = null;
+    try {
+      body = await c.req.json();
+    } catch {
+      // No JSON body - fall back to saved settings
     }
 
-    const connected = await downloadService.testConnection();
+    const parsed = body ? qbTestSchema.safeParse(body) : null;
+
+    if (parsed?.success) {
+      host = parsed.data.host;
+      username = parsed.data.username;
+      password = parsed.data.password;
+    } else {
+      host = await settingsService.getSetting('qbittorrent_host');
+      username = (await settingsService.getSetting('qbittorrent_username')) || '';
+      password = (await settingsService.getSetting('qbittorrent_password')) || '';
+    }
+
+    if (!host) {
+      return c.json({ success: true, data: false, error: 'Host is required' });
+    }
+
+    // Use a throwaway client so the singleton isn't mutated by untrusted form values
+    const testClient = new QBittorrentClient({ host, username, password });
+    const connected = await testClient.testConnection();
     return c.json({ success: true, data: connected });
   } catch (error) {
     logger.error('qBittorrent connection test failed:', error);
@@ -76,20 +108,39 @@ downloads.get('/test', async (c) => {
   }
 });
 
-// GET /api/v1/downloads/test-sabnzbd - Test SABnzbd connection
+// POST /api/v1/downloads/test-sabnzbd - Test SABnzbd connection
+// Accepts credentials in body to test form values without persisting them.
 // NOTE: Must be defined BEFORE /:hash route
-downloads.get('/test-sabnzbd', async (c) => {
-  logger.info('GET /api/v1/downloads/test-sabnzbd');
+downloads.post('/test-sabnzbd', async (c) => {
+  logger.info('POST /api/v1/downloads/test-sabnzbd');
 
   try {
-    const sabHost = await settingsService.getSetting('sabnzbd_host');
-    const sabApiKey = await settingsService.getSetting('sabnzbd_api_key');
+    let host: string | null | undefined;
+    let apiKey: string | null | undefined;
 
-    if (sabHost && sabApiKey) {
-      sabnzbdClient.configure({ host: sabHost, apiKey: sabApiKey });
+    let body: unknown = null;
+    try {
+      body = await c.req.json();
+    } catch {
+      // No JSON body - fall back to saved settings
     }
 
-    const connected = await downloadService.testSabnzbdConnection();
+    const parsed = body ? sabTestSchema.safeParse(body) : null;
+
+    if (parsed?.success) {
+      host = parsed.data.host;
+      apiKey = parsed.data.apiKey;
+    } else {
+      host = await settingsService.getSetting('sabnzbd_host');
+      apiKey = await settingsService.getSetting('sabnzbd_api_key');
+    }
+
+    if (!host || !apiKey) {
+      return c.json({ success: true, data: false, error: 'Host and API key are required' });
+    }
+
+    const testClient = new SabnzbdClient({ host, apiKey });
+    const connected = await testClient.testConnection();
     return c.json({ success: true, data: connected });
   } catch (error) {
     logger.error('SABnzbd connection test failed:', error);

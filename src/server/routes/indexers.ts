@@ -1,8 +1,16 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { indexerService } from '../services/IndexerService';
 import { cacheService } from '../services/CacheService';
+import { settingsService } from '../services/SettingsService';
+import { ProwlarrClient } from '../integrations/prowlarr/ProwlarrClient';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
+
+const prowlarrTestSchema = z.object({
+  url: z.string().min(1),
+  apiKey: z.string().min(1),
+});
 
 const indexers = new Hono();
 
@@ -42,12 +50,40 @@ indexers.delete('/:id', async (c) => {
   return c.json({ success: true, message: 'Not implemented yet' }, 501);
 });
 
-// GET /api/v1/indexers/test - Test Prowlarr connection
-indexers.get('/test', async (c) => {
-  logger.info('GET /api/v1/indexers/test');
+// POST /api/v1/indexers/test - Test Prowlarr connection
+// Accepts credentials in body to test form values without persisting them.
+// Falls back to saved settings if body is empty/absent.
+indexers.post('/test', async (c) => {
+  logger.info('POST /api/v1/indexers/test');
 
   try {
-    const connected = await indexerService.testConnection();
+    let url: string | null | undefined;
+    let apiKey: string | null | undefined;
+
+    let body: unknown = null;
+    try {
+      body = await c.req.json();
+    } catch {
+      // No JSON body - fall back to saved settings
+    }
+
+    const parsed = body ? prowlarrTestSchema.safeParse(body) : null;
+
+    if (parsed?.success) {
+      url = parsed.data.url;
+      apiKey = parsed.data.apiKey;
+    } else {
+      url = await settingsService.getSetting('prowlarr_url');
+      apiKey = await settingsService.getSetting('prowlarr_api_key');
+    }
+
+    if (!url || !apiKey) {
+      return c.json({ success: true, data: false, error: 'URL and API key are required' });
+    }
+
+    // Throwaway client so the singleton isn't mutated by untrusted form values
+    const testClient = new ProwlarrClient(url, apiKey);
+    const connected = await testClient.testConnection();
     return c.json({ success: true, data: connected });
   } catch (error) {
     logger.error('Prowlarr connection test failed:', error);
