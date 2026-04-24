@@ -171,6 +171,39 @@ export function useDeleteGame() {
   });
 }
 
+// Optimistic monitor toggle: flip the Game's `monitored` flag in the
+// games.list cache immediately so the UI reacts with zero latency, then
+// reconcile with the server response. On failure, the snapshot taken in
+// onMutate is restored.
+export function useToggleMonitor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => unwrap(await api.toggleMonitor(id)),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: queryKeys.games.list() });
+      const previous = qc.getQueryData<Game[]>(queryKeys.games.list());
+      if (previous) {
+        qc.setQueryData<Game[]>(
+          queryKeys.games.list(),
+          previous.map((g) =>
+            g.id === id ? { ...g, monitored: !g.monitored } : g
+          )
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.previous) {
+        qc.setQueryData(queryKeys.games.list(), ctx.previous);
+      }
+    },
+    onSettled: (_data, _err, id) => {
+      qc.invalidateQueries({ queryKey: queryKeys.games.list() });
+      qc.invalidateQueries({ queryKey: queryKeys.games.detail(id) });
+    },
+  });
+}
+
 export function useBatchUpdateGames() {
   const qc = useQueryClient();
   return useMutation({
@@ -178,7 +211,26 @@ export function useBatchUpdateGames() {
       gameIds: number[];
       updates: { monitored?: boolean; status?: 'wanted' | 'downloading' | 'downloaded' };
     }) => unwrap(await api.batchUpdateGames(vars.gameIds, vars.updates)),
-    onSuccess: () => {
+    onMutate: async (vars) => {
+      await qc.cancelQueries({ queryKey: queryKeys.games.list() });
+      const previous = qc.getQueryData<Game[]>(queryKeys.games.list());
+      if (previous) {
+        const selected = new Set(vars.gameIds);
+        qc.setQueryData<Game[]>(
+          queryKeys.games.list(),
+          previous.map((g) =>
+            selected.has(g.id) ? { ...g, ...vars.updates } : g
+          )
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) {
+        qc.setQueryData(queryKeys.games.list(), ctx.previous);
+      }
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.games.all });
     },
   });

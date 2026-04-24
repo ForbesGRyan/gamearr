@@ -1,10 +1,14 @@
-import { useState, memo } from 'react';
+import { useState, memo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import StoreIcon, { GameStoreInfo } from './StoreIcon';
 import ConfirmModal from './ConfirmModal';
 import { EyeIcon, EyeSlashIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, GamepadIcon, RefreshIcon } from './Icons';
-import { getGameDetailPath } from '../utils/slug';
+import { getGameDetailPath, getGameSlugs } from '../utils/slug';
 import { getCoverUrl } from '../utils/images';
+import { api } from '../api/client';
+import { queryKeys } from '../queries/keys';
+import { unwrap } from '../queries/unwrap';
 
 interface Game {
   id: number;
@@ -32,6 +36,26 @@ interface GameCardProps {
 function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggleSelect, priority = false }: GameCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const detailPath = getGameDetailPath(game.platform, game.title);
+  const queryClient = useQueryClient();
+
+  // Prefetch the detail view's primary queries on hover so that clicking through
+  // is instant. Cheap: if the user doesn't click, the data just sits in cache
+  // until staleTime elapses. Sub-resources (history/updates/events/integrations)
+  // stay behind — they lazy-load per tab anyway, and prefetching all of them on
+  // every card hover would be wasteful on a large library.
+  const prefetchDetail = useCallback(() => {
+    const { platform, slug } = getGameSlugs(game.platform, game.title);
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.games.bySlug(platform, slug),
+      queryFn: async () => unwrap(await api.getGameBySlug(platform, slug)),
+      staleTime: 30_000,
+    });
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.games.releases(game.id),
+      queryFn: async () => unwrap(await api.getGameReleases(game.id)),
+      staleTime: 30_000,
+    });
+  }, [game.id, game.platform, game.title, queryClient]);
 
   const statusColors = {
     wanted: 'bg-orange-500',
@@ -53,7 +77,11 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
   const selectedClass = selected ? 'ring-2 ring-blue-500' : '';
 
   return (
-    <div className={`bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition group ${downloadingClass} ${selectedClass}`}>
+    <div
+      className={`bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition group ${downloadingClass} ${selectedClass}`}
+      onMouseEnter={prefetchDetail}
+      onFocus={prefetchDetail}
+    >
       {/* Cover Image */}
       <div className="relative aspect-[2/3] bg-gray-700">
         <Link

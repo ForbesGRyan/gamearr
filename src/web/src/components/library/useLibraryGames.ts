@@ -6,6 +6,7 @@ import {
   useBatchUpdateGames,
   useDeleteGame,
   useGames,
+  useToggleMonitor,
 } from '../../queries/games';
 import { useLibraries } from '../../queries/libraries';
 import { queryKeys } from '../../queries/keys';
@@ -351,22 +352,16 @@ export function useLibraryGames() {
     await queryClient.invalidateQueries({ queryKey: queryKeys.games.list() });
   }, [queryClient]);
 
+  const toggleMonitorMutation = useToggleMonitor();
   const handleToggleMonitor = useCallback(
     async (id: number) => {
       try {
-        const response = await fetch(`/api/v1/games/${id}/toggle-monitor`, {
-          method: 'POST',
-        });
-        if (response.ok) {
-          await queryClient.invalidateQueries({
-            queryKey: queryKeys.games.all,
-          });
-        }
+        await toggleMonitorMutation.mutateAsync(id);
       } catch (err) {
         console.error('Failed to toggle monitor:', err);
       }
     },
-    [queryClient]
+    [toggleMonitorMutation]
   );
 
   const handleDelete = useCallback(

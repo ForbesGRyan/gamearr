@@ -44,3 +44,14 @@ export function getGameDetailPath(platform: string, title: string): string {
   const titleSlug = generateSlug(title);
   return `/game/${platformSlug}/${titleSlug}`;
 }
+
+/**
+ * Return the platform + title slugs used in the detail URL.
+ * Useful for prefetching the detail query keyed by those slugs.
+ */
+export function getGameSlugs(platform: string, title: string): { platform: string; slug: string } {
+  return {
+    platform: normalizePlatformSlug(platform),
+    slug: generateSlug(title),
+  };
+}

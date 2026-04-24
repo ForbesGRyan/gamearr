@@ -614,6 +614,12 @@ class ApiClient {
     });
   }
 
+  async toggleMonitor(id: number): Promise<ApiResponse<Game>> {
+    return this.request<Game>(`/games/${id}/toggle-monitor`, {
+      method: 'PATCH',
+    });
+  }
+
   // Batch operations
   async batchUpdateGames(
     gameIds: number[],
