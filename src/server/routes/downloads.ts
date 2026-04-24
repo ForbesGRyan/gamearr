@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { downloadService } from '../services/DownloadService';
 import { settingsService } from '../services/SettingsService';
-import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
-import { sabnzbdClient } from '../integrations/sabnzbd/SabnzbdClient';
+import { qbittorrentClient, QBittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
+import { sabnzbdClient, SabnzbdClient } from '../integrations/sabnzbd/SabnzbdClient';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
 
@@ -49,13 +49,33 @@ downloads.post('/resume-all', async (c) => {
   }
 });
 
-// GET /api/v1/downloads/test - Test qBittorrent connection
-// NOTE: Must be defined BEFORE /:hash route to avoid "test" being treated as a hash
-downloads.get('/test', async (c) => {
-  logger.info('GET /api/v1/downloads/test');
+// POST /api/v1/downloads/test - Test qBittorrent connection
+// Optional body: { host, username, password } to test unsaved credentials via
+// a transient client. Empty body falls back to the configured singleton.
+// NOTE: Must be defined BEFORE /:hash route to avoid "test" being treated as a hash.
+downloads.post('/test', async (c) => {
+  logger.info('POST /api/v1/downloads/test');
 
   try {
-    // Reload settings and reconfigure client before testing
+    let body: { host?: string; username?: string; password?: string } | null = null;
+    try {
+      const raw = await c.req.text();
+      if (raw) body = JSON.parse(raw);
+    } catch {
+      body = null;
+    }
+
+    if (body && body.host) {
+      const transient = new QBittorrentClient({
+        host: body.host,
+        username: body.username ?? '',
+        password: body.password ?? '',
+      });
+      const connected = await transient.testConnection();
+      return c.json({ success: true, data: connected });
+    }
+
+    // Reload saved settings and reconfigure singleton before testing
     const qbHost = await settingsService.getSetting('qbittorrent_host');
     const qbUsername = await settingsService.getSetting('qbittorrent_username');
     const qbPassword = await settingsService.getSetting('qbittorrent_password');
@@ -76,12 +96,28 @@ downloads.get('/test', async (c) => {
   }
 });
 
-// GET /api/v1/downloads/test-sabnzbd - Test SABnzbd connection
-// NOTE: Must be defined BEFORE /:hash route
-downloads.get('/test-sabnzbd', async (c) => {
-  logger.info('GET /api/v1/downloads/test-sabnzbd');
+// POST /api/v1/downloads/test-sabnzbd - Test SABnzbd connection
+// Optional body: { host, apiKey } to test unsaved credentials via a transient
+// client. Empty body falls back to the configured singleton.
+// NOTE: Must be defined BEFORE /:hash route.
+downloads.post('/test-sabnzbd', async (c) => {
+  logger.info('POST /api/v1/downloads/test-sabnzbd');
 
   try {
+    let body: { host?: string; apiKey?: string } | null = null;
+    try {
+      const raw = await c.req.text();
+      if (raw) body = JSON.parse(raw);
+    } catch {
+      body = null;
+    }
+
+    if (body && body.host && body.apiKey) {
+      const transient = new SabnzbdClient({ host: body.host, apiKey: body.apiKey });
+      const connected = await transient.testConnection();
+      return c.json({ success: true, data: connected });
+    }
+
     const sabHost = await settingsService.getSetting('sabnzbd_host');
     const sabApiKey = await settingsService.getSetting('sabnzbd_api_key');
 

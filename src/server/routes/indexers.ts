@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { indexerService } from '../services/IndexerService';
 import { cacheService } from '../services/CacheService';
+import { ProwlarrClient } from '../integrations/prowlarr/ProwlarrClient';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
 
@@ -42,11 +43,27 @@ indexers.delete('/:id', async (c) => {
   return c.json({ success: true, message: 'Not implemented yet' }, 501);
 });
 
-// GET /api/v1/indexers/test - Test Prowlarr connection
-indexers.get('/test', async (c) => {
-  logger.info('GET /api/v1/indexers/test');
+// POST /api/v1/indexers/test - Test Prowlarr connection
+// Optional body: { url, apiKey } to test unsaved credentials via a transient
+// client. Empty body falls back to the configured singleton (saved settings).
+indexers.post('/test', async (c) => {
+  logger.info('POST /api/v1/indexers/test');
 
   try {
+    let body: { url?: string; apiKey?: string } | null = null;
+    try {
+      const raw = await c.req.text();
+      if (raw) body = JSON.parse(raw);
+    } catch {
+      body = null;
+    }
+
+    if (body && body.url && body.apiKey) {
+      const transient = new ProwlarrClient(body.url, body.apiKey);
+      const connected = await transient.testConnection();
+      return c.json({ success: true, data: connected });
+    }
+
     const connected = await indexerService.testConnection();
     return c.json({ success: true, data: connected });
   } catch (error) {

@@ -48,15 +48,22 @@ export default function IndexersTab({
   }, [prowlarrUrl, prowlarrApiKey, addToast, updateSetting]);
 
   const testProwlarrConnection = useCallback(async () => {
+    if (!prowlarrUrl.trim() || !prowlarrApiKey.trim()) {
+      setProwlarrTest({ status: 'error', message: 'Enter URL and API key first' });
+      return;
+    }
     setProwlarrTest({ status: 'testing' });
     try {
-      await testProwlarr.mutateAsync();
+      await testProwlarr.mutateAsync({
+        url: prowlarrUrl.trim(),
+        apiKey: prowlarrApiKey.trim(),
+      });
       setProwlarrTest({ status: 'success', message: 'Connected successfully!' });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Connection test failed';
       setProwlarrTest({ status: 'error', message });
     }
-  }, [testProwlarr]);
+  }, [prowlarrUrl, prowlarrApiKey, testProwlarr]);
 
   return (
     <>

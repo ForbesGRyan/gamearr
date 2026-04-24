@@ -75,15 +75,23 @@ export default function DownloadsTab({
   }, [qbHost, qbUsername, qbPassword, addToast, updateSetting]);
 
   const testQbConnection = useCallback(async () => {
+    if (!qbHost.trim()) {
+      setQbTest({ status: 'error', message: 'Enter host first' });
+      return;
+    }
     setQbTest({ status: 'testing' });
     try {
-      await testQb.mutateAsync();
+      await testQb.mutateAsync({
+        host: qbHost.trim(),
+        username: qbUsername,
+        password: qbPassword,
+      });
       setQbTest({ status: 'success', message: 'Connected successfully!' });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Connection failed';
       setQbTest({ status: 'error', message });
     }
-  }, [testQb]);
+  }, [qbHost, qbUsername, qbPassword, testQb]);
 
   const handleSaveSab = useCallback(async () => {
     if (!sabHost.trim()) {
@@ -110,15 +118,22 @@ export default function DownloadsTab({
   }, [sabHost, sabApiKey, addToast, updateSetting]);
 
   const testSabConnection = useCallback(async () => {
+    if (!sabHost.trim() || !sabApiKey.trim()) {
+      setSabTest({ status: 'error', message: 'Enter host and API key first' });
+      return;
+    }
     setSabTest({ status: 'testing' });
     try {
-      await testSab.mutateAsync();
+      await testSab.mutateAsync({
+        host: sabHost.trim(),
+        apiKey: sabApiKey.trim(),
+      });
       setSabTest({ status: 'success', message: 'Connected successfully!' });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Connection failed';
       setSabTest({ status: 'error', message });
     }
-  }, [testSab]);
+  }, [sabHost, sabApiKey, testSab]);
 
   const handleToggleDryRun = useCallback(async () => {
     setIsSavingDryRun(true);

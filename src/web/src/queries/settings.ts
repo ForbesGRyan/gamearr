@@ -111,19 +111,23 @@ export function useUpdateQBittorrentCategory() {
 
 export function useTestProwlarrConnection() {
   return useMutation({
-    mutationFn: async () => unwrap(await api.testProwlarrConnection()),
+    mutationFn: async (config?: { url: string; apiKey: string }) =>
+      unwrap(await api.testProwlarrConnection(config)),
   });
 }
 
 export function useTestQbittorrentConnection() {
   return useMutation({
-    mutationFn: async () => unwrap(await api.testQbittorrentConnection()),
+    mutationFn: async (
+      config?: { host: string; username?: string; password?: string }
+    ) => unwrap(await api.testQbittorrentConnection(config)),
   });
 }
 
 export function useTestSabnzbdConnection() {
   return useMutation({
-    mutationFn: async () => unwrap(await api.testSabnzbdConnection()),
+    mutationFn: async (config?: { host: string; apiKey: string }) =>
+      unwrap(await api.testSabnzbdConnection(config)),
   });
 }
 
