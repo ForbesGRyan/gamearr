@@ -1,6 +1,13 @@
 import { useState, useCallback, useEffect } from 'react';
-import { api } from '../../api/client';
 import { useToast } from '../../contexts/ToastContext';
+import {
+  useUpdateSetting,
+  useTestSteamConnection,
+  useTestGogConnection,
+  useGogAuthUrl,
+  useExchangeGogCode,
+} from '../../queries/settings';
+import { ApiError } from '../../queries/unwrap';
 
 interface ConnectionTestResult {
   status: 'idle' | 'testing' | 'success' | 'error';
@@ -39,10 +46,34 @@ export default function MetadataTab({
   const [isSavingGog, setIsSavingGog] = useState(false);
   const [steamTest, setSteamTest] = useState<ConnectionTestResult>({ status: 'idle' });
   const [gogTest, setGogTest] = useState<ConnectionTestResult>({ status: 'idle' });
-  const [isGogLoggingIn, setIsGogLoggingIn] = useState(false);
   const [showGogCodeInput, setShowGogCodeInput] = useState(false);
   const [gogCode, setGogCode] = useState('');
-  const [isExchangingCode, setIsExchangingCode] = useState(false);
+
+  const updateSetting = useUpdateSetting();
+  const testSteam = useTestSteamConnection();
+  const testGog = useTestGogConnection();
+  const gogAuthUrl = useGogAuthUrl();
+  const exchangeGogCode = useExchangeGogCode();
+
+  const testGogConnection = useCallback(async () => {
+    setGogTest({ status: 'testing' });
+    try {
+      const data = await testGog.mutateAsync();
+      if (data.connected) {
+        setGogTest({
+          status: 'success',
+          message: data.username ? `Connected as ${data.username}` : 'Connected successfully!',
+          username: data.username,
+        });
+      } else {
+        setGogTest({ status: 'error', message: 'Connection failed' });
+      }
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : 'Connection test failed';
+      setGogTest({ status: 'error', message });
+    }
+  }, [testGog]);
 
   // Check GOG connection on mount if token exists
   useEffect(() => {
@@ -60,8 +91,8 @@ export default function MetadataTab({
     setIsSavingIgdb(true);
     try {
       await Promise.all([
-        api.updateSetting('igdb_client_id', igdbClientId.trim()),
-        api.updateSetting('igdb_client_secret', igdbClientSecret.trim()),
+        updateSetting.mutateAsync({ key: 'igdb_client_id', value: igdbClientId.trim() }),
+        updateSetting.mutateAsync({ key: 'igdb_client_secret', value: igdbClientSecret.trim() }),
       ]);
       addToast('IGDB settings saved!', 'success');
     } catch {
@@ -69,14 +100,14 @@ export default function MetadataTab({
     } finally {
       setIsSavingIgdb(false);
     }
-  }, [igdbClientId, igdbClientSecret, addToast]);
+  }, [igdbClientId, igdbClientSecret, addToast, updateSetting]);
 
   const handleSaveSteam = useCallback(async () => {
     setIsSavingSteam(true);
     try {
       await Promise.all([
-        api.updateSetting('steam_api_key', steamApiKey),
-        api.updateSetting('steam_id', steamId),
+        updateSetting.mutateAsync({ key: 'steam_api_key', value: steamApiKey }),
+        updateSetting.mutateAsync({ key: 'steam_id', value: steamId }),
       ]);
       addToast('Steam settings saved!', 'success');
     } catch {
@@ -84,79 +115,57 @@ export default function MetadataTab({
     } finally {
       setIsSavingSteam(false);
     }
-  }, [steamApiKey, steamId, addToast]);
+  }, [steamApiKey, steamId, addToast, updateSetting]);
 
   const testSteamConnection = useCallback(async () => {
     setSteamTest({ status: 'testing' });
     try {
-      const response = await api.testSteamConnection();
-      if (response.success && response.data) {
-        setSteamTest({ status: 'success', message: 'Connected successfully!' });
-      } else {
-        setSteamTest({ status: 'error', message: response.error || 'Connection failed' });
-      }
-    } catch {
-      setSteamTest({ status: 'error', message: 'Connection test failed' });
+      await testSteam.mutateAsync();
+      setSteamTest({ status: 'success', message: 'Connected successfully!' });
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : 'Connection test failed';
+      setSteamTest({ status: 'error', message });
     }
-  }, []);
+  }, [testSteam]);
 
   const handleSaveGog = useCallback(async () => {
     setIsSavingGog(true);
     try {
-      await api.updateSetting('gog_refresh_token', gogRefreshToken);
+      await updateSetting.mutateAsync({ key: 'gog_refresh_token', value: gogRefreshToken });
       addToast('GOG settings saved!', 'success');
     } catch {
       addToast('Failed to save GOG settings', 'error');
     } finally {
       setIsSavingGog(false);
     }
-  }, [gogRefreshToken, addToast]);
-
-  const testGogConnection = useCallback(async () => {
-    setGogTest({ status: 'testing' });
-    try {
-      const response = await api.testGogConnection();
-      if (response.success && response.data?.connected) {
-        setGogTest({
-          status: 'success',
-          message: response.data.username ? `Connected as ${response.data.username}` : 'Connected successfully!',
-          username: response.data.username,
-        });
-      } else {
-        setGogTest({ status: 'error', message: response.error || 'Connection failed' });
-      }
-    } catch {
-      setGogTest({ status: 'error', message: 'Connection test failed' });
-    }
-  }, []);
+  }, [gogRefreshToken, addToast, updateSetting]);
 
   const handleGogLogin = useCallback(async () => {
-    setIsGogLoggingIn(true);
     try {
-      const response = await api.getGogAuthUrl();
-      if (response.success && response.data?.url) {
+      const data = await gogAuthUrl.mutateAsync();
+      if (data.url) {
         // Open popup for GOG login
         const width = 600;
         const height = 700;
         const left = window.screenX + (window.outerWidth - width) / 2;
         const top = window.screenY + (window.outerHeight - height) / 2;
         window.open(
-          response.data.url,
+          data.url,
           'GOG Login',
           `width=${width},height=${height},left=${left},top=${top},popup=yes`
         );
         // Show code input after opening popup
         setShowGogCodeInput(true);
-        setIsGogLoggingIn(false);
       } else {
-        setIsGogLoggingIn(false);
-        addToast(response.error || 'Failed to get GOG login URL', 'error');
+        addToast('Failed to get GOG login URL', 'error');
       }
-    } catch {
-      setIsGogLoggingIn(false);
-      addToast('Failed to start GOG login', 'error');
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : 'Failed to start GOG login';
+      addToast(message, 'error');
     }
-  }, [addToast]);
+  }, [addToast, gogAuthUrl]);
 
   const handleGogCodeSubmit = useCallback(async () => {
     if (!gogCode.trim()) {
@@ -182,34 +191,29 @@ export default function MetadataTab({
       }
     }
 
-    setIsExchangingCode(true);
     try {
-      const response = await api.exchangeGogCode(code);
-      if (response.success) {
-        setGogTest({
-          status: 'success',
-          message: response.data?.username ? `Connected as ${response.data.username}` : 'Connected successfully!',
-          username: response.data?.username,
-        });
-        addToast(`Connected to GOG${response.data?.username ? ` as ${response.data.username}` : ''}`, 'success');
-        setShowGogCodeInput(false);
-        setGogCode('');
-        // Reload to get updated token
-        window.location.reload();
-      } else {
-        addToast(response.error || 'Failed to connect to GOG', 'error');
-      }
-    } catch {
-      addToast('Failed to exchange code', 'error');
-    } finally {
-      setIsExchangingCode(false);
+      const data = await exchangeGogCode.mutateAsync(code);
+      setGogTest({
+        status: 'success',
+        message: data.username ? `Connected as ${data.username}` : 'Connected successfully!',
+        username: data.username,
+      });
+      addToast(`Connected to GOG${data.username ? ` as ${data.username}` : ''}`, 'success');
+      setShowGogCodeInput(false);
+      setGogCode('');
+      // Reload to get updated token
+      window.location.reload();
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : 'Failed to exchange code';
+      addToast(message, 'error');
     }
-  }, [gogCode, addToast]);
+  }, [gogCode, addToast, exchangeGogCode]);
 
   const handleGogLogout = useCallback(async () => {
     setIsSavingGog(true);
     try {
-      await api.updateSetting('gog_refresh_token', '');
+      await updateSetting.mutateAsync({ key: 'gog_refresh_token', value: '' });
       setGogRefreshToken('');
       setGogTest({ status: 'idle' });
       addToast('Disconnected from GOG', 'success');
@@ -218,7 +222,10 @@ export default function MetadataTab({
     } finally {
       setIsSavingGog(false);
     }
-  }, [setGogRefreshToken, addToast]);
+  }, [setGogRefreshToken, addToast, updateSetting]);
+
+  const isGogLoggingIn = gogAuthUrl.isPending;
+  const isExchangingCode = exchangeGogCode.isPending;
 
   return (
     <>
