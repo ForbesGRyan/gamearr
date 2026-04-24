@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
-import { api } from '../../api/client';
+import { useCallback } from 'react';
 import { useToast } from '../../contexts/ToastContext';
+import { useUpdateSetting } from '../../queries/settings';
 
 interface GeneralTabProps {
   rssSyncInterval: number;
@@ -32,32 +32,23 @@ export default function GeneralTab({
   setTorrentsCacheInterval,
 }: GeneralTabProps) {
   const { addToast } = useToast();
-  const [isSavingAutomation, setIsSavingAutomation] = useState(false);
+  const updateSetting = useUpdateSetting();
 
   const handleSaveAutomation = useCallback(async () => {
-    setIsSavingAutomation(true);
     try {
-      const results = await Promise.all([
-        api.updateSetting('rss_sync_interval', rssSyncInterval),
-        api.updateSetting('search_scheduler_interval', searchSchedulerInterval),
-        api.updateSetting('auto_grab_min_score', autoGrabMinScore),
-        api.updateSetting('auto_grab_min_seeders', autoGrabMinSeeders),
-        api.updateSetting('trending_games_cache_interval', trendingCacheInterval),
-        api.updateSetting('top_torrents_cache_interval', torrentsCacheInterval),
+      await Promise.all([
+        updateSetting.mutateAsync({ key: 'rss_sync_interval', value: rssSyncInterval }),
+        updateSetting.mutateAsync({ key: 'search_scheduler_interval', value: searchSchedulerInterval }),
+        updateSetting.mutateAsync({ key: 'auto_grab_min_score', value: autoGrabMinScore }),
+        updateSetting.mutateAsync({ key: 'auto_grab_min_seeders', value: autoGrabMinSeeders }),
+        updateSetting.mutateAsync({ key: 'trending_games_cache_interval', value: trendingCacheInterval }),
+        updateSetting.mutateAsync({ key: 'top_torrents_cache_interval', value: torrentsCacheInterval }),
       ]);
-
-      const allSuccessful = results.every((r) => r.success);
-      if (allSuccessful) {
-        addToast('Automation settings saved! Changes will take effect on next job run.', 'success');
-      } else {
-        addToast('Some settings failed to save', 'error');
-      }
+      addToast('Automation settings saved! Changes will take effect on next job run.', 'success');
     } catch {
       addToast('Failed to save automation settings', 'error');
-    } finally {
-      setIsSavingAutomation(false);
     }
-  }, [rssSyncInterval, searchSchedulerInterval, autoGrabMinScore, autoGrabMinSeeders, trendingCacheInterval, torrentsCacheInterval, addToast]);
+  }, [rssSyncInterval, searchSchedulerInterval, autoGrabMinScore, autoGrabMinSeeders, trendingCacheInterval, torrentsCacheInterval, addToast, updateSetting]);
 
   return (
     <>
@@ -210,10 +201,10 @@ export default function GeneralTab({
 
         <button
           onClick={handleSaveAutomation}
-          disabled={isSavingAutomation}
+          disabled={updateSetting.isPending}
           className="mt-4 w-full md:w-auto bg-green-600 hover:bg-green-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
         >
-          {isSavingAutomation ? 'Saving...' : 'Save Settings'}
+          {updateSetting.isPending ? 'Saving...' : 'Save Settings'}
         </button>
       </div>
     </>
