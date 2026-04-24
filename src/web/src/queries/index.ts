@@ -9,3 +9,5 @@ export * from './downloads';
 export * from './search';
 export * from './discover';
 export * from './updates';
+export * from './settings';
+export * from './indexers';
