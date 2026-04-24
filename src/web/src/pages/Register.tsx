@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link } from '../router/compat';
 import { useAuthStatus, useRegister } from '../queries/auth';
 import { useToast } from '../contexts/ToastContext';
 import { GamepadIcon } from '../components/Icons';

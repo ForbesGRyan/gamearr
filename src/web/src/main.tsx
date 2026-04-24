@@ -3,8 +3,10 @@ import ReactDOM from 'react-dom/client';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import App from './App';
+import { RouterProvider } from '@tanstack/react-router';
 import { queryClient, PERSIST_MAX_AGE_MS } from './queries/client';
+import { router } from './router';
+import { ToastProvider } from './contexts/ToastContext';
 import './index.css';
 
 // Cache-bust key — bumping this invalidates all persisted caches. Use it when
@@ -46,7 +48,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         },
       }}
     >
-      <App />
+      <ToastProvider>
+        <RouterProvider router={router} />
+      </ToastProvider>
       {import.meta.env.DEV && <ReactQueryDevtools buttonPosition="bottom-left" />}
     </PersistQueryClientProvider>
   </React.StrictMode>,

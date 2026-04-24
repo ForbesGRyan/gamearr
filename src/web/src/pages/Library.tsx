@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from '../router/compat';
 import AddGameModal from '../components/AddGameModal';
 import SearchReleasesModal from '../components/SearchReleasesModal';
 import MatchFolderModal from '../components/MatchFolderModal';

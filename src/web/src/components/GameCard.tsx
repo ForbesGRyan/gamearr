@@ -1,5 +1,5 @@
 import { useState, memo, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '../router/compat';
 import { useQueryClient } from '@tanstack/react-query';
 import StoreIcon, { GameStoreInfo } from './StoreIcon';
 import ConfirmModal from './ConfirmModal';

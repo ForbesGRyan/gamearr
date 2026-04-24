@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from '../../router/compat';
 import { getGameDetailPath } from '../../utils/slug';
 import { getCoverUrl } from '../../utils/images';
 import StoreIcon from '../StoreIcon';

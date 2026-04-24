@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, Suspense, lazy } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from '../router/compat';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSetting } from '../queries/settings';
 import { queryKeys } from '../queries/keys';

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../router/compat';
 import { useSkipSetup } from '../queries/system';
 import {
   WelcomeStep,

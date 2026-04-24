@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from '../../router/compat';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useBatchDeleteGames,

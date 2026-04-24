@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from '../../router/compat';
 import StoreIcon from '../StoreIcon';
 import { EyeIcon, EyeSlashIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, GamepadIcon } from '../Icons';
 import { getGameDetailPath } from '../../utils/slug';
