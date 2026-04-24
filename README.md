@@ -8,6 +8,9 @@ Gamearr monitors your wanted games, automatically searches for releases via Prow
 
 ![Gamearr Library](screenshots/02-library-posters.png)
 
+> **Breaking change in v0.1.15: default port is now `8484` (was `7878`).**
+> `7878` collides with Radarr. Existing installs that relied on the default must either update bookmarks / reverse proxies / port mappings to `8484`, or set `PORT=7878` to keep the old behavior. See [docs/PORT_MIGRATION.md](docs/PORT_MIGRATION.md) for full upgrade steps.
+
 ## Features
 
 - **IGDB Integration** - Search and add games with full metadata (cover art, year, platforms, descriptions)
@@ -30,7 +33,7 @@ Gamearr monitors your wanted games, automatically searches for releases via Prow
 ```bash
 docker run -d \
   --name gamearr \
-  -p 7878:7878 \
+  -p 8484:8484 \
   -v /path/to/config:/config \
   -v /path/to/library:/library \
   -v /path/to/downloads:/downloads \
@@ -47,7 +50,7 @@ services:
     image: ghcr.io/forbesgryan/gamearr:latest
     container_name: gamearr
     ports:
-      - 7878:7878
+      - 8484:8484
     volumes:
       - ./config:/config
       - /path/to/library:/library
@@ -72,7 +75,7 @@ chmod +x gamearr
 gamearr.exe
 ```
 
-The server starts on port `7878` by default. Open http://localhost:7878 in your browser.
+The server starts on port `8484` by default. Open http://localhost:8484 in your browser.
 
 ### From Source
 
@@ -101,7 +104,7 @@ bun run db:push
 bun run dev:all
 ```
 
-Open http://localhost:3000 (dev) or http://localhost:7878 (production) in your browser.
+Open http://localhost:3000 (dev) or http://localhost:8484 (production) in your browser.
 
 ## Configuration
 
@@ -137,7 +140,7 @@ All settings can be configured via the web UI, but environment variables take pr
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `7878` | HTTP server port |
+| `PORT` | `8484` | HTTP server port |
 | `DATA_PATH` | `./data` | Directory for SQLite database and data files |
 | `LOG_PATH` | `$DATA_PATH/logs` | Directory for log files |
 | `NODE_ENV` | `production` | Set to `development` for debug logging |
@@ -169,7 +172,7 @@ services:
   gamearr:
     image: ghcr.io/forbesgryan/gamearr:latest
     ports:
-      - 7878:7878
+      - 8484:8484
     volumes:
       - ./config:/config
       - /path/to/library:/library
@@ -292,7 +295,7 @@ All endpoints prefixed with `/api/v1`:
 bun run dev:all
 
 # Or separately:
-bun dev          # Backend on :7878
+bun dev          # Backend on :8484
 bun dev:web      # Frontend on :3000
 
 # Database
@@ -301,7 +304,7 @@ bun run db:studio  # Open Drizzle Studio
 
 # Production build
 bun run build      # Creates ./gamearr binary (self-contained with embedded UI)
-./gamearr          # Run on :7878
+./gamearr          # Run on :8484
 
 # Testing
 bun test           # Run all tests

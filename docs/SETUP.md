@@ -282,7 +282,7 @@ bun run build
 
 ## Configuration
 
-Open Gamearr at `http://localhost:3000` (development) or `http://localhost:7878` (production) and go to **Settings**.
+Open Gamearr at `http://localhost:3000` (development) or `http://localhost:8484` (production) and go to **Settings**.
 
 ### General Tab
 
@@ -361,7 +361,7 @@ Click **Test Connection** for each service to verify.
 
 ### 1. Check System Health
 
-Go to `http://localhost:3000` (development) or `http://localhost:7878` (production) and check the status indicator in the header.
+Go to `http://localhost:3000` (development) or `http://localhost:8484` (production) and check the status indicator in the header.
 
 All services should show green:
 - **IGDB:** Connected

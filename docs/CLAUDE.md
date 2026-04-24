@@ -21,7 +21,7 @@ Gamearr is an automated game library management system following the *arr ecosys
 bun run dev:all
 
 # Or start manually in separate terminals:
-bun dev              # Backend on :7878
+bun dev              # Backend on :8484
 bun dev:web          # Frontend on :3000
 
 # Database operations
@@ -32,7 +32,7 @@ bun run db:studio    # Open Drizzle Studio
 ### Production Build
 ```bash
 bun run build        # Builds frontend and compiles to ./gamearr binary
-./gamearr            # Run production binary (serves on :7878)
+./gamearr            # Run production binary (serves on :8484)
 ```
 
 ### Environment Setup

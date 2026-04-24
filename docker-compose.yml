@@ -5,7 +5,7 @@ services:
     # image: ghcr.io/forbesgryan/gamearr:latest
     container_name: gamearr
     ports:
-      - "7878:7878"
+      - "8484:8484"
     volumes:
       # Configuration and database (persistent storage)
       - ./config:/config
@@ -15,7 +15,7 @@ services:
       - /path/to/downloads:/downloads
     environment:
       - TZ=America/New_York
-      - PORT=7878
+      - PORT=8484
       - DATA_PATH=/config
       # Optional: Disable semantic search if ONNX fails
       # - DISABLE_SEMANTIC_SEARCH=true

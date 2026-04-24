@@ -8,7 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:7878',
+    baseURL: 'http://localhost:8484',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -21,7 +21,7 @@ export default defineConfig({
   webServer: {
     // Build frontend first, then start dev server
     command: 'bun run build:web && bun run dev',
-    url: 'http://localhost:7878',
+    url: 'http://localhost:8484',
     reuseExistingServer: !process.env.CI,
     timeout: 180 * 1000,
   },

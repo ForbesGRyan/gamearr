@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Breaking Changes
+
+- **Default HTTP port changed from `7878` to `8484`.** `7878` is Radarr's default port and caused first-run collisions on hosts running the full *arr stack. The `PORT` environment variable still works — users who want to keep the old port can set `PORT=7878`. Docker users must update any pinned `7878:7878` host mappings, and users behind a reverse proxy must update upstream config. Bookmarks and stored Gamearr URLs (Discord webhooks, cross-service callbacks, etc.) also need updating. See [docs/PORT_MIGRATION.md](docs/PORT_MIGRATION.md) for the full migration guide.
+
 ## v0.1.14 (2026-04-16)
 
 ### New Features

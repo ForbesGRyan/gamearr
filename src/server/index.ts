@@ -150,7 +150,7 @@ app.onError((err, c) => {
   return c.json(formatErrorResponse(appError), appError.statusCode as any);
 });
 
-const port = process.env.PORT || 7878;
+const port = process.env.PORT || 8484;
 
 logger.info(`🎮 Gamearr v${APP_VERSION} starting...`);
 logger.info(`📡 Server running at http://localhost:${port}`);
@@ -266,10 +266,10 @@ initializeClients().then(async () => {
   });
 });
 
-export default {
-  port,
+Bun.serve({
+  port: Number(port),
   fetch: app.fetch,
   // Default is 10s, which is too short for slow first-time operations such as
   // the embedding model download (~30s cold) or large IGDB result parses.
   idleTimeout: 120,
-};
+});

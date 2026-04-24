@@ -13,9 +13,9 @@ async function waitForSetupPage(page: any) {
 async function resetSetupState(page: any) {
   // Reset setup state using the dedicated test endpoint
   // Include Origin header to bypass CSRF protection
-  const response = await page.request.post('http://localhost:7878/api/v1/system/reset-setup', {
+  const response = await page.request.post('http://localhost:8484/api/v1/system/reset-setup', {
     headers: {
-      'Origin': 'http://localhost:7878',
+      'Origin': 'http://localhost:8484',
     },
   });
   if (!response.ok()) {
@@ -25,7 +25,7 @@ async function resetSetupState(page: any) {
   expect(response.ok()).toBe(true);
 
   // Verify reset worked by checking setup status
-  const statusResponse = await page.request.get('http://localhost:7878/api/v1/system/setup-status');
+  const statusResponse = await page.request.get('http://localhost:8484/api/v1/system/setup-status');
   const status = await statusResponse.json();
   console.log('Setup status after reset:', status);
 

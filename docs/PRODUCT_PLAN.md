@@ -318,13 +318,13 @@ bun run db:studio     # Open Drizzle Studio
 ### Production
 ```bash
 bun run build         # Build frontend + compile binary
-./gamearr             # Run on port 7878
+./gamearr             # Run on port 8484
 ```
 
 ### Docker
 ```dockerfile
 FROM oven/bun:1
-EXPOSE 7878
+EXPOSE 8484
 VOLUME /config /downloads /library
 ENV DATA_PATH=/config
 ```

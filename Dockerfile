@@ -61,15 +61,15 @@ RUN mkdir -p /config /library /downloads && \
 USER bun
 
 # Environment variables
-ENV PORT=7878
+ENV PORT=8484
 ENV DATA_PATH=/config
 
 # Expose port
-EXPOSE 7878
+EXPOSE 8484
 
 # Health check (uses PORT env var)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-7878}/api/v1/system/status || exit 1
+    CMD curl -f http://localhost:${PORT:-8484}/api/v1/system/status || exit 1
 
 # Run entrypoint (migrations + app)
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

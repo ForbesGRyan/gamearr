@@ -60,3 +60,10 @@ src/server/generated/frontend-vfs.ts
 igdb-api-docs.html
 
 config/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+.beads-credential-key
+
+# Git worktrees
+.worktrees/
