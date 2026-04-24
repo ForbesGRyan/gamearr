@@ -1,14 +1,24 @@
 import { createRouter } from '@tanstack/react-router';
 import { routeTree } from '../routeTree.gen';
 import { queryClient } from '../queries/client';
+import {
+  RouteErrorComponent,
+  RouteNotFoundComponent,
+  RoutePendingComponent,
+} from './boundaries';
 
 export const router = createRouter({
   routeTree,
   context: { queryClient },
   defaultPreload: 'intent',
-  // Let TanStack Query own staleness; the router should always kick off loaders
-  // when they're declared on a route.
-  defaultPreloadStaleTime: 0,
+  // Reuse in-flight / recently-resolved loader data when a hover-preload is
+  // followed immediately by a click. 30s is the same floor the page-level
+  // query staleTime uses for bySlug/releases.
+  defaultPreloadStaleTime: 30_000,
+  scrollRestoration: true,
+  defaultErrorComponent: RouteErrorComponent,
+  defaultPendingComponent: RoutePendingComponent,
+  defaultNotFoundComponent: RouteNotFoundComponent,
 });
 
 declare module '@tanstack/react-router' {

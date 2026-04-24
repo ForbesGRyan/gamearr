@@ -1,6 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 import Activity from '../../pages/Activity';
+import { api } from '../../api/client';
+import { queryKeys } from '../../queries/keys';
+import { unwrap } from '../../queries/unwrap';
 
 const searchSchema = z.object({
   q: z.string().optional(),
@@ -15,5 +18,10 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute('/_auth/activity')({
   validateSearch: searchSchema,
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData({
+      queryKey: queryKeys.downloads.list(true),
+      queryFn: async () => unwrap(await api.getDownloads(true)),
+    }),
   component: Activity,
 });

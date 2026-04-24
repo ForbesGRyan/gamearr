@@ -38,24 +38,18 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
   const detailParams = getGameSlugs(game.platform, game.title);
   const queryClient = useQueryClient();
 
-  // Prefetch the detail view's primary queries on hover so that clicking through
-  // is instant. Cheap: if the user doesn't click, the data just sits in cache
-  // until staleTime elapses. Sub-resources (history/updates/events/integrations)
-  // stay behind — they lazy-load per tab anyway, and prefetching all of them on
-  // every card hover would be wasteful on a large library.
+  // Prefetch releases on hover. bySlug is already covered by the TSR route
+  // loader (triggered via the Link's default preload='intent'); releases have
+  // no route-level equivalent since the gameId isn't in the URL. History /
+  // updates / events / integrations stay behind — they lazy-load per tab and
+  // prefetching them on every card hover would be wasteful on large libraries.
   const prefetchDetail = useCallback(() => {
-    const { platform, slug } = getGameSlugs(game.platform, game.title);
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.games.bySlug(platform, slug),
-      queryFn: async () => unwrap(await api.getGameBySlug(platform, slug)),
-      staleTime: 30_000,
-    });
     queryClient.prefetchQuery({
       queryKey: queryKeys.games.releases(game.id),
       queryFn: async () => unwrap(await api.getGameReleases(game.id)),
       staleTime: 30_000,
     });
-  }, [game.id, game.platform, game.title, queryClient]);
+  }, [game.id, queryClient]);
 
   const statusColors = {
     wanted: 'bg-orange-500',
