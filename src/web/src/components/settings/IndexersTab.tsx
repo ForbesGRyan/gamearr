@@ -1,8 +1,11 @@
 import { useState, useCallback } from 'react';
-import { api } from '../../api/client';
 import IndexerStatus from '../IndexerStatus';
 import CategorySelector from '../CategorySelector';
 import { useToast } from '../../contexts/ToastContext';
+import {
+  useUpdateSetting,
+  useTestProwlarrConnection,
+} from '../../queries/settings';
 
 interface ConnectionTestResult {
   status: 'idle' | 'testing' | 'success' | 'error';
@@ -24,7 +27,8 @@ export default function IndexersTab({
 }: IndexersTabProps) {
   const { addToast } = useToast();
   const [prowlarrTest, setProwlarrTest] = useState<ConnectionTestResult>({ status: 'idle' });
-  const [isSavingProwlarr, setIsSavingProwlarr] = useState(false);
+  const updateSetting = useUpdateSetting();
+  const testProwlarr = useTestProwlarrConnection();
 
   const handleSaveProwlarr = useCallback(async () => {
     if (!prowlarrUrl.trim()) {
@@ -32,33 +36,27 @@ export default function IndexersTab({
       return;
     }
 
-    setIsSavingProwlarr(true);
     try {
       await Promise.all([
-        api.updateSetting('prowlarr_url', prowlarrUrl.trim()),
-        api.updateSetting('prowlarr_api_key', prowlarrApiKey),
+        updateSetting.mutateAsync({ key: 'prowlarr_url', value: prowlarrUrl.trim() }),
+        updateSetting.mutateAsync({ key: 'prowlarr_api_key', value: prowlarrApiKey }),
       ]);
       addToast('Prowlarr settings saved!', 'success');
     } catch {
       addToast('Failed to save Prowlarr settings', 'error');
-    } finally {
-      setIsSavingProwlarr(false);
     }
-  }, [prowlarrUrl, prowlarrApiKey, addToast]);
+  }, [prowlarrUrl, prowlarrApiKey, addToast, updateSetting]);
 
   const testProwlarrConnection = useCallback(async () => {
     setProwlarrTest({ status: 'testing' });
     try {
-      const response = await api.testProwlarrConnection();
-      if (response.success && response.data) {
-        setProwlarrTest({ status: 'success', message: 'Connected successfully!' });
-      } else {
-        setProwlarrTest({ status: 'error', message: response.error || 'Connection failed' });
-      }
-    } catch {
-      setProwlarrTest({ status: 'error', message: 'Connection test failed' });
+      await testProwlarr.mutateAsync();
+      setProwlarrTest({ status: 'success', message: 'Connected successfully!' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Connection test failed';
+      setProwlarrTest({ status: 'error', message });
     }
-  }, []);
+  }, [testProwlarr]);
 
   return (
     <>
@@ -101,17 +99,17 @@ export default function IndexersTab({
           <div className="flex flex-col sm:flex-row gap-3">
             <button
               onClick={handleSaveProwlarr}
-              disabled={isSavingProwlarr}
+              disabled={updateSetting.isPending}
               className="w-full sm:w-auto bg-green-600 hover:bg-green-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
             >
-              {isSavingProwlarr ? 'Saving...' : 'Save'}
+              {updateSetting.isPending ? 'Saving...' : 'Save'}
             </button>
             <button
               onClick={testProwlarrConnection}
-              disabled={prowlarrTest.status === 'testing'}
+              disabled={testProwlarr.isPending}
               className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
             >
-              {prowlarrTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
+              {testProwlarr.isPending ? 'Testing...' : 'Test Connection'}
             </button>
           </div>
           {prowlarrTest.status !== 'idle' && prowlarrTest.status !== 'testing' && (
