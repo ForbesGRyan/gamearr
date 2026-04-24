@@ -111,6 +111,17 @@ export function useSearchReleasesForGame(
   });
 }
 
+export function useAddGame() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (game: Parameters<typeof api.addGame>[0]) =>
+      unwrap(await api.addGame(game)),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.games.list() });
+    },
+  });
+}
+
 export function useUpdateGame() {
   const qc = useQueryClient();
   return useMutation({
