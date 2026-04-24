@@ -1,6 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
-import { api, type Library, type CreateLibraryRequest, type UpdateLibraryRequest } from '../../api/client';
+import { useState, useCallback } from 'react';
+import type { Library, CreateLibraryRequest, UpdateLibraryRequest } from '../../api/client';
 import { useToast } from '../../contexts/ToastContext';
+import {
+  useLibraries,
+  useCreateLibrary,
+  useUpdateLibrary,
+  useDeleteLibrary,
+} from '../../queries/libraries';
+import {
+  useQBittorrentCategories,
+  useTestLibraryPath,
+} from '../../queries/settings';
+import { ApiError } from '../../queries/unwrap';
 
 interface LibraryFormData {
   name: string;
@@ -24,51 +35,45 @@ const emptyFormData: LibraryFormData = {
 
 export default function LibrariesTab() {
   const { addToast } = useToast();
-  const [libraries, setLibraries] = useState<Library[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // qBittorrent categories
-  const [qbCategories, setQbCategories] = useState<string[]>([]);
+  // Data queries
+  const librariesQuery = useLibraries();
+  const qbCategoriesQuery = useQBittorrentCategories();
+
+  // Mutations
+  const createLibrary = useCreateLibrary();
+  const updateLibrary = useUpdateLibrary();
+  const deleteLibrary = useDeleteLibrary();
+  const testLibraryPath = useTestLibraryPath();
+
+  const libraries = librariesQuery.data ?? [];
+  const qbCategories = qbCategoriesQuery.data ?? [];
+  const isLoading = librariesQuery.isLoading;
+  const error = librariesQuery.isError
+    ? librariesQuery.error instanceof Error
+      ? librariesQuery.error.message
+      : 'Failed to load libraries'
+    : null;
 
   // Form state
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<LibraryFormData>(emptyFormData);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isTestingPath, setIsTestingPath] = useState(false);
   const [pathTestResult, setPathTestResult] = useState<{ valid: boolean; error?: string } | null>(null);
 
   // Delete confirmation
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
-  const loadLibraries = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await api.getLibraries();
-      if (response.success && response.data) {
-        setLibraries(response.data);
-      } else {
-        setError(response.error || 'Failed to load libraries');
-      }
-    } catch {
-      setError('Failed to load libraries');
-    } finally {
-      setIsLoading(false);
-    }
+  const isSaving = createLibrary.isPending || updateLibrary.isPending;
+  const isTestingPath = testLibraryPath.isPending;
+  const isDeleting = deleteLibrary.isPending;
+
+  const resetForm = useCallback(() => {
+    setFormData(emptyFormData);
+    setEditingId(null);
+    setShowForm(false);
+    setPathTestResult(null);
   }, []);
-
-  useEffect(() => {
-    loadLibraries();
-    // Load qBittorrent categories for the dropdown
-    api.getQBittorrentCategories().then((response) => {
-      if (response.success && response.data) {
-        setQbCategories(response.data as string[]);
-      }
-    });
-  }, [loadLibraries]);
 
   const handleTestPath = useCallback(async () => {
     if (!formData.path.trim()) {
@@ -76,21 +81,20 @@ export default function LibrariesTab() {
       return;
     }
 
-    setIsTestingPath(true);
     setPathTestResult(null);
     try {
-      const response = await api.testLibraryPath(formData.path.trim());
-      if (response.success && response.data) {
-        setPathTestResult(response.data);
-      } else {
-        setPathTestResult({ valid: false, error: response.error || 'Test failed' });
-      }
-    } catch {
-      setPathTestResult({ valid: false, error: 'Failed to test path' });
-    } finally {
-      setIsTestingPath(false);
+      const result = await testLibraryPath.mutateAsync(formData.path.trim());
+      setPathTestResult(result);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : 'Failed to test path';
+      setPathTestResult({ valid: false, error: message });
     }
-  }, [formData.path]);
+  }, [formData.path, testLibraryPath]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,10 +104,8 @@ export default function LibrariesTab() {
       return;
     }
 
-    setIsSaving(true);
     try {
       if (editingId !== null) {
-        // Update existing library
         const updateData: UpdateLibraryRequest = {
           name: formData.name.trim(),
           path: formData.path.trim(),
@@ -113,16 +115,10 @@ export default function LibrariesTab() {
           downloadCategory: formData.downloadCategory.trim() || null,
           priority: formData.priority,
         };
-        const response = await api.updateLibrary(editingId, updateData);
-        if (response.success) {
-          addToast('Library updated!', 'success');
-          await loadLibraries();
-          resetForm();
-        } else {
-          addToast(response.error || 'Failed to update library', 'error');
-        }
+        await updateLibrary.mutateAsync({ id: editingId, updates: updateData });
+        addToast('Library updated!', 'success');
+        resetForm();
       } else {
-        // Create new library
         const createData: CreateLibraryRequest = {
           name: formData.name.trim(),
           path: formData.path.trim(),
@@ -132,21 +128,20 @@ export default function LibrariesTab() {
           downloadCategory: formData.downloadCategory.trim() || undefined,
           priority: formData.priority,
         };
-        const response = await api.createLibrary(createData);
-        if (response.success) {
-          addToast('Library created!', 'success');
-          await loadLibraries();
-          resetForm();
-        } else {
-          addToast(response.error || 'Failed to create library', 'error');
-        }
+        await createLibrary.mutateAsync(createData);
+        addToast('Library created!', 'success');
+        resetForm();
       }
-    } catch {
-      addToast('Failed to save library', 'error');
-    } finally {
-      setIsSaving(false);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : 'Failed to save library';
+      addToast(message, 'error');
     }
-  }, [formData, editingId, addToast, loadLibraries]);
+  }, [formData, editingId, addToast, resetForm, createLibrary, updateLibrary]);
 
   const handleEdit = useCallback((library: Library) => {
     setFormData({
@@ -164,29 +159,20 @@ export default function LibrariesTab() {
   }, []);
 
   const handleDelete = useCallback(async (id: number) => {
-    setIsDeleting(true);
     try {
-      const response = await api.deleteLibrary(id);
-      if (response.success) {
-        addToast('Library deleted!', 'success');
-        await loadLibraries();
-        setDeletingId(null);
-      } else {
-        addToast(response.error || 'Failed to delete library', 'error');
-      }
-    } catch {
-      addToast('Failed to delete library', 'error');
-    } finally {
-      setIsDeleting(false);
+      await deleteLibrary.mutateAsync(id);
+      addToast('Library deleted!', 'success');
+      setDeletingId(null);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : 'Failed to delete library';
+      addToast(message, 'error');
     }
-  }, [addToast, loadLibraries]);
-
-  const resetForm = useCallback(() => {
-    setFormData(emptyFormData);
-    setEditingId(null);
-    setShowForm(false);
-    setPathTestResult(null);
-  }, []);
+  }, [addToast, deleteLibrary]);
 
   if (isLoading) {
     return (
@@ -201,7 +187,7 @@ export default function LibrariesTab() {
       <div className="bg-red-900 bg-opacity-50 border border-red-700 rounded-lg p-6">
         <p className="text-red-200">{error}</p>
         <button
-          onClick={loadLibraries}
+          onClick={() => librariesQuery.refetch()}
           className="mt-4 bg-red-600 hover:bg-red-700 px-4 py-2 rounded transition"
         >
           Retry
