@@ -1,6 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { api, Download, Library, SearchResult } from '../api/client';
+import type { Download, SearchResult } from '../api/client';
+import { useLibraries } from '../queries/libraries';
+import { useSearchGames } from '../queries/search';
+import { useAddGame } from '../queries/games';
 import { CloseIcon, GamepadIcon } from './Icons';
 
 interface ImportDownloadModalProps {
@@ -12,30 +15,30 @@ interface ImportDownloadModalProps {
 
 function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDownloadModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
+  // The submitted query drives the actual fetch — it only updates on form
+  // submit or when a new download triggers an auto-search. This keeps typing
+  // from firing a request per keystroke.
+  const [submittedQuery, setSubmittedQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [libraries, setLibraries] = useState<Library[]>([]);
+  const { data: libraries = [] } = useLibraries();
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Record<number, string>>({});
 
-  // Load libraries on mount
+  const searchQ = useSearchGames(submittedQuery, {
+    enabled: submittedQuery.length > 0,
+  });
+  const searchResults: SearchResult[] = useMemo(() => searchQ.data ?? [], [searchQ.data]);
+  const isSearching = searchQ.isFetching;
+
+  const addGameMutation = useAddGame();
+  const isImporting = addGameMutation.isPending;
+
+  // Auto-select first library when data arrives
   useEffect(() => {
-    const loadLibraries = async () => {
-      const response = await api.getLibraries();
-      if (response.success && response.data) {
-        setLibraries(response.data);
-        // Auto-select first library if available
-        if (response.data.length > 0 && !selectedLibraryId) {
-          setSelectedLibraryId(response.data[0].id);
-        }
-      }
-    };
-    if (isOpen) {
-      loadLibraries();
+    if (isOpen && libraries.length > 0 && selectedLibraryId === null) {
+      setSelectedLibraryId(libraries[0].id);
     }
-  }, [isOpen]);
+  }, [isOpen, libraries, selectedLibraryId]);
 
   // Extract game name from torrent name and auto-search
   useEffect(() => {
@@ -43,7 +46,7 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
       const cleanedName = cleanTorrentName(download.name);
       setSearchQuery(cleanedName);
       setSelectedPlatforms({});
-      handleAutoSearch(cleanedName);
+      setSubmittedQuery(cleanedName);
     }
   }, [download]);
 
@@ -52,7 +55,6 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
     const newSelections: Record<number, string> = {};
     for (const game of searchResults) {
       if (game.platforms && game.platforms.length > 0) {
-        // Default to PC if available, otherwise first platform
         const pcPlatform = game.platforms.find(p =>
           p.toLowerCase().includes('pc') || p.toLowerCase().includes('windows')
         );
@@ -61,6 +63,13 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
     }
     setSelectedPlatforms(prev => ({ ...prev, ...newSelections }));
   }, [searchResults]);
+
+  // Surface query errors via the inline error banner
+  useEffect(() => {
+    if (searchQ.isError) {
+      setError(searchQ.error instanceof Error ? searchQ.error.message : 'Search failed');
+    }
+  }, [searchQ.isError, searchQ.error]);
 
   // Handle Escape key to close modal
   useEffect(() => {
@@ -82,69 +91,39 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
   function cleanTorrentName(name: string): string {
     let cleaned = name;
 
-    // Remove common release group tags and scene info
     const patternsToRemove = [
       /[-._]?(CODEX|PLAZA|SKIDROW|RELOADED|FitGirl|GOG|Steam|Repack|RUNE|DARKSiDERS|EMPRESS|TiNYiSO|DODI|ElAmigos|KaOs)/gi,
       /[-._]?(x64|x86|Win64|Windows|PC|MacOS|Linux)/gi,
-      /[-._]?(v\d+[\d.]*\w*)/gi, // Version numbers
+      /[-._]?(v\d+[\d.]*\w*)/gi,
       /[-._]?(Multi\d*|MULTI\d*)/gi,
       /[-._]?(Incl|Including|Update|DLC|Bonus|OST|Soundtrack)/gi,
       /[-._]?(Portable|Proper|REPACK|RIP)/gi,
-      /[-._]?\d{4}[-._]?\d{2}[-._]?\d{2}/g, // Dates
-      /\[.*?\]/g, // Bracketed content
-      /\(.*?\)/g, // Parenthetical content
-      /[-._]+/g, // Replace multiple separators with space
+      /[-._]?\d{4}[-._]?\d{2}[-._]?\d{2}/g,
+      /\[.*?\]/g,
+      /\(.*?\)/g,
+      /[-._]+/g,
     ];
 
     for (const pattern of patternsToRemove) {
       cleaned = cleaned.replace(pattern, ' ');
     }
 
-    // Clean up extra spaces
     cleaned = cleaned.replace(/\s+/g, ' ').trim();
-
     return cleaned;
   }
 
-  const handleAutoSearch = async (query: string) => {
-    if (!query.trim()) return;
-
-    setIsSearching(true);
-    setError(null);
-
-    try {
-      const response = await api.searchGames(query);
-
-      if (response.success && response.data) {
-        setSearchResults(response.data);
-      } else {
-        setError(response.error || 'Search failed');
-        setSearchResults([]);
-      }
-    } catch (err) {
-      console.error('Search error:', err);
-      setError('Failed to search games');
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleSearch = async (e: React.FormEvent) => {
+  const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    await handleAutoSearch(searchQuery);
+    setError(null);
+    setSubmittedQuery(searchQuery.trim());
   };
 
   const handleImportGame = async (game: SearchResult) => {
-    setIsImporting(true);
     setError(null);
-
     try {
-      // Get selected platform for this game
       const platform = selectedPlatforms[game.igdbId] || game.platforms?.[0] || 'PC';
 
-      // Add the game with status 'downloaded'
-      const response = await api.addGame({
+      await addGameMutation.mutateAsync({
         igdbId: game.igdbId,
         title: game.title,
         year: game.year,
@@ -159,34 +138,25 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
         status: 'downloaded',
         monitored: true,
         libraryId: selectedLibraryId || undefined,
-        // Track that this was imported from download client
         importSource: download ? {
           type: 'download' as const,
           torrentName: download.name,
           torrentHash: download.hash || download.id || '',
         } : undefined,
       });
-
-      if (response.success) {
-        onImported();
-        onClose();
-        setSearchQuery('');
-        setSearchResults([]);
-        setSelectedPlatforms({});
-      } else {
-        setError(response.error || 'Failed to import game');
-      }
+      onImported();
+      onClose();
+      setSearchQuery('');
+      setSubmittedQuery('');
+      setSelectedPlatforms({});
     } catch (err) {
-      setError('Failed to import game');
-    } finally {
-      setIsImporting(false);
+      setError(err instanceof Error ? err.message : 'Failed to import game');
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 md:p-4">
       <div className="fixed inset-0 md:inset-auto md:relative md:w-[56rem] md:max-h-[90vh] w-full h-full md:h-auto bg-gray-900 md:rounded-lg flex flex-col shadow-2xl border-0 md:border border-gray-600">
-        {/* Sticky Header */}
         <div className="sticky top-0 bg-gray-700 flex items-center justify-between p-4 md:p-6 border-b border-gray-600 md:rounded-t-lg flex-shrink-0 z-10">
           <div className="min-w-0 flex-1">
             <h2 className="text-xl md:text-2xl font-bold text-white">Import to Library</h2>
@@ -202,9 +172,7 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
           </button>
         </div>
 
-        {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
-          {/* Search Form */}
           <div className="p-4 md:p-6 border-b border-gray-600">
             <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-2">
               <input
@@ -223,7 +191,6 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
               </button>
             </form>
 
-            {/* Library Selector */}
             {libraries.length > 0 && (
               <div className="mt-4">
                 <label htmlFor="import-download-library" className="block text-sm font-medium text-gray-300 mb-2">
@@ -252,7 +219,6 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
             )}
           </div>
 
-          {/* Search Results */}
           <div className="p-4 md:p-6">
             {searchResults.length === 0 ? (
               <div className="text-center text-gray-200 py-12">
@@ -265,7 +231,6 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
                     key={game.igdbId}
                     className="bg-gray-600 hover:bg-gray-500 flex gap-4 rounded-lg p-4 transition border border-gray-600"
                   >
-                    {/* Cover */}
                     <div className="bg-gray-500 w-16 h-22 md:w-20 md:h-28 rounded flex-shrink-0">
                       {game.coverUrl ? (
                         <img
@@ -280,7 +245,6 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
                       )}
                     </div>
 
-                    {/* Info */}
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-base md:text-lg text-white">
                         {game.title}
@@ -317,7 +281,6 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
                       )}
                     </div>
 
-                    {/* Import/View Button */}
                     <div className="flex-shrink-0 flex items-center">
                       {game.existingGameId ? (
                         <Link
@@ -344,7 +307,6 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
           </div>
         </div>
 
-        {/* Sticky Footer */}
         <div className="sticky bottom-0 bg-gray-800 border-t border-gray-700 p-4 flex-shrink-0">
           <button
             onClick={onClose}

@@ -1,5 +1,9 @@
-import { useState, useEffect } from 'react';
-import { api, GrabbedRelease, Release } from '../../api/client';
+import { useMemo, useState } from 'react';
+import type { GrabbedRelease, Release } from '../../api/client';
+import {
+  useGrabRelease,
+  useSearchReleasesForGame,
+} from '../../queries/games';
 import { formatBytes } from '../../utils/formatters';
 import { MobileCard, MobileCardButton } from '../MobileCard';
 
@@ -9,54 +13,63 @@ type SortDirection = 'asc' | 'desc';
 interface GameReleasesSectionProps {
   gameId: number;
   releases: GrabbedRelease[];
-  onReleaseGrabbed?: () => void;
 }
 
-function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameReleasesSectionProps) {
-  const [availableReleases, setAvailableReleases] = useState<Release[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [grabbingId, setGrabbingId] = useState<string | null>(null);
-  const [hasSearched, setHasSearched] = useState(false);
+function GameReleasesSection({ gameId, releases }: GameReleasesSectionProps) {
+  const searchQuery = useSearchReleasesForGame(gameId);
+  const grabRelease = useGrabRelease();
+
   const [sortField, setSortField] = useState<SortField>('seeders');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
-  // Auto-search for releases on mount
-  useEffect(() => {
-    searchReleases();
-  }, [gameId]);
+  // Locally hide releases just grabbed so the row vanishes without waiting for
+  // an indexer re-search. Cleared when the availability query refetches.
+  const [recentlyGrabbed, setRecentlyGrabbed] = useState<Set<string>>(new Set());
 
-  const searchReleases = async () => {
-    setIsSearching(true);
-    setSearchError(null);
+  const availableReleases: Release[] = useMemo(() => {
+    const base = searchQuery.data ?? [];
+    if (recentlyGrabbed.size === 0) return base;
+    return base.filter((r) => !recentlyGrabbed.has(r.guid));
+  }, [searchQuery.data, recentlyGrabbed]);
 
+  const isSearching = searchQuery.isFetching;
+  const hasSearched = searchQuery.isFetched;
+  const searchError = searchQuery.isError
+    ? (searchQuery.error as Error)?.message ?? 'Failed to search for releases'
+    : null;
+
+  const grabbingId = grabRelease.isPending
+    ? grabRelease.variables?.release.downloadUrl ?? null
+    : null;
+
+  const handleGrab = async (release: Release) => {
     try {
-      const response = await api.searchReleases(gameId);
-      if (response.success && response.data) {
-        setAvailableReleases(response.data);
-      } else {
-        setSearchError(response.error || 'Failed to search for releases');
-      }
-    } catch (err) {
-      setSearchError('Failed to search for releases');
-    } finally {
-      setIsSearching(false);
-      setHasSearched(true);
+      await grabRelease.mutateAsync({
+        gameId,
+        release: {
+          title: release.title,
+          size: release.size,
+          seeders: release.seeders,
+          downloadUrl: release.downloadUrl,
+          magnetUrl: release.magnetUrl,
+          indexer: release.indexer,
+          quality: release.quality,
+          protocol: release.protocol,
+        },
+      });
+      setRecentlyGrabbed((prev) => {
+        const next = new Set(prev);
+        next.add(release.guid);
+        return next;
+      });
+    } catch {
+      // surfaced via mutation state; UI keeps the row visible
     }
   };
 
-  const handleGrab = async (release: Release) => {
-    setGrabbingId(release.guid);
-    try {
-      const response = await api.grabRelease(gameId, release);
-      if (response.success) {
-        // Remove from available list
-        setAvailableReleases((prev) => prev.filter((r) => r.guid !== release.guid));
-        onReleaseGrabbed?.();
-      }
-    } finally {
-      setGrabbingId(null);
-    }
+  const handleRefresh = () => {
+    setRecentlyGrabbed(new Set());
+    searchQuery.refetch();
   };
 
   const formatDate = (dateStr?: string) => {
@@ -84,7 +97,10 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
   };
 
   const getStatusInfo = (status: GrabbedRelease['status']) => {
-    const statusMap: Record<GrabbedRelease['status'], { label: string; color: 'green' | 'blue' | 'yellow' | 'red' | 'gray' }> = {
+    const statusMap: Record<
+      GrabbedRelease['status'],
+      { label: string; color: 'green' | 'blue' | 'yellow' | 'red' | 'gray' }
+    > = {
       pending: { label: 'Pending', color: 'yellow' },
       downloading: { label: 'Downloading', color: 'blue' },
       completed: { label: 'Completed', color: 'green' },
@@ -120,7 +136,7 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
     return sortDirection === 'asc' ? 'ascending' : 'descending';
   };
 
-  const getSortedReleases = () => {
+  const sortedReleases = useMemo(() => {
     return [...availableReleases].sort((a, b) => {
       let aValue: string | number;
       let bValue: string | number;
@@ -137,7 +153,7 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
       if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-  };
+  }, [availableReleases, sortField, sortDirection]);
 
   const getSortIcon = (field: SortField) => {
     if (sortField !== field) {
@@ -150,22 +166,19 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
     }
     return (
       <>
-        <span className="ml-1" aria-hidden="true">{sortDirection === 'asc' ? '\u2191' : '\u2193'}</span>
+        <span className="ml-1" aria-hidden="true">{sortDirection === 'asc' ? '↑' : '↓'}</span>
         <span className="sr-only">, sorted {sortDirection === 'asc' ? 'ascending' : 'descending'}</span>
       </>
     );
   };
 
-  const sortedReleases = getSortedReleases();
-
   return (
     <div className="space-y-6">
-      {/* Available Releases */}
       <div>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Available Releases</h3>
           <button
-            onClick={searchReleases}
+            onClick={handleRefresh}
             disabled={isSearching}
             className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-2 min-h-[44px] md:min-h-0 md:py-1.5 rounded transition disabled:opacity-50"
           >
@@ -187,9 +200,7 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
         ) : availableReleases.length === 0 ? (
           <div className="bg-gray-800 rounded-lg p-8 text-center">
             <p className="text-gray-400">
-              {hasSearched
-                ? 'No releases found from indexers.'
-                : 'Loading releases...'}
+              {hasSearched ? 'No releases found from indexers.' : 'Loading releases...'}
             </p>
             {hasSearched && (
               <p className="text-gray-500 text-sm mt-2">
@@ -199,7 +210,6 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
           </div>
         ) : (
           <>
-            {/* Mobile view */}
             <div className="md:hidden space-y-3">
               {sortedReleases.map((release) => (
                 <MobileCard
@@ -208,7 +218,10 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
                   subtitle={release.quality || undefined}
                   fields={[
                     { label: 'Size', value: formatBytes(release.size) },
-                    { label: 'Seeders', value: <span className={getSeederColor(release.seeders)}>{release.seeders}</span> },
+                    {
+                      label: 'Seeders',
+                      value: <span className={getSeederColor(release.seeders)}>{release.seeders}</span>,
+                    },
                     { label: 'Indexer', value: release.indexer },
                     { label: 'Date', value: formatDate(release.publishedAt) },
                   ]}
@@ -216,16 +229,15 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
                     <MobileCardButton
                       onClick={() => handleGrab(release)}
                       variant="primary"
-                      disabled={grabbingId === release.guid}
+                      disabled={grabbingId === release.downloadUrl}
                     >
-                      {grabbingId === release.guid ? 'Grabbing...' : 'Grab'}
+                      {grabbingId === release.downloadUrl ? 'Grabbing...' : 'Grab'}
                     </MobileCardButton>
                   }
                 />
               ))}
             </div>
 
-            {/* Desktop view */}
             <div className="hidden md:block bg-gray-800 rounded-lg overflow-hidden">
               <table className="w-full">
                 <thead className="bg-gray-700">
@@ -312,10 +324,10 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
                       <td className="px-4 py-3 text-right">
                         <button
                           onClick={() => handleGrab(release)}
-                          disabled={grabbingId === release.guid}
+                          disabled={grabbingId === release.downloadUrl}
                           className="bg-green-600 hover:bg-green-700 px-4 py-2 min-h-[36px] rounded text-sm transition disabled:opacity-50"
                         >
-                          {grabbingId === release.guid ? 'Grabbing...' : 'Grab'}
+                          {grabbingId === release.downloadUrl ? 'Grabbing...' : 'Grab'}
                         </button>
                       </td>
                     </tr>
@@ -327,7 +339,6 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
         )}
       </div>
 
-      {/* Grabbed Releases */}
       <div>
         <h3 className="text-lg font-semibold mb-4">Grabbed Releases</h3>
         {releases.length === 0 ? (
@@ -336,7 +347,6 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
           </div>
         ) : (
           <>
-            {/* Mobile view */}
             <div className="md:hidden space-y-3">
               {releases.map((release) => (
                 <MobileCard
@@ -353,7 +363,6 @@ function GameReleasesSection({ gameId, releases, onReleaseGrabbed }: GameRelease
               ))}
             </div>
 
-            {/* Desktop view */}
             <div className="hidden md:block bg-gray-800 rounded-lg overflow-hidden">
               <table className="w-full">
                 <thead className="bg-gray-700">

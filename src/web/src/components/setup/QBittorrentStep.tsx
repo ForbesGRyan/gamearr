@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { api } from '../../api/client';
+import { useUpdateSettings, useTestQbittorrentConnection } from '../../queries/settings';
 import type { BaseStepProps, TestStatus } from './types';
 
 interface QBittorrentStepProps extends BaseStepProps {
@@ -27,27 +26,29 @@ export default function QBittorrentStep({
   testStatus,
   setTestStatus,
 }: QBittorrentStepProps) {
-  const [isLoading, setIsLoading] = useState(false);
+  const updateSettings = useUpdateSettings();
+  const testQb = useTestQbittorrentConnection();
 
   const handleTest = async () => {
     setTestStatus('testing');
     setError(null);
 
     try {
-      const response = await api.testQbittorrentConnection({
+      // Test against form values directly — no save-first dance needed.
+      const connected = await testQb.mutateAsync({
         host: host.trim(),
         username: username.trim(),
         password,
       });
-      if (response.success && response.data) {
+      if (connected) {
         setTestStatus('success');
       } else {
         setTestStatus('error');
         setError('Connection failed. Check host and credentials.');
       }
-    } catch {
+    } catch (err) {
       setTestStatus('error');
-      setError('Connection test failed');
+      setError(err instanceof Error ? err.message : 'Connection test failed');
     }
   };
 
@@ -57,25 +58,17 @@ export default function QBittorrentStep({
       return;
     }
 
-    setIsLoading(true);
     setError(null);
 
     try {
-      const response = await api.updateSettings({
+      await updateSettings.mutateAsync({
         qbittorrent_host: host.trim(),
         qbittorrent_username: username.trim(),
         qbittorrent_password: password,
       });
-
-      if (response.success) {
-        onNext();
-      } else {
-        setError(response.error || 'Failed to save qBittorrent settings');
-      }
-    } catch {
-      setError('Failed to save qBittorrent settings');
-    } finally {
-      setIsLoading(false);
+      onNext();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save qBittorrent settings');
     }
   };
 
@@ -168,10 +161,10 @@ export default function QBittorrentStep({
         </button>
         <button
           onClick={handleSave}
-          disabled={isLoading}
+          disabled={updateSettings.isPending}
           className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg font-medium transition disabled:opacity-50"
         >
-          {isLoading ? 'Saving...' : 'Continue'}
+          {updateSettings.isPending ? 'Saving...' : 'Continue'}
         </button>
       </div>
     </div>

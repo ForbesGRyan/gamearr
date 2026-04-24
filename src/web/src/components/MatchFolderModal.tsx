@@ -1,5 +1,8 @@
-import { useState, useEffect } from 'react';
-import { api, Library } from '../api/client';
+import { useState, useEffect, useMemo } from 'react';
+import { useLibraries } from '../queries/libraries';
+import { useSearchGames } from '../queries/search';
+import { useMatchLibraryFolder } from '../queries/library';
+import { useUpdateGameStores } from '../queries/games';
 import StoreSelector from './StoreSelector';
 import { CloseIcon, GamepadIcon } from './Icons';
 
@@ -41,38 +44,43 @@ interface MatchFolderModalProps {
 
 function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFolderModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isMatching, setIsMatching] = useState(false);
+  // Drives the actual IGDB search; updated on submit or when a new folder opens.
+  const [submittedQuery, setSubmittedQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [selectedStores, setSelectedStores] = useState<string[]>([]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Record<number, string>>({});
-  const [libraries, setLibraries] = useState<Library[]>([]);
+  const { data: libraries = [] } = useLibraries();
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
 
-  // Load libraries on mount
-  useEffect(() => {
-    const loadLibraries = async () => {
-      const response = await api.getLibraries();
-      if (response.success && response.data) {
-        setLibraries(response.data);
-      }
-    };
-    if (isOpen) {
-      loadLibraries();
-    }
-  }, [isOpen]);
+  const searchQ = useSearchGames(submittedQuery, {
+    enabled: submittedQuery.length > 0,
+  });
+  const searchResults: SearchResult[] = useMemo(
+    () => (searchQ.data ?? []) as SearchResult[],
+    [searchQ.data]
+  );
+  const isSearching = searchQ.isFetching;
+
+  const matchFolderMutation = useMatchLibraryFolder();
+  const updateStoresMutation = useUpdateGameStores();
+  const isMatching = matchFolderMutation.isPending || updateStoresMutation.isPending;
 
   // Pre-fill search with parsed title when folder changes
   useEffect(() => {
     if (folder) {
       setSearchQuery(folder.parsedTitle);
+      setSubmittedQuery(folder.parsedTitle);
       setSelectedPlatforms({});
       setSelectedLibraryId(null);
-      // Auto-search when opening
-      handleAutoSearch(folder.parsedTitle);
     }
   }, [folder]);
+
+  // Surface query errors via the inline banner
+  useEffect(() => {
+    if (searchQ.isError) {
+      setError(searchQ.error instanceof Error ? searchQ.error.message : 'Search failed');
+    }
+  }, [searchQ.isError, searchQ.error]);
 
   // Auto-select library based on folder's library name
   useEffect(() => {
@@ -117,71 +125,44 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
 
   if (!isOpen || !folder) return null;
 
-  const handleAutoSearch = async (query: string) => {
-    if (!query.trim()) return;
-
-    setIsSearching(true);
-    setError(null);
-
-    try {
-      const response = await api.searchGames(query);
-
-      if (response.success && response.data) {
-        setSearchResults(response.data as SearchResult[]);
-      } else {
-        setError(response.error || 'Search failed');
-        setSearchResults([]);
-      }
-    } catch (err) {
-      console.error('Search error:', err);
-      setError('Failed to search games');
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleSearch = async (e: React.FormEvent) => {
+  const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    await handleAutoSearch(searchQuery);
+    setError(null);
+    setSubmittedQuery(searchQuery.trim());
   };
 
   const handleMatchGame = async (game: SearchResult) => {
-    setIsMatching(true);
     setError(null);
 
     try {
-      // Get selected platform for this game
       const platform = selectedPlatforms[game.igdbId] || game.platforms?.[0] || 'PC';
 
-      // Pass the full SearchResult with selected platform
       const gameWithPlatform = {
         ...game,
-        platforms: [platform], // Override with selected platform
+        platforms: [platform],
       };
 
-      // Use first store for the legacy field
-      const response = await api.matchLibraryFolder(folder.path, folder.folderName, gameWithPlatform, selectedStores[0] || null, selectedLibraryId);
+      const matched = await matchFolderMutation.mutateAsync({
+        folderPath: folder.path,
+        folderName: folder.folderName,
+        igdbGame: gameWithPlatform,
+        store: selectedStores[0] || null,
+        libraryId: selectedLibraryId,
+      });
 
-      if (response.success && response.data) {
-        // If multiple stores selected, update stores via the dedicated endpoint
-        if (selectedStores.length > 0) {
-          await api.updateGameStores(response.data.id, selectedStores);
-        }
-        onFolderMatched();
-        onClose();
-        setSearchQuery('');
-        setSearchResults([]);
-        setSelectedPlatforms({});
-        setSelectedStores([]);
-        setSelectedLibraryId(null);
-      } else {
-        setError(response.error || 'Failed to match folder');
+      if (selectedStores.length > 0) {
+        await updateStoresMutation.mutateAsync({ id: matched.id, stores: selectedStores });
       }
+
+      onFolderMatched();
+      onClose();
+      setSearchQuery('');
+      setSubmittedQuery('');
+      setSelectedPlatforms({});
+      setSelectedStores([]);
+      setSelectedLibraryId(null);
     } catch (err) {
-      setError('Failed to match folder');
-    } finally {
-      setIsMatching(false);
+      setError(err instanceof Error ? err.message : 'Failed to match folder');
     }
   };
 

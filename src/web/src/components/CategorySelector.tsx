@@ -1,31 +1,41 @@
 import { useState, useEffect, useRef } from 'react';
-import { api } from '../api/client';
+import {
+  useCategories,
+  useSelectedCategories,
+  useUpdateCategories,
+} from '../queries/settings';
 import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
-
-interface Category {
-  id: number;
-  name: string;
-  description: string;
-}
 
 interface CategoryGroup {
   name: string;
-  categories: Category[];
+  categories: { id: number; name: string; description: string }[];
 }
 
 function CategorySelector() {
-  const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
+  const categoriesQuery = useCategories();
+  const selectedQuery = useSelectedCategories();
+  const updateCategories = useUpdateCategories();
+
+  const categoryGroups: CategoryGroup[] = categoriesQuery.data?.groups ?? [];
+  const serverSelected = selectedQuery.data;
+
+  // Local draft state — only syncs on save. Mirrors server selections until the
+  // user toggles something or hits Reset.
   const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const saveMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasInitializedRef = useRef(false);
+
+  // Seed draft from server once the selected categories query resolves.
+  useEffect(() => {
+    if (!hasInitializedRef.current && serverSelected !== undefined) {
+      setSelectedCategories(serverSelected);
+      hasInitializedRef.current = true;
+    }
+  }, [serverSelected]);
 
   useEffect(() => {
-    loadCategories();
-
-    // Cleanup timeout on unmount
     return () => {
       if (saveMessageTimeoutRef.current) {
         clearTimeout(saveMessageTimeoutRef.current);
@@ -33,28 +43,10 @@ function CategorySelector() {
     };
   }, []);
 
-  const loadCategories = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Load available categories
-      const categoriesResponse = await api.getCategories();
-      if (categoriesResponse.success && categoriesResponse.data) {
-        setCategoryGroups(categoriesResponse.data.groups);
-      }
-
-      // Load selected categories
-      const selectedResponse = await api.getSelectedCategories();
-      if (selectedResponse.success && selectedResponse.data) {
-        setSelectedCategories(selectedResponse.data);
-      }
-    } catch (err) {
-      setError('Failed to load categories');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const isLoading =
+    categoriesQuery.isLoading ||
+    selectedQuery.isLoading ||
+    !hasInitializedRef.current;
 
   // Get the parent category ID for a given category (e.g., 4050 -> 4000)
   const getParentId = (categoryId: number): number => {
@@ -137,34 +129,37 @@ function CategorySelector() {
       return;
     }
 
-    setIsSaving(true);
     setError(null);
     setSaveMessage(null);
 
     try {
-      const response = await api.updateCategories(selectedCategories);
-      if (response.success) {
-        setSaveMessage('Categories saved successfully!');
-        // Clear any existing timeout before setting a new one
-        if (saveMessageTimeoutRef.current) {
-          clearTimeout(saveMessageTimeoutRef.current);
-        }
-        saveMessageTimeoutRef.current = setTimeout(() => setSaveMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
-      } else {
-        setError(response.error || 'Failed to save categories');
+      await updateCategories.mutateAsync(selectedCategories);
+      setSaveMessage('Categories saved successfully!');
+      if (saveMessageTimeoutRef.current) {
+        clearTimeout(saveMessageTimeoutRef.current);
       }
+      saveMessageTimeoutRef.current = setTimeout(
+        () => setSaveMessage(null),
+        SUCCESS_MESSAGE_TIMEOUT_MS
+      );
     } catch (err) {
-      setError('Failed to save categories');
-    } finally {
-      setIsSaving(false);
+      const message = err instanceof Error ? err.message : 'Failed to save categories';
+      setError(message);
     }
   };
 
   const handleReset = () => {
-    loadCategories();
+    // Restore draft from server and refetch to be sure.
+    if (serverSelected !== undefined) {
+      setSelectedCategories(serverSelected);
+    }
+    categoriesQuery.refetch();
+    selectedQuery.refetch();
     setSaveMessage(null);
     setError(null);
   };
+
+  const loadError = categoriesQuery.error || selectedQuery.error;
 
   if (isLoading) {
     return (
@@ -175,6 +170,16 @@ function CategorySelector() {
     );
   }
 
+  const displayError =
+    error ||
+    (loadError instanceof Error
+      ? loadError.message
+      : loadError
+      ? 'Failed to load categories'
+      : null);
+
+  const isSaving = updateCategories.isPending;
+
   return (
     <div className="bg-gray-800 rounded-lg p-4 md:p-6">
       <h3 className="text-lg md:text-xl font-semibold mb-2">Search Categories</h3>
@@ -182,9 +187,9 @@ function CategorySelector() {
         Select which categories to include when searching for game releases. By default, only PC Games (4050) is selected.
       </p>
 
-      {error && (
+      {displayError && (
         <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded text-red-200 text-sm">
-          {error}
+          {displayError}
         </div>
       )}
 

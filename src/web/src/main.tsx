@@ -1,10 +1,53 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import App from './App';
+import { queryClient, PERSIST_MAX_AGE_MS } from './queries/client';
 import './index.css';
+
+// Cache-bust key — bumping this invalidates all persisted caches. Use it when
+// the serialized shape of a query key or its payload changes in a way that
+// old entries would deserialize incorrectly.
+const PERSIST_BUSTER = 'v1';
+
+const persister = createSyncStoragePersister({
+  storage: window.localStorage,
+  key: 'gamearr_query_cache',
+  throttleTime: 1000,
+});
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister,
+        maxAge: PERSIST_MAX_AGE_MS,
+        buster: PERSIST_BUSTER,
+        dehydrateOptions: {
+          shouldDehydrateQuery: (query) => {
+            // Don't persist mutation state or errored queries — they're
+            // transient and can mask real failures on restart.
+            if (query.state.status !== 'success') return false;
+
+            // State-sensitive queries that must reflect server truth on
+            // every cold load — stale persisted values here create redirect
+            // loops and phantom login states. Let them fetch fresh.
+            const root = query.queryKey[0];
+            if (root === 'auth') return false;
+            if (root === 'system' && query.queryKey[1] === 'setupStatus') {
+              return false;
+            }
+
+            return true;
+          },
+        },
+      }}
+    >
+      <App />
+      {import.meta.env.DEV && <ReactQueryDevtools buttonPosition="bottom-left" />}
+    </PersistQueryClientProvider>
   </React.StrictMode>,
 );

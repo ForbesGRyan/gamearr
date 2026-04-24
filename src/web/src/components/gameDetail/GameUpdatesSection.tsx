@@ -1,37 +1,37 @@
-import { useState } from 'react';
-import { api, Game, GameUpdate } from '../../api/client';
+import type { Game, GameUpdate } from '../../api/client';
+import {
+  useCheckGameForUpdates,
+  useDismissUpdate,
+  useGrabUpdate,
+} from '../../queries/games';
 import { RefreshIcon, DownloadIcon, CloseIcon } from '../Icons';
 
 interface GameUpdatesSectionProps {
   game: Game;
   updates: GameUpdate[];
-  onUpdatesChange: () => void;
 }
 
-function GameUpdatesSection({ game, updates, onUpdatesChange }: GameUpdatesSectionProps) {
-  const [checking, setChecking] = useState(false);
-  const [grabbing, setGrabbing] = useState<number | null>(null);
+function GameUpdatesSection({ game, updates }: GameUpdatesSectionProps) {
+  const checkForUpdates = useCheckGameForUpdates();
+  const grabUpdate = useGrabUpdate();
+  const dismissUpdate = useDismissUpdate();
 
   const pendingUpdates = updates.filter((u) => u.status === 'pending');
   const pastUpdates = updates.filter((u) => u.status !== 'pending');
 
+  const checking = checkForUpdates.isPending;
+  const grabbingId = grabUpdate.isPending ? grabUpdate.variables ?? null : null;
+
   const handleCheckForUpdates = async () => {
-    setChecking(true);
-    await api.checkGameForUpdates(game.id);
-    onUpdatesChange();
-    setChecking(false);
+    await checkForUpdates.mutateAsync(game.id);
   };
 
   const handleGrabUpdate = async (updateId: number) => {
-    setGrabbing(updateId);
-    await api.grabUpdate(updateId);
-    onUpdatesChange();
-    setGrabbing(null);
+    await grabUpdate.mutateAsync(updateId);
   };
 
   const handleDismissUpdate = async (updateId: number) => {
-    await api.dismissUpdate(updateId);
-    onUpdatesChange();
+    await dismissUpdate.mutateAsync(updateId);
   };
 
   const formatSize = (bytes?: number) => {
@@ -75,7 +75,6 @@ function GameUpdatesSection({ game, updates, onUpdatesChange }: GameUpdatesSecti
 
   return (
     <div className="space-y-6">
-      {/* Current Version Info */}
       <div className="bg-gray-800 rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Version Info</h3>
@@ -92,26 +91,19 @@ function GameUpdatesSection({ game, updates, onUpdatesChange }: GameUpdatesSecti
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-gray-700 rounded-lg p-3">
             <span className="text-sm text-gray-400">Installed Version</span>
-            <p className="text-white font-medium">
-              {game.installedVersion || 'Unknown'}
-            </p>
+            <p className="text-white font-medium">{game.installedVersion || 'Unknown'}</p>
           </div>
           <div className="bg-gray-700 rounded-lg p-3">
             <span className="text-sm text-gray-400">Quality</span>
-            <p className="text-white font-medium">
-              {game.installedQuality || 'Unknown'}
-            </p>
+            <p className="text-white font-medium">{game.installedQuality || 'Unknown'}</p>
           </div>
           <div className="bg-gray-700 rounded-lg p-3">
             <span className="text-sm text-gray-400">Update Policy</span>
-            <p className="text-white font-medium capitalize">
-              {game.updatePolicy || 'Notify'}
-            </p>
+            <p className="text-white font-medium capitalize">{game.updatePolicy || 'Notify'}</p>
           </div>
         </div>
       </div>
 
-      {/* Pending Updates */}
       <div className="bg-gray-800 rounded-lg p-4">
         <h3 className="text-lg font-semibold mb-4">
           Pending Updates
@@ -151,11 +143,11 @@ function GameUpdatesSection({ game, updates, onUpdatesChange }: GameUpdatesSecti
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleGrabUpdate(update.id)}
-                    disabled={grabbing === update.id}
+                    disabled={grabbingId === update.id}
                     className="flex items-center gap-1 bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded transition disabled:opacity-50"
                   >
                     <DownloadIcon className="w-4 h-4" />
-                    {grabbing === update.id ? 'Grabbing...' : 'Grab'}
+                    {grabbingId === update.id ? 'Grabbing...' : 'Grab'}
                   </button>
                   <button
                     onClick={() => handleDismissUpdate(update.id)}
@@ -171,7 +163,6 @@ function GameUpdatesSection({ game, updates, onUpdatesChange }: GameUpdatesSecti
         )}
       </div>
 
-      {/* Update History */}
       {pastUpdates.length > 0 && (
         <div className="bg-gray-800 rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-4">Update History</h3>
@@ -190,9 +181,7 @@ function GameUpdatesSection({ game, updates, onUpdatesChange }: GameUpdatesSecti
                 <div className="flex items-center gap-3 text-sm">
                   <span
                     className={
-                      update.status === 'grabbed'
-                        ? 'text-green-400'
-                        : 'text-gray-500'
+                      update.status === 'grabbed' ? 'text-green-400' : 'text-gray-500'
                     }
                   >
                     {update.status === 'grabbed' ? 'Grabbed' : 'Dismissed'}

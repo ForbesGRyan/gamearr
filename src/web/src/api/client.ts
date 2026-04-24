@@ -331,7 +331,7 @@ interface ProtonDBDisplayData {
   lastSync: Date | null;
 }
 
-interface GameIntegrationData {
+export interface GameIntegrationData {
   hltb: HLTBDisplayData;
   protonDb: ProtonDBDisplayData;
 }
@@ -611,6 +611,12 @@ class ApiClient {
   async deleteGame(id: number): Promise<ApiResponse<void>> {
     return this.request<void>(`/games/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  async toggleMonitor(id: number): Promise<ApiResponse<Game>> {
+    return this.request<Game>(`/games/${id}/toggle-monitor`, {
+      method: 'PATCH',
     });
   }
 
@@ -904,12 +910,31 @@ class ApiClient {
     });
   }
 
-  async testSteamConnection(): Promise<ApiResponse<boolean>> {
-    return this.request<boolean>('/steam/test');
+  async testIgdbConnection(
+    config?: { clientId: string; clientSecret: string }
+  ): Promise<ApiResponse<boolean>> {
+    return this.request<boolean>('/settings/test/igdb', {
+      method: 'POST',
+      body: config ? JSON.stringify(config) : undefined,
+    });
   }
 
-  async testDiscordConnection(): Promise<ApiResponse<boolean>> {
-    return this.request<boolean>('/notifications/test/discord');
+  async testSteamConnection(
+    config?: { apiKey: string; steamId: string }
+  ): Promise<ApiResponse<{ connected: boolean; playerName?: string }>> {
+    return this.request<{ connected: boolean; playerName?: string }>('/steam/test', {
+      method: 'POST',
+      body: config ? JSON.stringify(config) : undefined,
+    });
+  }
+
+  async testDiscordConnection(
+    config?: { webhookUrl: string }
+  ): Promise<ApiResponse<boolean>> {
+    return this.request<boolean>('/notifications/test/discord', {
+      method: 'POST',
+      body: config ? JSON.stringify(config) : undefined,
+    });
   }
 
   // Steam Integration
@@ -1015,8 +1040,13 @@ class ApiClient {
     });
   }
 
-  async testGogConnection(): Promise<ApiResponse<{ connected: boolean; username?: string }>> {
-    return this.request<{ connected: boolean; username?: string }>('/gog/test');
+  async testGogConnection(
+    config?: { refreshToken: string }
+  ): Promise<ApiResponse<{ connected: boolean; username?: string }>> {
+    return this.request<{ connected: boolean; username?: string }>('/gog/test', {
+      method: 'POST',
+      body: config ? JSON.stringify(config) : undefined,
+    });
   }
 
   async getGogOwnedGames(): Promise<ApiResponse<GogGame[]>> {
@@ -1119,6 +1149,17 @@ class ApiClient {
   async scanLibrary(): Promise<ApiResponse<{ folders: LibraryFolder[]; count: number; matchedCount: number; unmatchedCount: number }>> {
     return this.request<{ folders: LibraryFolder[]; count: number; matchedCount: number; unmatchedCount: number }>('/library/scan', {
       method: 'POST',
+    });
+  }
+
+  async getLibraryScan(): Promise<ApiResponse<{ folders: LibraryFolder[]; count: number; matchedCount: number; unmatchedCount: number }>> {
+    return this.request<{ folders: LibraryFolder[]; count: number; matchedCount: number; unmatchedCount: number }>('/library/scan');
+  }
+
+  async ignoreLibraryFolder(folderPath: string): Promise<ApiResponse<void>> {
+    return this.request<void>('/library/ignore', {
+      method: 'POST',
+      body: JSON.stringify({ folderPath }),
     });
   }
 

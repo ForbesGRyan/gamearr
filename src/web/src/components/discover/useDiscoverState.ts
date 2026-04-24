@@ -1,8 +1,17 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
+import { unwrap } from '../../queries/unwrap';
 import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../../utils/constants';
-import { usePreloadedData, invalidatePopularGamesCache } from '../../hooks/usePreloadCache';
+import {
+  usePopularityTypes,
+  usePopularGames,
+  useTopTorrents,
+  useAddGame,
+  useGrabRelease,
+  queryKeys,
+} from '../../queries';
 import {
   TabType,
   TorrentFilters,
@@ -15,6 +24,7 @@ import {
 
 export function useDiscoverState() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
 
   // Read initial values from URL params
   const initialTab = (searchParams.get('tab') as TabType) || 'trending';
@@ -22,27 +32,16 @@ export function useDiscoverState() {
   const initialAge = parseInt(searchParams.get('age') || '30', 10);
   const initialType = parseInt(searchParams.get('type') || '2', 10);
 
-  // Use preloaded cache for faster initial load
-  const {
-    popularityTypes: cachedPopularityTypes,
-    getPopularityTypes: getCachedPopularityTypes,
-    getPopularGames: getCachedPopularGames,
-    getTopTorrents: getCachedTopTorrents,
-    hasCachedPopularGames,
-    hasCachedTorrents,
-    getCachedPopularGames: getPopularGamesFromCache,
-    getCachedTorrents: getTorrentsFromCache,
-  } = usePreloadedData();
-
   const [activeTab, setActiveTabState] = useState<TabType>(initialTab);
-  const [popularityTypes, setPopularityTypes] = useState<PopularityType[]>(cachedPopularityTypes || []);
   const [selectedType, setSelectedTypeState] = useState<number>(initialType);
-  const [popularGames, setPopularGames] = useState<PopularGame[]>([]);
-  const [isLoading, setIsLoading] = useState(!cachedPopularityTypes);
-  const [isLoadingGames, setIsLoadingGames] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addingGame, setAddingGame] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Optimistic in-library overlay (tracks igdbIds added in this session)
+  const [inLibraryOverrides, setInLibraryOverrides] = useState<Set<number>>(
+    () => new Set()
+  );
 
   // Filters
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
@@ -51,8 +50,6 @@ export function useDiscoverState() {
   const [showFilters, setShowFilters] = useState(false);
 
   // Torrents state
-  const [torrents, setTorrents] = useState<TorrentRelease[]>([]);
-  const [isLoadingTorrents, setIsLoadingTorrents] = useState(false);
   const [torrentSearch, setTorrentSearch] = useState(initialQuery);
   const [torrentSearchInput, setTorrentSearchInput] = useState(initialQuery);
   const [selectedTorrent, setSelectedTorrent] = useState<TorrentRelease | null>(null);
@@ -84,6 +81,66 @@ export function useDiscoverState() {
         };
       });
   }, []);
+
+  // ---- TanStack Query hooks ----
+  const popularityTypesQuery = usePopularityTypes();
+  const popularityTypes: PopularityType[] =
+    (popularityTypesQuery.data as PopularityType[] | undefined) ?? [];
+
+  const popularGamesQuery = usePopularGames(
+    activeTab === 'trending' ? selectedType : undefined,
+    50
+  );
+  const popularGamesData: PopularGame[] =
+    (popularGamesQuery.data as PopularGame[] | undefined) ?? [];
+
+  // Apply optimistic "in library" overrides without mutating cache
+  const popularGames = useMemo<PopularGame[]>(() => {
+    if (inLibraryOverrides.size === 0) return popularGamesData;
+    return popularGamesData.map(pg =>
+      inLibraryOverrides.has(pg.game.igdbId) ? { ...pg, inLibrary: true } : pg
+    );
+  }, [popularGamesData, inLibraryOverrides]);
+
+  const torrentSearchQuery = torrentSearch || 'game';
+  const topTorrentsQuery = useTopTorrents(torrentSearchQuery, 50, torrentMaxAge);
+  const torrents: TorrentRelease[] =
+    (topTorrentsQuery.data as TorrentRelease[] | undefined) ?? [];
+
+  const isLoading = popularityTypesQuery.isLoading;
+  const isLoadingGames = popularGamesQuery.isFetching && activeTab === 'trending';
+  const isLoadingTorrents = topTorrentsQuery.isFetching && activeTab === 'torrents';
+
+  // Surface query errors into the error banner
+  useEffect(() => {
+    if (popularityTypesQuery.error) {
+      setError('Failed to load popularity types');
+    }
+  }, [popularityTypesQuery.error]);
+
+  useEffect(() => {
+    if (popularGamesQuery.error && activeTab === 'trending') {
+      setError(
+        popularGamesQuery.error instanceof Error
+          ? popularGamesQuery.error.message
+          : 'Failed to load popular games'
+      );
+    }
+  }, [popularGamesQuery.error, activeTab]);
+
+  useEffect(() => {
+    if (topTorrentsQuery.error && activeTab === 'torrents') {
+      setError(
+        topTorrentsQuery.error instanceof Error
+          ? topTorrentsQuery.error.message
+          : 'Failed to load torrents'
+      );
+    }
+  }, [topTorrentsQuery.error, activeTab]);
+
+  // Add-game mutation
+  const addGameMutation = useAddGame();
+  const grabReleaseMutation = useGrabRelease();
 
   // Helper to clean torrent title for game search
   const cleanTorrentTitle = useCallback((title: string): string => {
@@ -148,128 +205,13 @@ export function useDiscoverState() {
     updateUrlParams({ q: query || null });
   }, [updateUrlParams]);
 
-  const loadPopularityTypes = async () => {
-    try {
-      const cached = await getCachedPopularityTypes();
-      if (cached) {
-        setPopularityTypes(cached);
-        setIsLoading(false);
-        return;
-      }
-      const response = await api.getPopularityTypes();
-      if (response.success && response.data) {
-        setPopularityTypes(response.data as PopularityType[]);
-      }
-    } catch {
-      setError('Failed to load popularity types');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const loadPopularGames = async (type: number) => {
-    if (hasCachedPopularGames(type)) {
-      const cached = getPopularGamesFromCache(type);
-      if (cached) {
-        setPopularGames(cached as PopularGame[]);
-        return;
-      }
-    }
-
-    setIsLoadingGames(true);
-    setError(null);
-    try {
-      const cached = await getCachedPopularGames(type);
-      if (cached) {
-        setPopularGames(cached as PopularGame[]);
-        setIsLoadingGames(false);
-        return;
-      }
-      const response = await api.getPopularGames(type, 50);
-      if (response.success && response.data) {
-        setPopularGames(response.data);
-      } else {
-        setError(response.error || 'Failed to load popular games');
-      }
-    } catch {
-      setError('Failed to load popular games');
-    } finally {
-      setIsLoadingGames(false);
-    }
-  };
-
-  const loadTorrents = useCallback(async (query?: string) => {
-    const searchQuery = query || 'game';
-    const isDefaultSearch = searchQuery === 'game' && torrentMaxAge === 30;
-
-    if (isDefaultSearch && hasCachedTorrents()) {
-      const cached = getTorrentsFromCache();
-      if (cached) {
-        setTorrents(cached);
-        return;
-      }
-    }
-
-    setIsLoadingTorrents(true);
-    setError(null);
-    try {
-      if (isDefaultSearch) {
-        const cached = await getCachedTopTorrents();
-        if (cached) {
-          setTorrents(cached);
-          setIsLoadingTorrents(false);
-          return;
-        }
-      }
-      const response = await api.getTopTorrents(searchQuery, 50, torrentMaxAge);
-      if (response.success && response.data) {
-        setTorrents(response.data as TorrentRelease[]);
-        if (query) {
-          setTorrentSearchWithUrl(query);
-        }
-      } else {
-        setError(response.error || 'Failed to load torrents');
-      }
-    } catch {
-      setError('Failed to load torrents');
-    } finally {
-      setIsLoadingTorrents(false);
-    }
-  }, [torrentMaxAge, setTorrentSearchWithUrl, hasCachedTorrents, getTorrentsFromCache, getCachedTopTorrents]);
-
   const handleTorrentSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    if (torrentSearchInput.trim()) {
-      loadTorrents(torrentSearchInput.trim());
+    const trimmed = torrentSearchInput.trim();
+    if (trimmed) {
+      setTorrentSearchWithUrl(trimmed);
     }
-  }, [torrentSearchInput, loadTorrents]);
-
-  // Load popularity types on mount
-  useEffect(() => {
-    loadPopularityTypes();
-  }, []);
-
-  // Sync with cached popularity types when they become available
-  useEffect(() => {
-    if (cachedPopularityTypes && cachedPopularityTypes.length > 0 && popularityTypes.length === 0) {
-      setPopularityTypes(cachedPopularityTypes);
-      setIsLoading(false);
-    }
-  }, [cachedPopularityTypes, popularityTypes.length]);
-
-  // Load games when type changes
-  useEffect(() => {
-    if (selectedType && activeTab === 'trending') {
-      loadPopularGames(selectedType);
-    }
-  }, [selectedType, activeTab]);
-
-  // Load torrents when tab changes to torrents or age changes
-  useEffect(() => {
-    if (activeTab === 'torrents') {
-      loadTorrents(torrentSearch || undefined);
-    }
-  }, [activeTab, torrentMaxAge, loadTorrents]);
+  }, [torrentSearchInput, setTorrentSearchWithUrl]);
 
   // Pre-fill game search when torrent is selected
   useEffect(() => {
@@ -277,48 +219,48 @@ export function useDiscoverState() {
       const gameName = cleanTorrentTitle(selectedTorrent.title);
       setModalGameSearch(gameName);
 
-      const searchGames = async () => {
+      const runSearch = async () => {
         if (!gameName) return;
         setIsSearchingGames(true);
         try {
-          const response = await api.searchGames(gameName);
-          if (response.success && response.data) {
-            setModalGameResults(response.data as GameSearchResult[]);
-          }
+          const data = await queryClient.fetchQuery({
+            queryKey: queryKeys.search.games(gameName),
+            queryFn: async () => unwrap(await api.searchGames(gameName)),
+          });
+          setModalGameResults(data as GameSearchResult[]);
         } catch {
           // Silently fail
         } finally {
           setIsSearchingGames(false);
         }
       };
-      searchGames();
+      runSearch();
     }
   }, [selectedTorrent, cleanTorrentTitle]);
+
+  const invalidatePopularGames = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.discover.all });
+  }, [queryClient]);
 
   const handleAddToLibrary = useCallback(async (game: GameSearchResult) => {
     setAddingGame(game.igdbId);
     try {
-      const response = await api.addGame({ igdbId: game.igdbId, monitored: true });
-      if (response.success) {
-        setPopularGames(prev =>
-          prev.map(pg =>
-            pg.game.igdbId === game.igdbId ? { ...pg, inLibrary: true } : pg
-          )
-        );
-        invalidatePopularGamesCache();
-        setSuccessMessage(`Added "${game.title}" to library`);
-        setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
-      } else {
-        setError(response.error || 'Failed to add game');
-        setTimeout(() => setError(null), SUCCESS_MESSAGE_TIMEOUT_MS);
-      }
-    } catch {
-      setError('Failed to add game to library');
+      await addGameMutation.mutateAsync({ igdbId: game.igdbId, monitored: true });
+      setInLibraryOverrides(prev => {
+        const next = new Set(prev);
+        next.add(game.igdbId);
+        return next;
+      });
+      invalidatePopularGames();
+      setSuccessMessage(`Added "${game.title}" to library`);
+      setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add game to library');
       setTimeout(() => setError(null), SUCCESS_MESSAGE_TIMEOUT_MS);
     } finally {
       setAddingGame(null);
     }
-  }, []);
+  }, [addGameMutation, invalidatePopularGames]);
 
   const getPopularityTypeName = useCallback((id: number): string => {
     const type = popularityTypes.find(t => t.id === id);
@@ -394,41 +336,47 @@ export function useDiscoverState() {
     e.preventDefault();
     if (!modalGameSearch.trim()) return;
 
+    const trimmed = modalGameSearch.trim();
     setIsSearchingGames(true);
     try {
-      const response = await api.searchGames(modalGameSearch.trim());
-      if (response.success && response.data) {
-        setModalGameResults(response.data as GameSearchResult[]);
-      }
-    } catch {
-      setError('Failed to search games');
+      const data = await queryClient.fetchQuery({
+        queryKey: queryKeys.search.games(trimmed),
+        queryFn: async () => unwrap(await api.searchGames(trimmed)),
+      });
+      setModalGameResults(data as GameSearchResult[]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to search games');
     } finally {
       setIsSearchingGames(false);
     }
-  }, [modalGameSearch]);
+  }, [modalGameSearch, queryClient]);
 
   const handleAddTorrentToLibrary = useCallback(async () => {
     if (!selectedGame || !selectedTorrent?.downloadUrl) return;
 
     setIsAddingToLibrary(true);
     try {
-      const addResponse = await api.addGame({ igdbId: selectedGame.igdbId, monitored: true });
-
-      if (!addResponse.success && !addResponse.error?.includes('already exists')) {
-        setError(addResponse.error || 'Failed to add game');
-        return;
-      }
-
-      let gameId: number;
-      if (addResponse.success && addResponse.data) {
-        gameId = addResponse.data.id;
-      } else {
-        const gamesResponse = await api.getGames();
-        if (!gamesResponse.success || !gamesResponse.data) {
-          setError('Failed to find game');
+      let gameId: number | null = null;
+      try {
+        const added = await addGameMutation.mutateAsync({
+          igdbId: selectedGame.igdbId,
+          monitored: true,
+        });
+        gameId = added.id;
+      } catch (addErr) {
+        const message = addErr instanceof Error ? addErr.message : '';
+        if (!message.includes('already exists')) {
+          setError(message || 'Failed to add game');
           return;
         }
-        const existingGame = gamesResponse.data.find(g => g.igdbId === selectedGame.igdbId);
+      }
+
+      if (gameId === null) {
+        const games = await queryClient.fetchQuery({
+          queryKey: queryKeys.games.list(),
+          queryFn: async () => unwrap(await api.getGames()),
+        });
+        const existingGame = games.find(g => g.igdbId === selectedGame.igdbId);
         if (!existingGame) {
           setError('Failed to find game');
           return;
@@ -436,32 +384,34 @@ export function useDiscoverState() {
         gameId = existingGame.id;
       }
 
-      const grabResponse = await api.grabRelease(gameId, {
-        title: selectedTorrent.title,
-        size: selectedTorrent.size,
-        seeders: selectedTorrent.seeders,
-        downloadUrl: selectedTorrent.downloadUrl,
-        indexer: selectedTorrent.indexer,
-        quality: selectedTorrent.quality,
-      });
-
-      if (grabResponse.success) {
-        invalidatePopularGamesCache();
+      try {
+        await grabReleaseMutation.mutateAsync({
+          gameId,
+          release: {
+            title: selectedTorrent.title,
+            size: selectedTorrent.size,
+            seeders: selectedTorrent.seeders,
+            downloadUrl: selectedTorrent.downloadUrl,
+            indexer: selectedTorrent.indexer,
+            quality: selectedTorrent.quality,
+          },
+        });
+        invalidatePopularGames();
         setSuccessMessage(`Added "${selectedGame.title}" and started download!`);
         setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
         setSelectedTorrent(null);
         setSelectedGame(null);
         setModalGameSearch('');
         setModalGameResults([]);
-      } else {
-        setError(grabResponse.error || 'Failed to grab release');
+      } catch (grabErr) {
+        setError(grabErr instanceof Error ? grabErr.message : 'Failed to grab release');
       }
-    } catch {
-      setError('Failed to add to library');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add to library');
     } finally {
       setIsAddingToLibrary(false);
     }
-  }, [selectedGame, selectedTorrent]);
+  }, [selectedGame, selectedTorrent, addGameMutation, grabReleaseMutation, invalidatePopularGames, queryClient]);
 
   const handleCloseModal = useCallback(() => {
     setSelectedTorrent(null);

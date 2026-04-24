@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { api, Release, SearchResult } from '../api/client';
+import { Release, SearchResult } from '../api/client';
+import {
+  useSearchGames,
+  useManualSearchReleases,
+  useAddGame,
+  useUpdateGameStores,
+  useGrabRelease,
+} from '../queries';
 import GameSelectionModal from '../components/GameSelectionModal';
 import { getGameDetailPath } from '../utils/slug';
 import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
@@ -24,79 +31,78 @@ function Search() {
   const searchMode: SearchMode = searchParams.get('tab') === 'releases' ? 'releases' : 'games';
 
   const [query, setQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [submittedQuery, setSubmittedQuery] = useState('');
+  const [errorOverride, setErrorOverride] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
 
   // Games search state
-  const [gameResults, setGameResults] = useState<SearchResult[]>([]);
   const [selectedStores, setSelectedStores] = useState<string[]>([]);
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
   const [addingGameId, setAddingGameId] = useState<number | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Record<number, string>>({});
 
   // Releases search state
-  const [releases, setReleases] = useState<Release[]>([]);
   const [sortField, setSortField] = useState<SortField>('seeders');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [isGameModalOpen, setIsGameModalOpen] = useState(false);
   const [selectedRelease, setSelectedRelease] = useState<Release | null>(null);
 
-  const handleSearch = async (e: React.FormEvent) => {
+  const gamesSearchQuery = useSearchGames(submittedQuery, {
+    enabled: searchMode === 'games' && submittedQuery.trim().length > 0,
+  });
+  const releasesSearchQuery = useManualSearchReleases(submittedQuery, {
+    enabled: searchMode === 'releases' && submittedQuery.trim().length > 0,
+  });
+
+  const addGameMutation = useAddGame();
+  const updateStoresMutation = useUpdateGameStores();
+  const grabReleaseMutation = useGrabRelease();
+
+  const gameResults = (gamesSearchQuery.data ?? []) as SearchResult[];
+  const releases = (releasesSearchQuery.data ?? []) as Release[];
+
+  const isLoading =
+    searchMode === 'games'
+      ? gamesSearchQuery.isFetching
+      : releasesSearchQuery.isFetching;
+
+  const activeQueryError =
+    searchMode === 'games' ? gamesSearchQuery.error : releasesSearchQuery.error;
+  const queryErrorMessage = activeQueryError
+    ? ((activeQueryError as Error).message ||
+        `Failed to search for ${searchMode}`)
+    : null;
+  const error = errorOverride ?? queryErrorMessage;
+
+  const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) {
-      setError('Please enter a search query');
+      setErrorOverride('Please enter a search query');
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
+    setErrorOverride(null);
     setHasSearched(true);
-
-    try {
-      if (searchMode === 'games') {
-        const response = await api.searchGames(query);
-        if (response.success && response.data) {
-          setGameResults(response.data);
-        } else {
-          setError(response.error || 'Failed to search for games');
-          setGameResults([]);
-        }
-      } else {
-        const response = await api.manualSearchReleases(query);
-        if (response.success && response.data) {
-          setReleases(response.data);
-        } else {
-          setError(response.error || 'Failed to search for releases');
-          setReleases([]);
-        }
-      }
-    } catch {
-      setError(`Failed to search for ${searchMode}`);
-      searchMode === 'games' ? setGameResults([]) : setReleases([]);
-    } finally {
-      setIsLoading(false);
-    }
+    setSubmittedQuery(query.trim());
   };
 
   const handleModeChange = (mode: SearchMode) => {
     setSearchParams({ tab: mode });
     setHasSearched(false);
-    setGameResults([]);
-    setReleases([]);
-    setError(null);
+    setSubmittedQuery('');
+    setErrorOverride(null);
     setSuccessMessage(null);
   };
 
   const handleAddGame = async (game: SearchResult, shouldSearchReleases: boolean = false) => {
     setAddingGameId(game.igdbId);
-    setError(null);
+    setErrorOverride(null);
     const platform = selectedPlatforms[game.igdbId] || game.platforms?.[0];
 
     try {
       // Add the game first (using first store for legacy field)
-      const response = await api.addGame({
+      const added = await addGameMutation.mutateAsync({
         igdbId: game.igdbId,
         monitored: true,
         store: selectedStores[0] || null,
@@ -104,21 +110,23 @@ function Search() {
         platform,
       });
 
-      if (response.success && response.data) {
-        // If multiple stores selected, update stores via the dedicated endpoint
-        if (selectedStores.length > 0) {
-          await api.updateGameStores(response.data.id, selectedStores);
-        }
-        setSuccessMessage(`Added "${game.title}" to your library`);
-        setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
-        if (shouldSearchReleases) {
-          navigate(getGameDetailPath(response.data.platform, response.data.title));
-        }
-      } else {
-        setError(response.error || 'Failed to add game');
+      // If multiple stores selected, update stores via the dedicated endpoint
+      if (selectedStores.length > 0) {
+        await updateStoresMutation.mutateAsync({
+          id: added.id,
+          stores: selectedStores,
+        });
       }
-    } catch {
-      setError('Failed to add game');
+
+      setSuccessMessage(`Added "${game.title}" to your library`);
+      setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
+      if (shouldSearchReleases) {
+        navigate(getGameDetailPath(added.platform, added.title));
+      }
+    } catch (err) {
+      setErrorOverride(
+        err instanceof Error && err.message ? err.message : 'Failed to add game'
+      );
     } finally {
       setAddingGameId(null);
     }
@@ -140,22 +148,24 @@ function Search() {
   const handleGrabRelease = (release: Release) => {
     setSelectedRelease(release);
     setIsGameModalOpen(true);
-    setError(null);
+    setErrorOverride(null);
     setSuccessMessage(null);
   };
 
   const handleGameSelected = async (gameId: number) => {
     if (!selectedRelease) return;
+    const release = selectedRelease;
+
     try {
-      const response = await api.grabRelease(gameId, selectedRelease);
-      if (response.success) {
-        setSuccessMessage(`Successfully grabbed "${selectedRelease.title}"`);
-        setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
-      } else {
-        setError(response.error || 'Failed to grab release');
-      }
-    } catch {
-      setError('Failed to grab release');
+      await grabReleaseMutation.mutateAsync({ gameId, release });
+      setSuccessMessage(`Successfully grabbed "${release.title}"`);
+      setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
+    } catch (err) {
+      setErrorOverride(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Failed to grab release'
+      );
     } finally {
       setSelectedRelease(null);
     }

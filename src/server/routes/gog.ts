@@ -116,11 +116,24 @@ router.post('/auth/exchange', async (c) => {
 
 /**
  * Test GOG connection
- * GET /api/v1/gog/test
+ * POST /api/v1/gog/test
+ * Optional body: { refreshToken } to test an unsaved token via a transient
+ * client. Empty body falls back to the saved refresh_token setting.
  */
-router.get('/test', async (c) => {
+router.post('/test', async (c) => {
   try {
-    const refreshToken = await settingsService.getSetting('gog_refresh_token');
+    let body: { refreshToken?: string } | null = null;
+    try {
+      const raw = await c.req.text();
+      if (raw) body = JSON.parse(raw);
+    } catch {
+      body = null;
+    }
+
+    const refreshToken =
+      (body && body.refreshToken)
+        ? body.refreshToken
+        : ((await settingsService.getSetting('gog_refresh_token')) as string | null);
 
     if (!refreshToken) {
       return c.json({
@@ -130,7 +143,7 @@ router.get('/test', async (c) => {
       }, 400);
     }
 
-    const client = new GogClient(refreshToken as string);
+    const client = new GogClient(refreshToken);
     const result = await client.testConnection();
 
     if (result.success) {

@@ -5,7 +5,7 @@ import { settingsService } from '../services/SettingsService';
 import { downloadService } from '../services/DownloadService';
 import { qbittorrentClient } from '../integrations/qbittorrent/QBittorrentClient';
 import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
-import { igdbClient } from '../integrations/igdb/IGDBClient';
+import { igdbClient, IGDBClient } from '../integrations/igdb/IGDBClient';
 import { sabnzbdClient } from '../integrations/sabnzbd/SabnzbdClient';
 import { discordClient } from '../integrations/discord/DiscordWebhookClient';
 import { ALL_CATEGORIES, DEFAULT_CATEGORIES, CATEGORY_GROUPS } from '../../shared/categories';
@@ -40,6 +40,11 @@ const ALLOWED_SETTINGS = new Set([
   'update_check_enabled',
   'update_check_schedule',
   'default_update_policy',
+  'update_patch_handling',
+  'update_patch_penalty',
+  // Discovery cache settings
+  'trending_games_cache_interval',
+  'top_torrents_cache_interval',
   // Feature flags
   'dry_run',
   // Network settings
@@ -301,6 +306,45 @@ settings.put('/', async (c) => {
     return c.json({ success: true, message: 'Settings updated successfully' });
   } catch (error) {
     logger.error('Failed to update settings:', error);
+    return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
+  }
+});
+
+// POST /api/v1/settings/test/igdb - Test IGDB credentials
+// Optional body: { clientId, clientSecret } to test unsaved credentials via a
+// transient client. Empty body falls back to the saved settings. Must be
+// defined before the /:key catch-all below.
+settings.post('/test/igdb', async (c) => {
+  logger.info('POST /api/v1/settings/test/igdb');
+
+  try {
+    let body: { clientId?: string; clientSecret?: string } | null = null;
+    try {
+      const raw = await c.req.text();
+      if (raw) body = JSON.parse(raw);
+    } catch {
+      body = null;
+    }
+
+    if (body && body.clientId && body.clientSecret) {
+      const transient = new IGDBClient(body.clientId, body.clientSecret);
+      const connected = await transient.testConnection();
+      return c.json({ success: true, data: connected });
+    }
+
+    // Fall back to saved credentials. Reconfigure the singleton in case settings
+    // were just saved in the same request cycle.
+    const clientId = await settingsService.getSetting('igdb_client_id');
+    const clientSecret = await settingsService.getSetting('igdb_client_secret');
+
+    if (clientId && clientSecret) {
+      igdbClient.configure({ clientId, clientSecret });
+    }
+
+    const connected = await igdbClient.testConnection();
+    return c.json({ success: true, data: connected });
+  } catch (error) {
+    logger.error('IGDB connection test failed:', error);
     return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });

@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { api } from '../../api/client';
+import { useUpdateSettings, useTestProwlarrConnection } from '../../queries/settings';
 import type { BaseStepProps, TestStatus } from './types';
 
 interface ProwlarrStepProps extends BaseStepProps {
@@ -23,26 +22,29 @@ export default function ProwlarrStep({
   testStatus,
   setTestStatus,
 }: ProwlarrStepProps) {
-  const [isLoading, setIsLoading] = useState(false);
+  const updateSettings = useUpdateSettings();
+  const testProwlarr = useTestProwlarrConnection();
 
   const handleTest = async () => {
     setTestStatus('testing');
     setError(null);
 
     try {
-      const response = await api.testProwlarrConnection({
+      // Thanks to the test-against-form-values route, we can validate the
+      // credentials in-place without persisting them first.
+      const connected = await testProwlarr.mutateAsync({
         url: url.trim(),
         apiKey: apiKey.trim(),
       });
-      if (response.success && response.data) {
+      if (connected) {
         setTestStatus('success');
       } else {
         setTestStatus('error');
         setError('Connection failed. Check URL and API key.');
       }
-    } catch {
+    } catch (err) {
       setTestStatus('error');
-      setError('Connection test failed');
+      setError(err instanceof Error ? err.message : 'Connection test failed');
     }
   };
 
@@ -52,24 +54,16 @@ export default function ProwlarrStep({
       return;
     }
 
-    setIsLoading(true);
     setError(null);
 
     try {
-      const response = await api.updateSettings({
+      await updateSettings.mutateAsync({
         prowlarr_url: url.trim(),
         prowlarr_api_key: apiKey.trim(),
       });
-
-      if (response.success) {
-        onNext();
-      } else {
-        setError(response.error || 'Failed to save Prowlarr settings');
-      }
-    } catch {
-      setError('Failed to save Prowlarr settings');
-    } finally {
-      setIsLoading(false);
+      onNext();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save Prowlarr settings');
     }
   };
 
@@ -143,10 +137,10 @@ export default function ProwlarrStep({
         </button>
         <button
           onClick={handleSave}
-          disabled={isLoading}
+          disabled={updateSettings.isPending}
           className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg font-medium transition disabled:opacity-50"
         >
-          {isLoading ? 'Saving...' : 'Continue'}
+          {updateSettings.isPending ? 'Saving...' : 'Continue'}
         </button>
       </div>
     </div>

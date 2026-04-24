@@ -1,17 +1,33 @@
 import { Hono } from 'hono';
 import { settingsService } from '../services/SettingsService';
-import { discordClient } from '../integrations/discord/DiscordWebhookClient';
+import { discordClient, DiscordWebhookClient } from '../integrations/discord/DiscordWebhookClient';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode } from '../utils/errors';
 
 const notifications = new Hono();
 
-// GET /api/v1/notifications/test/discord - Test Discord webhook connection
-notifications.get('/test/discord', async (c) => {
-  logger.info('GET /api/v1/notifications/test/discord');
+// POST /api/v1/notifications/test/discord - Test Discord webhook connection
+// Optional body: { webhookUrl } to test an unsaved URL via a transient client.
+// Empty body falls back to the configured singleton (saved webhook).
+notifications.post('/test/discord', async (c) => {
+  logger.info('POST /api/v1/notifications/test/discord');
 
   try {
-    // Reload settings and reconfigure client before testing
+    let body: { webhookUrl?: string } | null = null;
+    try {
+      const raw = await c.req.text();
+      if (raw) body = JSON.parse(raw);
+    } catch {
+      body = null;
+    }
+
+    if (body && body.webhookUrl) {
+      const transient = new DiscordWebhookClient({ webhookUrl: body.webhookUrl });
+      const connected = await transient.testConnection();
+      return c.json({ success: true, data: connected });
+    }
+
+    // Reload saved settings and reconfigure singleton before testing
     const webhookUrl = await settingsService.getSetting('discord_webhook_url');
 
     if (webhookUrl) {

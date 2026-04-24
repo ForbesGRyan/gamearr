@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { api } from '../../api/client';
+import { useCreateLibrary } from '../../queries/libraries';
 import type { BaseStepProps } from './types';
 
 interface LibraryStepProps extends BaseStepProps {
@@ -19,7 +18,7 @@ export default function LibraryStep({
   libraryPath,
   setLibraryPath,
 }: LibraryStepProps) {
-  const [isLoading, setIsLoading] = useState(false);
+  const createLibrary = useCreateLibrary();
 
   const handleSave = async () => {
     if (!libraryPath.trim()) {
@@ -27,26 +26,18 @@ export default function LibraryStep({
       return;
     }
 
-    setIsLoading(true);
     setError(null);
 
     try {
-      const response = await api.createLibrary({
+      await createLibrary.mutateAsync({
         name: libraryName.trim() || 'Main Library',
         path: libraryPath.trim(),
         monitored: true,
         downloadEnabled: true,
       });
-
-      if (response.success) {
-        onNext();
-      } else {
-        setError(response.error || 'Failed to create library');
-      }
-    } catch {
-      setError('Failed to save library settings');
-    } finally {
-      setIsLoading(false);
+      onNext();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save library settings');
     }
   };
 
@@ -107,10 +98,10 @@ export default function LibraryStep({
         </button>
         <button
           onClick={handleSave}
-          disabled={isLoading}
+          disabled={createLibrary.isPending}
           className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg font-medium transition disabled:opacity-50"
         >
-          {isLoading ? 'Saving...' : 'Continue'}
+          {createLibrary.isPending ? 'Saving...' : 'Continue'}
         </button>
       </div>
     </div>

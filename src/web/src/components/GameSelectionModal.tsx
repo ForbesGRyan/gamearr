@@ -1,16 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { api } from '../api/client';
+import { useGames } from '../queries';
 import { CloseIcon } from './Icons';
-
-interface Game {
-  id: number;
-  title: string;
-  year?: number;
-  coverUrl?: string;
-  monitored: boolean;
-  status: 'wanted' | 'downloading' | 'downloaded';
-  platform: string;
-}
 
 interface GameSelectionModalProps {
   isOpen: boolean;
@@ -20,10 +10,14 @@ interface GameSelectionModalProps {
 }
 
 function GameSelectionModal({ isOpen, onClose, onSelect, releaseName }: GameSelectionModalProps) {
-  const [games, setGames] = useState<Game[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  const gamesQuery = useGames();
+  const games = gamesQuery.data ?? [];
+  const isLoading = gamesQuery.isLoading;
+  const error = gamesQuery.error
+    ? ((gamesQuery.error as Error).message || 'Failed to load games')
+    : null;
 
   const filteredGames = useMemo(() => {
     if (searchQuery.trim() === '') {
@@ -35,12 +29,6 @@ function GameSelectionModal({ isOpen, onClose, onSelect, releaseName }: GameSele
       game.platform.toLowerCase().includes(query)
     );
   }, [searchQuery, games]);
-
-  useEffect(() => {
-    if (isOpen) {
-      loadGames();
-    }
-  }, [isOpen]);
 
   // Handle Escape key to close modal
   useEffect(() => {
@@ -55,25 +43,6 @@ function GameSelectionModal({ isOpen, onClose, onSelect, releaseName }: GameSele
       return () => document.removeEventListener('keydown', handleEscape);
     }
   }, [isOpen, onClose]);
-
-  const loadGames = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await api.getGames();
-
-      if (response.success && response.data) {
-        setGames(response.data as Game[]);
-      } else {
-        setError(response.error || 'Failed to load games');
-      }
-    } catch (err) {
-      setError('Failed to load games');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleSelect = (gameId: number) => {
     onSelect(gameId);

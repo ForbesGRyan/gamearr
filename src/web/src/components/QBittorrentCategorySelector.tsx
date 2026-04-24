@@ -1,20 +1,31 @@
 import { useState, useEffect, useRef } from 'react';
-import { api } from '../api/client';
+import {
+  useQBittorrentCategories,
+  useQBittorrentCategory,
+  useUpdateQBittorrentCategory,
+} from '../queries/settings';
 import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
 
 function QBittorrentCategorySelector() {
-  const [categories, setCategories] = useState<string[]>([]);
+  const categoriesQuery = useQBittorrentCategories();
+  const selectedQuery = useQBittorrentCategory();
+  const updateCategory = useUpdateQBittorrentCategory();
+
+  const categories = (categoriesQuery.data ?? []) as string[];
+  const savedCategory = (selectedQuery.data ?? '') as string;
+
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const saveMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sync local form state with server value whenever it changes
   useEffect(() => {
-    loadCategories();
+    setSelectedCategory(savedCategory);
+  }, [savedCategory]);
 
-    // Cleanup timeout on unmount
+  // Cleanup timeout on unmount
+  useEffect(() => {
     return () => {
       if (saveMessageTimeoutRef.current) {
         clearTimeout(saveMessageTimeoutRef.current);
@@ -22,30 +33,12 @@ function QBittorrentCategorySelector() {
     };
   }, []);
 
-  const loadCategories = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Load available categories from qBittorrent
-      const categoriesResponse = await api.getQBittorrentCategories();
-      if (categoriesResponse.success && categoriesResponse.data) {
-        setCategories(categoriesResponse.data as string[]);
-      } else {
-        setError('Failed to load categories from qBittorrent');
-      }
-
-      // Load selected category
-      const selectedResponse = await api.getQBittorrentCategory();
-      if (selectedResponse.success && selectedResponse.data) {
-        setSelectedCategory(selectedResponse.data as string);
-      }
-    } catch (err) {
-      setError('Failed to load categories. Make sure qBittorrent is configured and running.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const isLoading = categoriesQuery.isLoading || selectedQuery.isLoading;
+  const isSaving = updateCategory.isPending;
+  const loadError = categoriesQuery.isError
+    ? 'Failed to load categories. Make sure qBittorrent is configured and running.'
+    : null;
+  const displayError = error ?? loadError;
 
   const handleSave = async () => {
     if (!selectedCategory) {
@@ -53,31 +46,29 @@ function QBittorrentCategorySelector() {
       return;
     }
 
-    setIsSaving(true);
     setError(null);
     setSaveMessage(null);
 
     try {
-      const response = await api.updateQBittorrentCategory(selectedCategory);
-      if (response.success) {
-        setSaveMessage('Category filter saved successfully!');
-        // Clear any existing timeout before setting a new one
-        if (saveMessageTimeoutRef.current) {
-          clearTimeout(saveMessageTimeoutRef.current);
-        }
-        saveMessageTimeoutRef.current = setTimeout(() => setSaveMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
-      } else {
-        setError(response.error || 'Failed to save category');
+      await updateCategory.mutateAsync(selectedCategory);
+      setSaveMessage('Category filter saved successfully!');
+      if (saveMessageTimeoutRef.current) {
+        clearTimeout(saveMessageTimeoutRef.current);
       }
+      saveMessageTimeoutRef.current = setTimeout(
+        () => setSaveMessage(null),
+        SUCCESS_MESSAGE_TIMEOUT_MS
+      );
     } catch (err) {
-      setError('Failed to save category');
-    } finally {
-      setIsSaving(false);
+      const message = err instanceof Error ? err.message : 'Failed to save category';
+      setError(message);
     }
   };
 
   const handleReset = () => {
-    loadCategories();
+    void categoriesQuery.refetch();
+    void selectedQuery.refetch();
+    setSelectedCategory(savedCategory);
     setSaveMessage(null);
     setError(null);
   };
@@ -98,9 +89,9 @@ function QBittorrentCategorySelector() {
         Filter which torrents appear in the Activity page. This does not affect downloads - configure download categories per-library in Settings {'>'} Libraries.
       </p>
 
-      {error && (
+      {displayError && (
         <div className="bg-red-900 mb-4 p-3 border border-red-700 rounded text-red-200 text-sm">
-          {error}
+          {displayError}
         </div>
       )}
 

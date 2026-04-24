@@ -1,6 +1,16 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { api, Download } from '../api/client';
+import { useQueryClient } from '@tanstack/react-query';
+import type { Download } from '../api/client';
+import {
+  useCancelDownload,
+  useDownloads,
+  usePauseAllDownloads,
+  usePauseDownload,
+  useResumeAllDownloads,
+  useResumeDownload,
+} from '../queries/downloads';
+import { queryKeys } from '../queries/keys';
 import ConfirmModal from '../components/ConfirmModal';
 import ImportDownloadModal from '../components/ImportDownloadModal';
 import {
@@ -26,8 +36,8 @@ import {
 
 function Activity() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
 
-  // Initialize state from URL params
   const initialSearch = searchParams.get('q') || '';
   const initialStatus = validStatusFilters.includes(searchParams.get('status') as StatusFilter)
     ? (searchParams.get('status') as StatusFilter)
@@ -39,23 +49,29 @@ function Activity() {
     ? (searchParams.get('dir') as SortDirection)
     : 'desc';
 
-  const [downloads, setDownloads] = useState<Download[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const downloadsQuery = useDownloads(true);
+  const downloads: Download[] = useMemo(
+    () => downloadsQuery.data ?? [],
+    [downloadsQuery.data]
+  );
+  const isLoading = downloadsQuery.isLoading;
+  const error = downloadsQuery.error ? (downloadsQuery.error as Error).message : null;
+
+  const pauseMutation = usePauseDownload();
+  const resumeMutation = useResumeDownload();
+  const pauseAllMutation = usePauseAllDownloads();
+  const resumeAllMutation = useResumeAllDownloads();
+  const cancelMutation = useCancelDownload();
+
   const [downloadToDelete, setDownloadToDelete] = useState<Download | null>(null);
   const [downloadToImport, setDownloadToImport] = useState<Download | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const isMountedRef = useRef(true);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const hasLoadedRef = useRef(false);
 
-  // Search, filter, and sort state
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatus);
   const [sortField, setSortField] = useState<SortField>(initialSort);
   const [sortDirection, setSortDirection] = useState<SortDirection>(initialDir);
 
-  // Update URL params when state changes
   useEffect(() => {
     const params = new URLSearchParams();
     if (searchQuery) params.set('q', searchQuery);
@@ -65,100 +81,53 @@ function Activity() {
     setSearchParams(params, { replace: true });
   }, [searchQuery, statusFilter, sortField, sortDirection, setSearchParams]);
 
-  const loadDownloads = useCallback(async (showLoading: boolean = false) => {
-    if (!isMountedRef.current) return;
-
-    if (showLoading || !hasLoadedRef.current) {
-      setIsLoading(true);
-    }
-    setError(null);
-
-    try {
-      // Always include completed downloads - filtering is done client-side via status filter
-      const response = await api.getDownloads(true);
-
-      if (isMountedRef.current) {
-        if (response.success && response.data) {
-          setDownloads(response.data);
-          hasLoadedRef.current = true;
-        } else {
-          setError(response.error || 'Failed to load downloads');
-        }
-      }
-    } catch (err) {
-      if (isMountedRef.current) {
-        setError('Failed to load downloads');
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setIsLoading(false);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    loadDownloads(true);
-
-    intervalRef.current = setInterval(() => loadDownloads(false), 15000);
-
-    return () => {
-      isMountedRef.current = false;
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [loadDownloads]);
-
-  // Filter and sort downloads
   const filteredDownloads = useMemo(() => {
     const filtered = filterDownloads(downloads, searchQuery, statusFilter);
     return sortDownloads(filtered, sortField, sortDirection);
   }, [downloads, searchQuery, statusFilter, sortField, sortDirection]);
 
-  // Check for active and paused downloads
-  const hasActiveDownloads = useMemo(() => {
-    return downloads.some((d) => isActiveDownload(d));
-  }, [downloads]);
+  const hasActiveDownloads = useMemo(
+    () => downloads.some((d) => isActiveDownload(d)),
+    [downloads]
+  );
 
-  const hasPausedDownloads = useMemo(() => {
-    return downloads.some((d) => isPaused(d));
-  }, [downloads]);
+  const hasPausedDownloads = useMemo(
+    () => downloads.some((d) => isPaused(d)),
+    [downloads]
+  );
 
-  // Action handlers
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.downloads.all });
+  };
+
   const handlePause = async (id: string, client: 'qbittorrent' | 'sabnzbd') => {
     try {
-      await api.pauseDownload(id, client);
-      loadDownloads();
-    } catch (err) {
+      await pauseMutation.mutateAsync({ id, client });
+    } catch {
       setActionError('Failed to pause download');
     }
   };
 
   const handleResume = async (id: string, client: 'qbittorrent' | 'sabnzbd') => {
     try {
-      await api.resumeDownload(id, client);
-      loadDownloads();
-    } catch (err) {
+      await resumeMutation.mutateAsync({ id, client });
+    } catch {
       setActionError('Failed to resume download');
     }
   };
 
   const handlePauseAll = async () => {
     try {
-      await api.pauseAllDownloads();
-      loadDownloads();
-    } catch (err) {
+      await pauseAllMutation.mutateAsync();
+    } catch {
       setActionError('Failed to pause all downloads');
     }
   };
 
   const handleResumeAll = async () => {
     try {
-      await api.resumeAllDownloads();
-      loadDownloads();
-    } catch (err) {
+      await resumeAllMutation.mutateAsync();
+    } catch {
       setActionError('Failed to resume all downloads');
     }
   };
@@ -168,9 +137,12 @@ function Activity() {
 
     try {
       const dlId = getDownloadId(downloadToDelete);
-      await api.cancelDownload(dlId, false, downloadToDelete.client);
-      loadDownloads();
-    } catch (err) {
+      await cancelMutation.mutateAsync({
+        id: dlId,
+        deleteFiles: false,
+        client: downloadToDelete.client,
+      });
+    } catch {
       setActionError('Failed to delete download');
     } finally {
       setDownloadToDelete(null);
@@ -198,7 +170,7 @@ function Activity() {
         filteredCount={filteredDownloads.length}
         hasActiveDownloads={hasActiveDownloads}
         hasPausedDownloads={hasPausedDownloads}
-        onRefresh={() => loadDownloads(true)}
+        onRefresh={refresh}
         onPauseAll={handlePauseAll}
         onResumeAll={handleResumeAll}
       />
@@ -248,7 +220,11 @@ function Activity() {
       <ConfirmModal
         isOpen={downloadToDelete !== null}
         title="Delete Download"
-        message={downloadToDelete ? `Delete "${downloadToDelete.name}"?\n\nThis will remove the download but keep the downloaded files.` : ''}
+        message={
+          downloadToDelete
+            ? `Delete "${downloadToDelete.name}"?\n\nThis will remove the download but keep the downloaded files.`
+            : ''
+        }
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
@@ -273,7 +249,7 @@ function Activity() {
         onClose={() => setDownloadToImport(null)}
         onImported={() => {
           setDownloadToImport(null);
-          loadDownloads();
+          queryClient.invalidateQueries({ queryKey: queryKeys.downloads.all });
         }}
       />
     </div>

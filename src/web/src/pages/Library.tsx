@@ -6,6 +6,18 @@ import MatchFolderModal from '../components/MatchFolderModal';
 import ConfirmModal from '../components/ConfirmModal';
 import { api, SteamGame, GogGame } from '../api/client';
 import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
+import {
+  useLibraryScanCount,
+  useLibraryHealthCount,
+  useLibraryDuplicates,
+  useLibraryLooseFiles,
+  useScanLibrary,
+  useAutoMatchFolder,
+  useMatchLibraryFolder,
+  useOrganizeLooseFile,
+  useIgnoreLibraryFolder,
+} from '../queries/library';
+import { useUpdateGameStores } from '../queries/games';
 
 // Import library-specific components and hooks
 import {
@@ -116,7 +128,6 @@ function Library() {
   const [selectedFolder, setSelectedFolder] = useState<LibraryFolder | null>(null);
 
   // Scan tab state
-  const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const [libraryFolders, setLibraryFolders] = useState<LibraryFolder[]>([]);
   const [isScanLoaded, setIsScanLoaded] = useState(false);
@@ -130,15 +141,34 @@ function Library() {
   const [backgroundAutoMatchProgress, setBackgroundAutoMatchProgress] = useState({ current: 0, total: 0 });
   const backgroundAutoMatchAbortRef = useRef(false);
 
-  // Health tab state
-  const [looseFiles, setLooseFiles] = useState<LooseFile[]>([]);
-  const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
-  const [isHealthLoading, setIsHealthLoading] = useState(false);
-  const [isHealthLoaded, setIsHealthLoaded] = useState(false);
+  // Library health/scan queries and mutations
+  const scanCountQuery = useLibraryScanCount();
+  const healthCountQuery = useLibraryHealthCount();
+  const duplicatesQuery = useLibraryDuplicates();
+  const looseFilesQuery = useLibraryLooseFiles();
+  const scanLibraryMutation = useScanLibrary();
+  const autoMatchMutation = useAutoMatchFolder();
+  const matchFolderMutation = useMatchLibraryFolder();
+  const organizeLooseFileMutation = useOrganizeLooseFile();
+  const updateGameStoresMutation = useUpdateGameStores();
 
-  // Tab counts (loaded on mount for badges)
-  const [scanCount, setScanCount] = useState<number | null>(null);
-  const [healthCount] = useState<number | null>(null);
+  const isScanning = scanLibraryMutation.isPending;
+  const isHealthLoading = duplicatesQuery.isFetching || looseFilesQuery.isFetching;
+  const isHealthLoaded =
+    !duplicatesQuery.isLoading && !looseFilesQuery.isLoading &&
+    duplicatesQuery.data !== undefined && looseFilesQuery.data !== undefined;
+
+  const looseFiles = useMemo<LooseFile[]>(
+    () => (looseFilesQuery.data ?? []) as LooseFile[],
+    [looseFilesQuery.data]
+  );
+  const duplicates = useMemo<DuplicateGroup[]>(
+    () => (duplicatesQuery.data ?? []) as DuplicateGroup[],
+    [duplicatesQuery.data]
+  );
+  const scanCount = scanCountQuery.data?.count ?? null;
+  const healthCount = healthCountQuery.data?.count ?? null;
+
   const [organizingFile, setOrganizingFile] = useState<string | null>(null);
   const [organizeError, setOrganizeError] = useState<string | null>(null);
   const [dismissedDuplicates, setDismissedDuplicates] = useState<Set<string>>(() => {
@@ -211,12 +241,12 @@ function Library() {
   }, [gogGames, gogSearchQuery, gogShowOwned]);
 
   // Data loading
+  // Load the cached library scan (GET) on demand (tab visit / after match).
   const loadScanData = useCallback(async () => {
     try {
-      const response = await fetch('/api/v1/library/scan');
-      const data = await response.json();
-      if (data.success && data.data) {
-        const { folders } = data.data;
+      const response = await api.getLibraryScan();
+      if (response.success && response.data) {
+        const { folders } = response.data;
         setLibraryFolders(folders);
         setIsScanLoaded(true);
       }
@@ -225,54 +255,12 @@ function Library() {
     }
   }, []);
 
-  const loadHealthData = useCallback(async () => {
-    setIsHealthLoading(true);
-    try {
-      const [duplicatesRes, looseFilesRes] = await Promise.all([
-        api.getLibraryDuplicates(),
-        api.getLibraryLooseFiles(),
-      ]);
-      if (duplicatesRes.success && duplicatesRes.data) {
-        setDuplicates(duplicatesRes.data as DuplicateGroup[]);
-      }
-      if (looseFilesRes.success && looseFilesRes.data) {
-        setLooseFiles(looseFilesRes.data as LooseFile[]);
-      }
-      setIsHealthLoaded(true);
-    } catch (err) {
-      console.error('Failed to load health data:', err);
-    } finally {
-      setIsHealthLoading(false);
-    }
-  }, []);
-
-  // Load scan count on mount (lightweight), but load full health data
-  // so we can accurately compute visible count (excluding dismissed duplicates)
-  useEffect(() => {
-    const loadInitialData = async () => {
-      // Load scan count (lightweight)
-      const scanRes = await api.getLibraryScanCount();
-      if (scanRes.success && scanRes.data) {
-        setScanCount(scanRes.data.count);
-      }
-      // Load full health data so badge count excludes dismissed duplicates
-      loadHealthData();
-    };
-    loadInitialData();
-  }, [loadHealthData]);
-
-  // Load full data only when tab is visited
+  // Load full scan data only when the scan tab is visited.
   useEffect(() => {
     if (activeTab === 'scan' && !isScanLoaded) {
       loadScanData();
     }
   }, [activeTab, isScanLoaded, loadScanData]);
-
-  useEffect(() => {
-    if (activeTab === 'health' && !isHealthLoaded) {
-      loadHealthData();
-    }
-  }, [activeTab, isHealthLoaded, loadHealthData]);
 
   // Scan handlers - parallel auto-matching with concurrency limit
   const runBackgroundAutoMatch = useCallback(async (folders: LibraryFolder[]) => {
@@ -293,11 +281,14 @@ function Library() {
       setIsAutoMatching((prev) => ({ ...prev, [folder.path]: true }));
 
       try {
-        const response = await api.autoMatchFolder(folder.parsedTitle, folder.parsedYear);
-        if (response.success && response.data) {
+        const data = await autoMatchMutation.mutateAsync({
+          parsedTitle: folder.parsedTitle,
+          parsedYear: folder.parsedYear,
+        });
+        if (data) {
           setAutoMatchSuggestions((prev) => ({
             ...prev,
-            [folder.path]: response.data as AutoMatchSuggestion,
+            [folder.path]: data as AutoMatchSuggestion,
           }));
           if (folder.libraryName) {
             const matchingLibrary = libraries.find(
@@ -329,38 +320,32 @@ function Library() {
     }
 
     setIsBackgroundAutoMatching(false);
-  }, [autoMatchSuggestions, libraries]);
+  }, [autoMatchSuggestions, libraries, autoMatchMutation]);
 
   const handleScanLibrary = useCallback(async () => {
-    setIsScanning(true);
     setScanMessage(null);
     setError(null);
     try {
-      const response = await api.scanLibrary();
-      if (response.success && response.data) {
-        const { count, matchedCount, unmatchedCount, folders } = response.data;
-        setLibraryFolders(folders);
-        setIsScanLoaded(true);
-        setScanMessage(
-          `Scanned ${count} folder${count !== 1 ? 's' : ''} (${matchedCount} matched, ${unmatchedCount} unmatched)`
-        );
-        setTimeout(() => setScanMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
+      const data = await scanLibraryMutation.mutateAsync();
+      const { count, matchedCount, unmatchedCount, folders } = data;
+      setLibraryFolders(folders);
+      setIsScanLoaded(true);
+      setScanMessage(
+        `Scanned ${count} folder${count !== 1 ? 's' : ''} (${matchedCount} matched, ${unmatchedCount} unmatched)`
+      );
+      setTimeout(() => setScanMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
 
-        const unmatchedFolders = folders.filter(f => !f.matched);
-        if (unmatchedFolders.length > 0) {
-          setTimeout(() => {
-            runBackgroundAutoMatch(unmatchedFolders);
-          }, 500);
-        }
-      } else {
-        setError(response.error || 'Library scan failed');
+      const unmatchedFolders = folders.filter(f => !f.matched);
+      if (unmatchedFolders.length > 0) {
+        setTimeout(() => {
+          runBackgroundAutoMatch(unmatchedFolders);
+        }, 500);
       }
-    } catch {
-      setError('Failed to scan library. Check that library path is configured in Settings.');
-    } finally {
-      setIsScanning(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to scan library. Check that library path is configured in Settings.';
+      setError(message);
     }
-  }, [setError, runBackgroundAutoMatch]);
+  }, [setError, runBackgroundAutoMatch, scanLibraryMutation]);
 
   const handleMatchFolder = useCallback((folder: LibraryFolder) => {
     setSelectedFolder(folder);
@@ -372,35 +357,30 @@ function Library() {
     loadScanData();
   }, [loadGames, loadScanData]);
 
+  const ignoreFolderMutation = useIgnoreLibraryFolder();
   const handleIgnoreFolder = useCallback(async (folderPath: string) => {
     try {
-      const response = await fetch('/api/v1/library/ignore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderPath }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        await loadScanData();
-        setScanMessage('Folder ignored successfully');
-        setTimeout(() => setScanMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
-      } else {
-        setError(data.error || 'Failed to ignore folder');
-      }
-    } catch {
-      setError('Failed to ignore folder');
+      await ignoreFolderMutation.mutateAsync(folderPath);
+      await loadScanData();
+      setScanMessage('Folder ignored successfully');
+      setTimeout(() => setScanMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to ignore folder');
     }
-  }, [loadScanData, setError]);
+  }, [ignoreFolderMutation, loadScanData, setError]);
 
   const handleAutoMatch = useCallback(async (folder: LibraryFolder) => {
     setIsAutoMatching((prev) => ({ ...prev, [folder.path]: true }));
     setError(null);
     try {
-      const response = await api.autoMatchFolder(folder.parsedTitle, folder.parsedYear);
-      if (response.success && response.data) {
+      const data = await autoMatchMutation.mutateAsync({
+        parsedTitle: folder.parsedTitle,
+        parsedYear: folder.parsedYear,
+      });
+      if (data) {
         setAutoMatchSuggestions((prev) => ({
           ...prev,
-          [folder.path]: response.data as AutoMatchSuggestion,
+          [folder.path]: data as AutoMatchSuggestion,
         }));
         if (folder.libraryName) {
           const matchingLibrary = libraries.find(
@@ -414,14 +394,15 @@ function Library() {
           }
         }
       } else {
-        setError(response.error || 'Failed to auto-match folder');
+        setError('Failed to auto-match folder');
       }
-    } catch {
-      setError('Failed to auto-match folder');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to auto-match folder';
+      setError(message);
     } finally {
       setIsAutoMatching((prev) => ({ ...prev, [folder.path]: false }));
     }
-  }, [libraries, setError]);
+  }, [libraries, setError, autoMatchMutation]);
 
   const cancelBackgroundAutoMatch = useCallback(() => {
     backgroundAutoMatchAbortRef.current = true;
@@ -458,35 +439,32 @@ function Library() {
       }
 
       const folderStores = selectedStores[folder.path] || [];
-      const response = await api.matchLibraryFolder(
-        folder.path,
-        folder.folderName,
-        suggestionWithPlatform,
-        folderStores[0] || null, // Use first store for legacy field
-        selectedLibraryForMatch[folder.path] || null
-      );
+      const matched = await matchFolderMutation.mutateAsync({
+        folderPath: folder.path,
+        folderName: folder.folderName,
+        igdbGame: suggestionWithPlatform,
+        store: folderStores[0] || null, // Use first store for legacy field
+        libraryId: selectedLibraryForMatch[folder.path] || null,
+      });
 
-      if (response.success && response.data) {
-        // If multiple stores selected, update stores via the dedicated endpoint
-        if (folderStores.length > 0) {
-          await api.updateGameStores(response.data.id, folderStores);
-        }
-        setAutoMatchSuggestions((prev) => {
-          const newSuggestions = { ...prev };
-          delete newSuggestions[folder.path];
-          return newSuggestions;
-        });
-        setScanMessage(`Successfully matched "${folder.folderName}" to ${suggestion.title}`);
-        setTimeout(() => setScanMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
-        loadGames();
-        await loadScanData();
-      } else {
-        setError(response.error || 'Failed to match folder');
+      // If multiple stores selected, update stores via the dedicated endpoint
+      if (folderStores.length > 0) {
+        await updateGameStoresMutation.mutateAsync({ id: matched.id, stores: folderStores });
       }
-    } catch {
-      setError('Failed to match folder');
+      setAutoMatchSuggestions((prev) => {
+        const newSuggestions = { ...prev };
+        delete newSuggestions[folder.path];
+        return newSuggestions;
+      });
+      setScanMessage(`Successfully matched "${folder.folderName}" to ${suggestion.title}`);
+      setTimeout(() => setScanMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
+      loadGames();
+      await loadScanData();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to match folder';
+      setError(message);
     }
-  }, [autoMatchSuggestions, selectedLibraryForMatch, selectedStores, libraries, loadGames, loadScanData, setError]);
+  }, [autoMatchSuggestions, selectedLibraryForMatch, selectedStores, libraries, loadGames, loadScanData, setError, matchFolderMutation]);
 
   const handleCancelAutoMatch = useCallback((folder: LibraryFolder) => {
     setAutoMatchSuggestions((prev) => {
@@ -505,22 +483,15 @@ function Library() {
     setOrganizingFile(filePath);
     setOrganizeError(null);
     try {
-      const response = await api.organizeLooseFile(filePath, folderName);
-      if (response.success) {
-        setLooseFiles((prev) => prev.filter((f) => f.path !== filePath));
-      } else {
-        const errorMsg = typeof response.error === 'string'
-          ? response.error
-          : 'Failed to organize file';
-        setOrganizeError(errorMsg);
-      }
+      await organizeLooseFileMutation.mutateAsync({ filePath, folderName });
     } catch (err) {
       console.error('Failed to organize file:', err);
-      setOrganizeError('Failed to organize file');
+      const message = err instanceof Error ? err.message : 'Failed to organize file';
+      setOrganizeError(message);
     } finally {
       setOrganizingFile(null);
     }
-  }, []);
+  }, [organizeLooseFileMutation]);
 
   const handleDismissDuplicate = useCallback((group: DuplicateGroup) => {
     const key = group.games.map((g) => g.id).sort().join('-');
@@ -711,10 +682,6 @@ function Library() {
         onViewModeChange={handleViewModeChange}
         onAddGame={() => setIsModalOpen(true)}
         onScanLibrary={handleScanLibrary}
-        onRefreshHealth={() => {
-          setIsHealthLoaded(false);
-          loadHealthData();
-        }}
       />
 
       <LibraryTabs
@@ -888,7 +855,6 @@ function Library() {
       <AddGameModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onGameAdded={loadGames}
       />
 
       <SearchReleasesModal

@@ -1,123 +1,81 @@
-import { useState, useEffect } from 'react';
-import { api, type LogFile, type AppUpdateStatus, type AppUpdateSettings } from '../../api/client';
+import { useEffect, useState } from 'react';
+import { api, type AppUpdateSettings } from '../../api/client';
 import { useToast } from '../../contexts/ToastContext';
+import {
+  useSystemStatus,
+  useLogFiles,
+  useLogFileContent,
+  useAppUpdateStatus,
+  useAppUpdateSettings,
+  useCheckForAppUpdates,
+  useUpdateAppUpdateSettings,
+} from '../../queries/system';
 
 export default function SystemTab() {
   const { addToast } = useToast();
-  const [version, setVersion] = useState<string>('');
-  const [uptime, setUptime] = useState<number>(0);
-  const [logFiles, setLogFiles] = useState<LogFile[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState<string | null>(null);
-  const [logContent, setLogContent] = useState<string>('');
-  const [logTotalLines, setLogTotalLines] = useState<number>(0);
-  const [isLoadingLog, setIsLoadingLog] = useState(false);
 
-  // Application update state
-  const [updateStatus, setUpdateStatus] = useState<AppUpdateStatus | null>(null);
-  const [updateSettings, setUpdateSettings] = useState<AppUpdateSettings | null>(null);
-  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
-  const [isSavingUpdateSettings, setIsSavingUpdateSettings] = useState(false);
+  const systemStatusQuery = useSystemStatus();
+  const logFilesQuery = useLogFiles();
+  const updateStatusQuery = useAppUpdateStatus();
+  const updateSettingsQuery = useAppUpdateSettings();
 
-  useEffect(() => {
-    loadSystemInfo();
-  }, []);
+  const logContentQuery = useLogFileContent(selectedLog ?? undefined, {
+    enabled: selectedLog !== null,
+  });
 
-  const loadSystemInfo = async () => {
-    setIsLoading(true);
-    try {
-      const [statusRes, logsRes, updateStatusRes, updateSettingsRes] = await Promise.all([
-        api.getSystemStatus(),
-        api.getLogFiles(),
-        api.getAppUpdateStatus(),
-        api.getAppUpdateSettings(),
-      ]);
+  const checkForUpdatesMutation = useCheckForAppUpdates();
+  const updateAppUpdateSettingsMutation = useUpdateAppUpdateSettings();
 
-      if (statusRes.success && statusRes.data) {
-        setVersion(statusRes.data.version);
-        setUptime(statusRes.data.uptime);
-      }
+  const version = systemStatusQuery.data?.version ?? '';
+  const uptime = systemStatusQuery.data?.uptime ?? 0;
+  const logFiles = logFilesQuery.data?.files ?? [];
+  const updateStatus = updateStatusQuery.data ?? null;
+  const updateSettings = updateSettingsQuery.data ?? null;
 
-      if (logsRes.success && logsRes.data) {
-        setLogFiles(logsRes.data.files);
-      }
+  const isLoading =
+    systemStatusQuery.isLoading ||
+    logFilesQuery.isLoading ||
+    updateStatusQuery.isLoading ||
+    updateSettingsQuery.isLoading;
 
-      if (updateStatusRes.success && updateStatusRes.data) {
-        setUpdateStatus(updateStatusRes.data);
-      }
-
-      if (updateSettingsRes.success && updateSettingsRes.data) {
-        setUpdateSettings(updateSettingsRes.data);
-      }
-    } catch (err) {
-      console.error('Failed to load system info:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const isCheckingUpdates = checkForUpdatesMutation.isPending;
+  const isSavingUpdateSettings = updateAppUpdateSettingsMutation.isPending;
+  const isLoadingLog = logContentQuery.isFetching;
+  const logContent = logContentQuery.data?.content ?? '';
+  const logTotalLines = logContentQuery.data?.totalLines ?? 0;
 
   const handleCheckForUpdates = async () => {
-    setIsCheckingUpdates(true);
     try {
-      const res = await api.checkForAppUpdates();
-      if (res.success && res.data) {
-        // Refresh the full update status
-        const statusRes = await api.getAppUpdateStatus();
-        if (statusRes.success && statusRes.data) {
-          setUpdateStatus(statusRes.data);
-        }
-        if (res.data.updateAvailable) {
-          addToast(`New version available: v${res.data.latestVersion}`, 'info');
-        } else {
-          addToast('Gamearr is up to date', 'success');
-        }
+      const data = await checkForUpdatesMutation.mutateAsync();
+      if (data.updateAvailable) {
+        addToast(`New version available: v${data.latestVersion}`, 'info');
       } else {
-        addToast(res.error || 'Failed to check for updates', 'error');
+        addToast('Gamearr is up to date', 'success');
       }
     } catch (err) {
-      addToast('Failed to check for updates', 'error');
-    } finally {
-      setIsCheckingUpdates(false);
+      const msg = err instanceof Error ? err.message : 'Failed to check for updates';
+      addToast(msg, 'error');
     }
   };
 
-  const handleUpdateSettingChange = async (key: keyof AppUpdateSettings, value: boolean | string) => {
+  const handleUpdateSettingChange = async (
+    key: keyof AppUpdateSettings,
+    value: boolean | string
+  ) => {
     if (!updateSettings) return;
 
-    setIsSavingUpdateSettings(true);
     try {
-      const res = await api.updateAppUpdateSettings({ [key]: value });
-      if (res.success) {
-        setUpdateSettings({ ...updateSettings, [key]: value });
-        addToast('Update settings saved', 'success');
-      } else {
-        addToast(res.error || 'Failed to save settings', 'error');
-      }
+      await updateAppUpdateSettingsMutation.mutateAsync({ [key]: value });
+      addToast('Update settings saved', 'success');
     } catch (err) {
-      addToast('Failed to save settings', 'error');
-    } finally {
-      setIsSavingUpdateSettings(false);
+      const msg = err instanceof Error ? err.message : 'Failed to save settings';
+      addToast(msg, 'error');
     }
   };
 
-  const handleViewLog = async (filename: string) => {
+  const handleViewLog = (filename: string) => {
     setSelectedLog(filename);
-    setIsLoadingLog(true);
-    setLogContent('');
-
-    try {
-      const res = await api.getLogFileContent(filename);
-      if (res.success && res.data) {
-        setLogContent(res.data.content);
-        setLogTotalLines(res.data.totalLines);
-      } else {
-        addToast(res.error || 'Failed to load log file', 'error');
-      }
-    } catch (err) {
-      addToast('Failed to load log file', 'error');
-    } finally {
-      setIsLoadingLog(false);
-    }
   };
 
   const handleDownloadLog = async (filename: string) => {
@@ -143,6 +101,16 @@ export default function SystemTab() {
   const formatDate = (timestamp: number): string => {
     return new Date(timestamp).toLocaleString();
   };
+
+  useEffect(() => {
+    if (logContentQuery.isError && selectedLog !== null) {
+      const msg =
+        logContentQuery.error instanceof Error
+          ? logContentQuery.error.message
+          : 'Failed to load log file';
+      addToast(msg, 'error');
+    }
+  }, [logContentQuery.isError, logContentQuery.error, selectedLog, addToast]);
 
   if (isLoading) {
     return (

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { api, setAuthToken, getAuthToken, emitAuthEvent } from '../api/client';
+import { getAuthToken } from '../api/client';
+import { useAuthStatus, useCurrentUser, useLogin } from '../queries/auth';
 import { useToast } from '../contexts/ToastContext';
 import { GamepadIcon } from '../components/Icons';
 
@@ -11,35 +12,34 @@ function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showRegisterLink, setShowRegisterLink] = useState(false);
 
-  // Check auth status - redirect if auth is disabled or already logged in
+  const authStatus = useAuthStatus();
+  const token = getAuthToken();
+
+  // If auth is disabled, go straight to the app. If a valid token exists,
+  // /auth/me will succeed and we also redirect.
+  const me = useCurrentUser({
+    enabled: authStatus.isSuccess && authStatus.data?.authEnabled === true && !!token,
+  });
+
   useEffect(() => {
-    const checkAuthStatus = async () => {
-      const result = await api.getAuthStatus();
-      if (result.success && result.data) {
-        // If auth is disabled, redirect to main app
-        if (!result.data.authEnabled) {
-          navigate('/');
-          return;
-        }
+    if (!authStatus.isSuccess || !authStatus.data) return;
 
-        // If already logged in (have a valid token), redirect to main app
-        const token = getAuthToken();
-        if (token) {
-          const meResult = await api.getCurrentUser();
-          if (meResult.success && meResult.data) {
-            navigate('/');
-            return;
-          }
-        }
+    if (!authStatus.data.authEnabled) {
+      navigate('/');
+      return;
+    }
 
-        setShowRegisterLink(!result.data.hasUsers);
-      }
-    };
-    checkAuthStatus();
-  }, [navigate]);
+    if (token && me.isSuccess && me.data) {
+      navigate('/');
+    }
+  }, [authStatus.isSuccess, authStatus.data, token, me.isSuccess, me.data, navigate]);
+
+  const showRegisterLink =
+    authStatus.isSuccess && authStatus.data?.hasUsers === false;
+
+  const loginMutation = useLogin();
+  const isLoading = loginMutation.isPending;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,29 +49,18 @@ function Login() {
       return;
     }
 
-    setIsLoading(true);
-
     try {
-      const result = await api.login(username, password, rememberMe);
-
-      if (result.success && result.data) {
-        setAuthToken(result.data.token);
-        emitAuthEvent('login');
-        navigate('/');
-        return;
-      } else {
-        showToast(result.error || 'Login failed', 'error');
-      }
-    } catch {
-      showToast('Login failed', 'error');
+      await loginMutation.mutateAsync({ username, password, rememberMe });
+      navigate('/');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Login failed';
+      showToast(message, 'error');
     }
-    setIsLoading(false);
   };
 
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
       <div className="max-w-md w-full">
-        {/* Logo */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-2">
             <GamepadIcon className="w-12 h-12 text-blue-500" />
@@ -80,10 +69,8 @@ function Login() {
           <p className="text-gray-400">Sign in to your account</p>
         </div>
 
-        {/* Login Form */}
         <form onSubmit={handleSubmit} className="bg-gray-800 rounded-lg p-8 shadow-lg">
           <div className="space-y-6">
-            {/* Username */}
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-2">
                 Username
@@ -99,7 +86,6 @@ function Login() {
               />
             </div>
 
-            {/* Password */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
                 Password
@@ -115,7 +101,6 @@ function Login() {
               />
             </div>
 
-            {/* Remember Me */}
             <div className="flex items-center">
               <input
                 id="remember-me"
@@ -129,7 +114,6 @@ function Login() {
               </label>
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={isLoading}
@@ -149,7 +133,6 @@ function Login() {
             </button>
           </div>
 
-          {/* Register Link */}
           {showRegisterLink && (
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-400">

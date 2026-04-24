@@ -60,6 +60,7 @@ import { sabnzbdClient } from './integrations/sabnzbd/SabnzbdClient';
 import { discordClient } from './integrations/discord/DiscordWebhookClient';
 import { settingsService } from './services/SettingsService';
 import { libraryService } from './services/LibraryService';
+import { embeddingService } from './services/EmbeddingService';
 
 const app = new Hono();
 
@@ -256,9 +257,19 @@ initializeClients().then(async () => {
   applicationUpdateCheckJob.start();
   sessionCleanupJob.start();
   logger.info('✅ Background jobs started');
+
+  // Warm the embedding model so the first search doesn't pay the load cost.
+  // Fire-and-forget; failures are logged inside the service and degrade to
+  // non-semantic search.
+  embeddingService.initialize().catch((err) => {
+    logger.warn('Embedding model warm-up failed:', err);
+  });
 });
 
 export default {
   port,
   fetch: app.fetch,
+  // Default is 10s, which is too short for slow first-time operations such as
+  // the embedding model download (~30s cold) or large IGDB result parses.
+  idleTimeout: 120,
 };

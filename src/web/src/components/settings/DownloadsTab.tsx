@@ -1,7 +1,11 @@
 import { useState, useCallback } from 'react';
-import { api } from '../../api/client';
 import QBittorrentCategorySelector from '../QBittorrentCategorySelector';
 import { useToast } from '../../contexts/ToastContext';
+import {
+  useUpdateSetting,
+  useTestQbittorrentConnection,
+  useTestSabnzbdConnection,
+} from '../../queries/settings';
 
 interface ConnectionTestResult {
   status: 'idle' | 'testing' | 'success' | 'error';
@@ -40,6 +44,11 @@ export default function DownloadsTab({
   const { addToast } = useToast();
   const [qbTest, setQbTest] = useState<ConnectionTestResult>({ status: 'idle' });
   const [sabTest, setSabTest] = useState<ConnectionTestResult>({ status: 'idle' });
+
+  const updateSetting = useUpdateSetting();
+  const testQb = useTestQbittorrentConnection();
+  const testSab = useTestSabnzbdConnection();
+
   const [isSavingQb, setIsSavingQb] = useState(false);
   const [isSavingSab, setIsSavingSab] = useState(false);
   const [isSavingDryRun, setIsSavingDryRun] = useState(false);
@@ -53,9 +62,9 @@ export default function DownloadsTab({
     setIsSavingQb(true);
     try {
       await Promise.all([
-        api.updateSetting('qbittorrent_host', qbHost.trim()),
-        api.updateSetting('qbittorrent_username', qbUsername),
-        api.updateSetting('qbittorrent_password', qbPassword),
+        updateSetting.mutateAsync({ key: 'qbittorrent_host', value: qbHost.trim() }),
+        updateSetting.mutateAsync({ key: 'qbittorrent_username', value: qbUsername }),
+        updateSetting.mutateAsync({ key: 'qbittorrent_password', value: qbPassword }),
       ]);
       addToast('qBittorrent settings saved!', 'success');
     } catch {
@@ -63,25 +72,30 @@ export default function DownloadsTab({
     } finally {
       setIsSavingQb(false);
     }
-  }, [qbHost, qbUsername, qbPassword, addToast]);
+  }, [qbHost, qbUsername, qbPassword, addToast, updateSetting]);
 
   const testQbConnection = useCallback(async () => {
+    if (!qbHost.trim()) {
+      setQbTest({ status: 'error', message: 'Enter host first' });
+      return;
+    }
     setQbTest({ status: 'testing' });
     try {
-      const response = await api.testQbittorrentConnection({
+      const connected = await testQb.mutateAsync({
         host: qbHost.trim(),
         username: qbUsername,
         password: qbPassword,
       });
-      if (response.success && response.data) {
+      if (connected) {
         setQbTest({ status: 'success', message: 'Connected successfully!' });
       } else {
-        setQbTest({ status: 'error', message: response.error || 'Connection failed' });
+        setQbTest({ status: 'error', message: 'Connection failed. Check host and credentials.' });
       }
-    } catch {
-      setQbTest({ status: 'error', message: 'Connection test failed' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Connection failed';
+      setQbTest({ status: 'error', message });
     }
-  }, [qbHost, qbUsername, qbPassword]);
+  }, [qbHost, qbUsername, qbPassword, testQb]);
 
   const handleSaveSab = useCallback(async () => {
     if (!sabHost.trim()) {
@@ -96,8 +110,8 @@ export default function DownloadsTab({
     setIsSavingSab(true);
     try {
       await Promise.all([
-        api.updateSetting('sabnzbd_host', sabHost.trim()),
-        api.updateSetting('sabnzbd_api_key', sabApiKey.trim()),
+        updateSetting.mutateAsync({ key: 'sabnzbd_host', value: sabHost.trim() }),
+        updateSetting.mutateAsync({ key: 'sabnzbd_api_key', value: sabApiKey.trim() }),
       ]);
       addToast('SABnzbd settings saved!', 'success');
     } catch {
@@ -105,42 +119,43 @@ export default function DownloadsTab({
     } finally {
       setIsSavingSab(false);
     }
-  }, [sabHost, sabApiKey, addToast]);
+  }, [sabHost, sabApiKey, addToast, updateSetting]);
 
   const testSabConnection = useCallback(async () => {
+    if (!sabHost.trim() || !sabApiKey.trim()) {
+      setSabTest({ status: 'error', message: 'Enter host and API key first' });
+      return;
+    }
     setSabTest({ status: 'testing' });
     try {
-      const response = await api.testSabnzbdConnection({
+      const connected = await testSab.mutateAsync({
         host: sabHost.trim(),
         apiKey: sabApiKey.trim(),
       });
-      if (response.success && response.data) {
+      if (connected) {
         setSabTest({ status: 'success', message: 'Connected successfully!' });
       } else {
-        setSabTest({ status: 'error', message: response.error || 'Connection failed' });
+        setSabTest({ status: 'error', message: 'Connection failed. Check host and API key.' });
       }
-    } catch {
-      setSabTest({ status: 'error', message: 'Connection test failed' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Connection failed';
+      setSabTest({ status: 'error', message });
     }
-  }, [sabHost, sabApiKey]);
+  }, [sabHost, sabApiKey, testSab]);
 
   const handleToggleDryRun = useCallback(async () => {
     setIsSavingDryRun(true);
     try {
       const newValue = !dryRun;
-      const response = await api.updateSetting('dry_run', newValue);
-      if (response.success) {
-        setDryRun(newValue);
-        addToast(`Dry-run mode ${newValue ? 'enabled' : 'disabled'}`, 'success');
-      } else {
-        addToast('Failed to update dry-run mode', 'error');
-      }
+      await updateSetting.mutateAsync({ key: 'dry_run', value: newValue });
+      setDryRun(newValue);
+      addToast(`Dry-run mode ${newValue ? 'enabled' : 'disabled'}`, 'success');
     } catch {
       addToast('Failed to update dry-run mode', 'error');
     } finally {
       setIsSavingDryRun(false);
     }
-  }, [dryRun, setDryRun, addToast]);
+  }, [dryRun, setDryRun, addToast, updateSetting]);
 
   return (
     <>
@@ -202,10 +217,10 @@ export default function DownloadsTab({
             </button>
             <button
               onClick={testQbConnection}
-              disabled={qbTest.status === 'testing'}
+              disabled={testQb.isPending}
               className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
             >
-              {qbTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
+              {testQb.isPending ? 'Testing...' : 'Test Connection'}
             </button>
           </div>
           {qbTest.status !== 'idle' && qbTest.status !== 'testing' && (
@@ -273,10 +288,10 @@ export default function DownloadsTab({
             </button>
             <button
               onClick={testSabConnection}
-              disabled={sabTest.status === 'testing'}
+              disabled={testSab.isPending}
               className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
             >
-              {sabTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
+              {testSab.isPending ? 'Testing...' : 'Test Connection'}
             </button>
           </div>
           {sabTest.status !== 'idle' && sabTest.status !== 'testing' && (

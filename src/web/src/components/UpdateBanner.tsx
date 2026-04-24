@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { api, type AppUpdateStatus } from '../api/client';
+import { useAppUpdateStatus, useDismissAppUpdate } from '../queries/system';
 
 // Key for storing dismissed version in localStorage
 const DISMISSED_VERSION_KEY = 'gamearr_dismissed_update_version';
@@ -9,9 +8,8 @@ interface UpdateBannerProps {
 }
 
 export function UpdateBanner({ className = '' }: UpdateBannerProps) {
-  const [updateStatus, setUpdateStatus] = useState<AppUpdateStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isDismissing, setIsDismissing] = useState(false);
+  const { data: updateStatus, isLoading } = useAppUpdateStatus();
+  const dismissMutation = useDismissAppUpdate();
 
   // Check for local dismissal (session-based)
   const isLocallyDismissed = (version: string | null): boolean => {
@@ -20,41 +18,19 @@ export function UpdateBanner({ className = '' }: UpdateBannerProps) {
     return dismissed === version;
   };
 
-  useEffect(() => {
-    const fetchUpdateStatus = async () => {
-      try {
-        const response = await api.getAppUpdateStatus();
-        if (response.success && response.data) {
-          setUpdateStatus(response.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch update status:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchUpdateStatus();
-  }, []);
-
-  const handleDismiss = async () => {
+  const handleDismiss = () => {
     if (!updateStatus?.latestVersion) return;
 
-    setIsDismissing(true);
-    try {
-      // Store dismissal locally (for session persistence)
-      localStorage.setItem(DISMISSED_VERSION_KEY, updateStatus.latestVersion);
+    // Store dismissal locally (for session persistence)
+    localStorage.setItem(DISMISSED_VERSION_KEY, updateStatus.latestVersion);
 
-      // Also dismiss on server
-      await api.dismissAppUpdate();
-
-      // Update local state
-      setUpdateStatus((prev) => prev ? { ...prev, isDismissed: true } : null);
-    } catch (error) {
-      console.error('Failed to dismiss update:', error);
-    } finally {
-      setIsDismissing(false);
-    }
+    // Also dismiss on server (mutation invalidates the query on success,
+    // so the banner will disappear automatically)
+    dismissMutation.mutate(undefined, {
+      onError: (error) => {
+        console.error('Failed to dismiss update:', error);
+      },
+    });
   };
 
   // Don't show banner if:
@@ -127,7 +103,7 @@ export function UpdateBanner({ className = '' }: UpdateBannerProps) {
             {/* Dismiss button */}
             <button
               onClick={handleDismiss}
-              disabled={isDismissing}
+              disabled={dismissMutation.isPending}
               className="p-1.5 text-blue-300 hover:text-white hover:bg-blue-700 rounded transition-colors disabled:opacity-50"
               aria-label="Dismiss update notification"
             >
@@ -145,4 +121,3 @@ export function UpdateBanner({ className = '' }: UpdateBannerProps) {
     </div>
   );
 }
-

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { api, type Library } from '../api/client';
+import { useMemo } from 'react';
+import { useLibraries } from '../queries/libraries';
 
 interface LibrarySelectorProps {
   value: number | null;
@@ -14,28 +14,12 @@ export default function LibrarySelector({
   label = 'Library',
   optional = true,
 }: LibrarySelectorProps) {
-  const [libraries, setLibraries] = useState<Library[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data, isLoading } = useLibraries();
+  const libraries = useMemo(
+    () => (data ?? []).filter((lib) => lib.downloadEnabled),
+    [data]
+  );
 
-  useEffect(() => {
-    const loadLibraries = async () => {
-      try {
-        const response = await api.getLibraries();
-        if (response.success && response.data) {
-          // Only show download-enabled libraries
-          setLibraries(response.data.filter(lib => lib.downloadEnabled));
-        }
-      } catch (err) {
-        console.error('Failed to load libraries:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadLibraries();
-  }, []);
-
-  // Don't render if no libraries configured
   if (!isLoading && libraries.length === 0) {
     return null;
   }

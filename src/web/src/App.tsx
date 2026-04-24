@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense, lazy } from 'react';
+import { useState, Suspense, lazy } from 'react';
 import {
   createBrowserRouter,
   RouterProvider,
@@ -12,7 +12,7 @@ import { NavDropdown } from './components/NavDropdown';
 import { MobileNav } from './components/MobileNav';
 import { UpdateBanner } from './components/UpdateBanner';
 import { AuthGuard, useAuth } from './components/AuthGuard';
-import { api } from './api/client';
+import { useSetupStatus } from './queries/system';
 import { ToastProvider } from './contexts/ToastContext';
 import ToastContainer from './components/ToastContainer';
 
@@ -81,41 +81,21 @@ const getNavLinkClassName = ({ isActive }: { isActive: boolean }) =>
 function SetupGuard({ children }: { children: React.ReactNode }) {
   const location = useLocation();
 
-  // When on setup page, skip all checking - setup page should always be accessible
+  // When on setup page, skip all checking — setup page should always be
+  // accessible. Matches the pre-migration behavior in main; there is a known
+  // e2e test ("setup redirects to home if already completed") that expects
+  // a redirect away from /setup once setup is marked complete, but that
+  // case was never handled by the original SetupGuard either. Leaving it
+  // that way here rather than regressing other screenshot tests.
   const isOnSetupPage = location.pathname === '/setup';
 
-  // Initialize to false (no checking needed) when on setup page
-  const [isChecking, setIsChecking] = useState(!isOnSetupPage);
-  const [needsSetup, setNeedsSetup] = useState(false);
+  const { data, isLoading, isError } = useSetupStatus();
 
-  useEffect(() => {
-    // Skip check if on setup page
-    if (location.pathname === '/setup') {
-      setIsChecking(false);
-      setNeedsSetup(false);
-      return;
-    }
+  if (isOnSetupPage) {
+    return <>{children}</>;
+  }
 
-    const checkSetup = async () => {
-      setIsChecking(true);
-      try {
-        const response = await api.getSetupStatus();
-        if (response.success && response.data) {
-          setNeedsSetup(!response.data.isComplete);
-        }
-      } catch {
-        // If we can't check, assume setup is needed
-        setNeedsSetup(true);
-      } finally {
-        setIsChecking(false);
-      }
-    };
-
-    // Check setup status when navigating to other pages
-    checkSetup();
-  }, [location.pathname]);
-
-  if (isChecking) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-gray-400">Loading...</div>
@@ -123,8 +103,10 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Redirect to setup if needed (and not already there)
-  if (needsSetup && location.pathname !== '/setup') {
+  // If we can't check, assume setup is needed (matches prior behavior).
+  const needsSetup = isError ? true : !(data?.isComplete ?? false);
+
+  if (needsSetup) {
     return <Navigate to="/setup" replace />;
   }
 
