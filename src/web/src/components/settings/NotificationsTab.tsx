@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
-import { api } from '../../api/client';
 import { useToast } from '../../contexts/ToastContext';
+import { useUpdateSetting, useTestDiscordConnection } from '../../queries/settings';
+import { ApiError } from '../../queries/unwrap';
 
 interface ConnectionTestResult {
   status: 'idle' | 'testing' | 'success' | 'error';
@@ -20,17 +21,23 @@ export default function NotificationsTab({
   const [discordTest, setDiscordTest] = useState<ConnectionTestResult>({ status: 'idle' });
   const [isSavingDiscord, setIsSavingDiscord] = useState(false);
 
+  const updateSetting = useUpdateSetting();
+  const testDiscord = useTestDiscordConnection();
+
   const handleSaveDiscord = useCallback(async () => {
     setIsSavingDiscord(true);
     try {
-      await api.updateSetting('discord_webhook_url', discordWebhookUrl.trim());
+      await updateSetting.mutateAsync({
+        key: 'discord_webhook_url',
+        value: discordWebhookUrl.trim(),
+      });
       addToast('Discord settings saved!', 'success');
     } catch {
       addToast('Failed to save Discord settings', 'error');
     } finally {
       setIsSavingDiscord(false);
     }
-  }, [discordWebhookUrl, addToast]);
+  }, [discordWebhookUrl, addToast, updateSetting]);
 
   const testDiscordConnection = useCallback(async () => {
     if (!discordWebhookUrl.trim()) {
@@ -40,16 +47,14 @@ export default function NotificationsTab({
 
     setDiscordTest({ status: 'testing' });
     try {
-      const response = await api.testDiscordConnection();
-      if (response.success && response.data) {
-        setDiscordTest({ status: 'success', message: 'Test message sent to Discord!' });
-      } else {
-        setDiscordTest({ status: 'error', message: response.error || 'Connection failed' });
-      }
-    } catch {
-      setDiscordTest({ status: 'error', message: 'Connection test failed' });
+      await testDiscord.mutateAsync();
+      setDiscordTest({ status: 'success', message: 'Test message sent to Discord!' });
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : 'Connection test failed';
+      setDiscordTest({ status: 'error', message });
     }
-  }, [discordWebhookUrl]);
+  }, [discordWebhookUrl, testDiscord]);
 
   return (
     <>
