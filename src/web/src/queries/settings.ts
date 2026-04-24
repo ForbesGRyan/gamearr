@@ -144,7 +144,8 @@ export function useTestSteamConnection() {
 
 export function useTestDiscordConnection() {
   return useMutation({
-    mutationFn: async () => unwrap(await api.testDiscordConnection()),
+    mutationFn: async (config?: { webhookUrl: string }) =>
+      unwrap(await api.testDiscordConnection(config)),
   });
 }
 

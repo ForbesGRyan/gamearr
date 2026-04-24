@@ -908,8 +908,13 @@ class ApiClient {
     return this.request<boolean>('/steam/test');
   }
 
-  async testDiscordConnection(): Promise<ApiResponse<boolean>> {
-    return this.request<boolean>('/notifications/test/discord');
+  async testDiscordConnection(
+    config?: { webhookUrl: string }
+  ): Promise<ApiResponse<boolean>> {
+    return this.request<boolean>('/notifications/test/discord', {
+      method: 'POST',
+      body: config ? JSON.stringify(config) : undefined,
+    });
   }
 
   // Steam Integration

@@ -47,8 +47,14 @@ export default function NotificationsTab({
 
     setDiscordTest({ status: 'testing' });
     try {
-      await testDiscord.mutateAsync();
-      setDiscordTest({ status: 'success', message: 'Test message sent to Discord!' });
+      const connected = await testDiscord.mutateAsync({
+        webhookUrl: discordWebhookUrl.trim(),
+      });
+      if (connected) {
+        setDiscordTest({ status: 'success', message: 'Test message sent to Discord!' });
+      } else {
+        setDiscordTest({ status: 'error', message: 'Connection failed. Check the webhook URL.' });
+      }
     } catch (error) {
       const message =
         error instanceof ApiError ? error.message : 'Connection test failed';
