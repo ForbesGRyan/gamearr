@@ -8,3 +8,4 @@ export * from './auth';
 export * from './downloads';
 export * from './search';
 export * from './discover';
+export * from './updates';

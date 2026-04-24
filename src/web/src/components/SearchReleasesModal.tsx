@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { api } from '../api/client';
+import { useSearchReleasesForGame, useGrabRelease } from '../queries';
 import ConfirmModal from './ConfirmModal';
 import { CloseIcon, SeedersIcon } from './Icons';
 import { formatBytes, formatDate } from '../utils/formatters';
@@ -46,16 +47,35 @@ interface SearchReleasesModalProps {
 }
 
 function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps) {
-  const [releases, setReleases] = useState<Release[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [releaseToGrab, setReleaseToGrab] = useState<Release | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [grabError, setGrabError] = useState<string | null>(null);
   const [qbitConfigured, setQbitConfigured] = useState(true);
   const [sabConfigured, setSabConfigured] = useState(true);
 
-  // Load client configuration status
+  const gameId = game?.id;
+  const releasesQuery = useSearchReleasesForGame(gameId, {
+    enabled: isOpen && gameId !== undefined,
+  });
+  const grabReleaseMutation = useGrabRelease();
+
+  const isLoading = releasesQuery.isLoading || releasesQuery.isFetching;
+  const error = releasesQuery.error
+    ? ((releasesQuery.error as Error).message || 'Failed to search for releases')
+    : null;
+
+  // Sort releases by score (descending), then seeders as tiebreaker
+  const releases = useMemo<Release[]>(() => {
+    const data = (releasesQuery.data ?? []) as Release[];
+    return [...data].sort((a, b) => {
+      const scoreA = a.score ?? 0;
+      const scoreB = b.score ?? 0;
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return (b.seeders || 0) - (a.seeders || 0);
+    });
+  }, [releasesQuery.data]);
+
+  // Load client configuration status (Batch 7 owns settings — leave as direct fetch)
   useEffect(() => {
     if (isOpen) {
       api.getSettings().then((res) => {
@@ -66,12 +86,6 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
       });
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    if (isOpen && game) {
-      searchForReleases();
-    }
-  }, [isOpen, game]);
 
   // Handle Escape key to close modal
   useEffect(() => {
@@ -87,51 +101,25 @@ function SearchReleasesModal({ isOpen, onClose, game }: SearchReleasesModalProps
     }
   }, [isOpen, onClose]);
 
-  const searchForReleases = async () => {
-    if (!game) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await api.searchReleases(game.id);
-
-      if (response.success && response.data) {
-        // Sort releases by score (descending), then seeders as tiebreaker
-        const sortedReleases = (response.data as Release[]).sort((a, b) => {
-          const scoreA = a.score ?? 0;
-          const scoreB = b.score ?? 0;
-          if (scoreB !== scoreA) return scoreB - scoreA;
-          return (b.seeders || 0) - (a.seeders || 0);
-        });
-        setReleases(sortedReleases);
-      } else {
-        setError(response.error || 'Failed to search for releases');
-      }
-    } catch (err) {
-      setError('Failed to search for releases');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleGrabConfirm = async () => {
     if (!game || !releaseToGrab) return;
+    const release = releaseToGrab;
 
     try {
-      const response = await api.grabRelease(game.id, releaseToGrab);
-
-      if (response.success) {
-        setReleaseToGrab(null);
-        setSuccessMessage('Release added to download queue!');
-      } else {
-        setReleaseToGrab(null);
-        setGrabError(`Failed to grab release: ${response.error || 'Unknown error'}`);
-      }
+      await grabReleaseMutation.mutateAsync({
+        gameId: game.id,
+        release,
+      });
+      setReleaseToGrab(null);
+      setSuccessMessage('Release added to download queue!');
     } catch (err) {
       setReleaseToGrab(null);
-      const clientName = releaseToGrab?.protocol === 'usenet' ? 'SABnzbd' : 'qBittorrent';
-      setGrabError(`Failed to grab release. Check your ${clientName} configuration.`);
+      const message =
+        err instanceof Error && err.message ? err.message : 'Unknown error';
+      const clientName = release.protocol === 'usenet' ? 'SABnzbd' : 'qBittorrent';
+      setGrabError(
+        `Failed to grab release: ${message}. Check your ${clientName} configuration.`
+      );
     }
   };
 

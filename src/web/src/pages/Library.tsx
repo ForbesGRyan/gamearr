@@ -862,7 +862,6 @@ function Library() {
       <AddGameModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onGameAdded={loadGames}
       />
 
       <SearchReleasesModal
