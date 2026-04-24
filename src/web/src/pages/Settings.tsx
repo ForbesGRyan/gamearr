@@ -1,6 +1,8 @@
-import { useState, useEffect, Suspense, lazy } from 'react';
+import { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { api } from '../api/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSetting } from '../queries/settings';
+import { queryKeys } from '../queries/keys';
 
 // Lazy load tab components
 const GeneralTab = lazy(() => import('../components/settings/GeneralTab'));
@@ -15,7 +17,6 @@ const SecurityTab = lazy(() => import('../components/settings/SecurityTab'));
 
 type SettingsTab = 'general' | 'libraries' | 'indexers' | 'downloads' | 'metadata' | 'notifications' | 'updates' | 'system' | 'security';
 
-// Loading fallback component
 function TabLoading() {
   return (
     <div className="flex items-center justify-center h-32">
@@ -25,9 +26,8 @@ function TabLoading() {
 }
 
 function Settings() {
-  // Tab state with URL params
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  // Valid tabs for validation
   const validTabs: SettingsTab[] = ['general', 'libraries', 'indexers', 'downloads', 'metadata', 'notifications', 'updates', 'system', 'security'];
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
@@ -63,157 +63,116 @@ function Settings() {
     }
   }, [activeTab]);
 
-  // Loading state
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Settings queries — one per key, cached individually.
+  // Tabs keep their existing prop interfaces; Settings.tsx owns the edit
+  // buffer (local useState) and seeds it from query data once on first load.
+  const prowlarrUrlQ = useSetting<string>('prowlarr_url');
+  const prowlarrKeyQ = useSetting<string>('prowlarr_api_key');
+  const igdbIdQ = useSetting<string>('igdb_client_id');
+  const igdbSecretQ = useSetting<string>('igdb_client_secret');
+  const qbHostQ = useSetting<string>('qbittorrent_host');
+  const qbUserQ = useSetting<string>('qbittorrent_username');
+  const qbPassQ = useSetting<string>('qbittorrent_password');
+  const sabHostQ = useSetting<string>('sabnzbd_host');
+  const sabApiKeyQ = useSetting<string>('sabnzbd_api_key');
+  const dryRunQ = useSetting<boolean>('dry_run');
+  const updateEnabledQ = useSetting<boolean>('update_check_enabled');
+  const updateScheduleQ = useSetting<'hourly' | 'daily' | 'weekly'>('update_check_schedule');
+  const defaultPolicyQ = useSetting<'notify' | 'auto' | 'ignore'>('default_update_policy');
+  const steamApiKeyQ = useSetting<string>('steam_api_key');
+  const steamIdQ = useSetting<string>('steam_id');
+  const gogRefreshTokenQ = useSetting<string>('gog_refresh_token');
+  const rssSyncIntervalQ = useSetting<number>('rss_sync_interval');
+  const searchIntervalQ = useSetting<number>('search_scheduler_interval');
+  const minScoreQ = useSetting<number>('auto_grab_min_score');
+  const minSeedersQ = useSetting<number>('auto_grab_min_seeders');
+  const trendingCacheQ = useSetting<number>('trending_games_cache_interval');
+  const torrentsCacheQ = useSetting<number>('top_torrents_cache_interval');
+  const discordWebhookQ = useSetting<string>('discord_webhook_url');
+  const updatePatchHandlingQ = useSetting<'penalize' | 'hide' | 'warn_only'>('update_patch_handling');
+  const updatePatchPenaltyQ = useSetting<number>('update_patch_penalty');
 
-  // Prowlarr settings
+  const allQueries = [
+    prowlarrUrlQ, prowlarrKeyQ, igdbIdQ, igdbSecretQ, qbHostQ, qbUserQ, qbPassQ,
+    sabHostQ, sabApiKeyQ, dryRunQ, updateEnabledQ, updateScheduleQ, defaultPolicyQ,
+    steamApiKeyQ, steamIdQ, gogRefreshTokenQ, rssSyncIntervalQ, searchIntervalQ,
+    minScoreQ, minSeedersQ, trendingCacheQ, torrentsCacheQ, discordWebhookQ,
+    updatePatchHandlingQ, updatePatchPenaltyQ,
+  ];
+
+  const isLoading = allQueries.some((q) => q.isLoading);
+  const firstError = allQueries.find((q) => q.isError)?.error as Error | undefined;
+  const loadError = firstError ? 'Failed to load settings. Please refresh the page.' : null;
+
+  // Local edit buffers — preserve prop interface for tabs.
   const [prowlarrUrl, setProwlarrUrl] = useState('');
   const [prowlarrApiKey, setProwlarrApiKey] = useState('');
-
-  // IGDB settings
   const [igdbClientId, setIgdbClientId] = useState('');
   const [igdbClientSecret, setIgdbClientSecret] = useState('');
-
-  // qBittorrent settings
   const [qbHost, setQbHost] = useState('');
   const [qbUsername, setQbUsername] = useState('');
   const [qbPassword, setQbPassword] = useState('');
-
-  // SABnzbd settings
   const [sabHost, setSabHost] = useState('');
   const [sabApiKey, setSabApiKey] = useState('');
-
-  // Dry-run mode (default ON for safety)
   const [dryRun, setDryRun] = useState(true);
-
-  // Automation settings
   const [rssSyncInterval, setRssSyncInterval] = useState(15);
   const [searchSchedulerInterval, setSearchSchedulerInterval] = useState(15);
   const [autoGrabMinScore, setAutoGrabMinScore] = useState(100);
   const [autoGrabMinSeeders, setAutoGrabMinSeeders] = useState(5);
-
-  // Cache settings
   const [trendingCacheInterval, setTrendingCacheInterval] = useState(15);
   const [torrentsCacheInterval, setTorrentsCacheInterval] = useState(5);
-
-  // Update/Patch detection settings
   const [updatePatchHandling, setUpdatePatchHandling] = useState<'penalize' | 'hide' | 'warn_only'>('penalize');
   const [updatePatchPenalty, setUpdatePatchPenalty] = useState(80);
-
-  // Update check settings
   const [updateCheckEnabled, setUpdateCheckEnabled] = useState(true);
   const [updateCheckSchedule, setUpdateCheckSchedule] = useState<'hourly' | 'daily' | 'weekly'>('daily');
   const [defaultUpdatePolicy, setDefaultUpdatePolicy] = useState<'notify' | 'auto' | 'ignore'>('notify');
-
-  // Steam settings
   const [steamApiKey, setSteamApiKey] = useState('');
   const [steamId, setSteamId] = useState('');
-
-  // GOG settings
   const [gogRefreshToken, setGogRefreshToken] = useState('');
-
-  // Discord settings
   const [discordWebhookUrl, setDiscordWebhookUrl] = useState('');
 
-  // Load all settings on mount
+  // Seed local buffers from query data exactly once, after first load completes.
+  // A ref gates re-seeding so that mutation-driven cache refetches don't clobber
+  // in-flight user edits in other tabs.
+  const hasSeededRef = useRef(false);
+
   useEffect(() => {
-    loadAllSettings();
-  }, []);
+    if (hasSeededRef.current) return;
+    if (isLoading) return;
+    hasSeededRef.current = true;
 
-  const loadAllSettings = async () => {
-    setIsLoading(true);
-    setLoadError(null);
+    if (prowlarrUrlQ.data) setProwlarrUrl(prowlarrUrlQ.data);
+    if (prowlarrKeyQ.data) setProwlarrApiKey(prowlarrKeyQ.data);
+    if (igdbIdQ.data) setIgdbClientId(igdbIdQ.data);
+    if (igdbSecretQ.data) setIgdbClientSecret(igdbSecretQ.data);
+    if (qbHostQ.data) setQbHost(qbHostQ.data);
+    if (qbUserQ.data) setQbUsername(qbUserQ.data);
+    if (qbPassQ.data) setQbPassword(qbPassQ.data);
+    if (sabHostQ.data) setSabHost(sabHostQ.data);
+    if (sabApiKeyQ.data) setSabApiKey(sabApiKeyQ.data);
+    if (dryRunQ.data !== null && dryRunQ.data !== undefined) setDryRun(dryRunQ.data);
+    if (updateEnabledQ.data !== null && updateEnabledQ.data !== undefined) setUpdateCheckEnabled(updateEnabledQ.data);
+    if (updateScheduleQ.data) setUpdateCheckSchedule(updateScheduleQ.data);
+    if (defaultPolicyQ.data) setDefaultUpdatePolicy(defaultPolicyQ.data);
+    if (steamApiKeyQ.data) setSteamApiKey(steamApiKeyQ.data);
+    if (steamIdQ.data) setSteamId(steamIdQ.data);
+    if (gogRefreshTokenQ.data) setGogRefreshToken(gogRefreshTokenQ.data);
+    if (rssSyncIntervalQ.data !== null && rssSyncIntervalQ.data !== undefined) setRssSyncInterval(rssSyncIntervalQ.data);
+    if (searchIntervalQ.data !== null && searchIntervalQ.data !== undefined) setSearchSchedulerInterval(searchIntervalQ.data);
+    if (minScoreQ.data !== null && minScoreQ.data !== undefined) setAutoGrabMinScore(minScoreQ.data);
+    if (minSeedersQ.data !== null && minSeedersQ.data !== undefined) setAutoGrabMinSeeders(minSeedersQ.data);
+    if (trendingCacheQ.data !== null && trendingCacheQ.data !== undefined) setTrendingCacheInterval(trendingCacheQ.data);
+    if (torrentsCacheQ.data !== null && torrentsCacheQ.data !== undefined) setTorrentsCacheInterval(torrentsCacheQ.data);
+    if (discordWebhookQ.data) setDiscordWebhookUrl(discordWebhookQ.data);
+    if (updatePatchHandlingQ.data) setUpdatePatchHandling(updatePatchHandlingQ.data);
+    if (updatePatchPenaltyQ.data !== null && updatePatchPenaltyQ.data !== undefined) setUpdatePatchPenalty(updatePatchPenaltyQ.data);
+  }, [isLoading]);
 
-    try {
-      const [
-        prowlarrUrlRes,
-        prowlarrKeyRes,
-        igdbIdRes,
-        igdbSecretRes,
-        qbHostRes,
-        qbUserRes,
-        qbPassRes,
-        dryRunRes,
-        updateEnabledRes,
-        updateScheduleRes,
-        defaultPolicyRes,
-        steamApiKeyRes,
-        steamIdRes,
-        gogRefreshTokenRes,
-        rssSyncIntervalRes,
-        searchIntervalRes,
-        minScoreRes,
-        minSeedersRes,
-        trendingCacheRes,
-        torrentsCacheRes,
-        sabHostRes,
-        sabApiKeyRes,
-        discordWebhookRes,
-        updatePatchHandlingRes,
-        updatePatchPenaltyRes,
-      ] = await Promise.all([
-        api.getSetting('prowlarr_url'),
-        api.getSetting('prowlarr_api_key'),
-        api.getSetting('igdb_client_id'),
-        api.getSetting('igdb_client_secret'),
-        api.getSetting('qbittorrent_host'),
-        api.getSetting('qbittorrent_username'),
-        api.getSetting('qbittorrent_password'),
-        api.getSetting<boolean>('dry_run'),
-        api.getSetting<boolean>('update_check_enabled'),
-        api.getSetting('update_check_schedule'),
-        api.getSetting('default_update_policy'),
-        api.getSetting('steam_api_key'),
-        api.getSetting('steam_id'),
-        api.getSetting('gog_refresh_token'),
-        api.getSetting<number>('rss_sync_interval'),
-        api.getSetting<number>('search_scheduler_interval'),
-        api.getSetting<number>('auto_grab_min_score'),
-        api.getSetting<number>('auto_grab_min_seeders'),
-        api.getSetting<number>('trending_games_cache_interval'),
-        api.getSetting<number>('top_torrents_cache_interval'),
-        api.getSetting('sabnzbd_host'),
-        api.getSetting('sabnzbd_api_key'),
-        api.getSetting('discord_webhook_url'),
-        api.getSetting('update_patch_handling'),
-        api.getSetting<number>('update_patch_penalty'),
-      ]);
-
-      if (prowlarrUrlRes.success && prowlarrUrlRes.data) setProwlarrUrl(prowlarrUrlRes.data as string);
-      if (prowlarrKeyRes.success && prowlarrKeyRes.data) setProwlarrApiKey(prowlarrKeyRes.data as string);
-      if (igdbIdRes.success && igdbIdRes.data) setIgdbClientId(igdbIdRes.data as string);
-      if (igdbSecretRes.success && igdbSecretRes.data) setIgdbClientSecret(igdbSecretRes.data as string);
-      if (qbHostRes.success && qbHostRes.data) setQbHost(qbHostRes.data as string);
-      if (qbUserRes.success && qbUserRes.data) setQbUsername(qbUserRes.data as string);
-      if (qbPassRes.success && qbPassRes.data) setQbPassword(qbPassRes.data as string);
-      if (sabHostRes.success && sabHostRes.data) setSabHost(sabHostRes.data as string);
-      if (sabApiKeyRes.success && sabApiKeyRes.data) setSabApiKey(sabApiKeyRes.data as string);
-      if (dryRunRes.success && dryRunRes.data !== undefined) setDryRun(dryRunRes.data as boolean);
-      if (updateEnabledRes.success && updateEnabledRes.data !== undefined) setUpdateCheckEnabled(updateEnabledRes.data as boolean);
-      if (updateScheduleRes.success && updateScheduleRes.data) setUpdateCheckSchedule(updateScheduleRes.data as 'hourly' | 'daily' | 'weekly');
-      if (defaultPolicyRes.success && defaultPolicyRes.data) setDefaultUpdatePolicy(defaultPolicyRes.data as 'notify' | 'auto' | 'ignore');
-      if (steamApiKeyRes.success && steamApiKeyRes.data) setSteamApiKey(steamApiKeyRes.data as string);
-      if (steamIdRes.success && steamIdRes.data) setSteamId(steamIdRes.data as string);
-      if (gogRefreshTokenRes.success && gogRefreshTokenRes.data) setGogRefreshToken(gogRefreshTokenRes.data as string);
-      if (rssSyncIntervalRes.success && rssSyncIntervalRes.data !== undefined) setRssSyncInterval(rssSyncIntervalRes.data as number);
-      if (searchIntervalRes.success && searchIntervalRes.data !== undefined) setSearchSchedulerInterval(searchIntervalRes.data as number);
-      if (minScoreRes.success && minScoreRes.data !== undefined) setAutoGrabMinScore(minScoreRes.data as number);
-      if (minSeedersRes.success && minSeedersRes.data !== undefined) setAutoGrabMinSeeders(minSeedersRes.data as number);
-      if (trendingCacheRes.success && trendingCacheRes.data !== undefined) setTrendingCacheInterval(trendingCacheRes.data as number);
-      if (torrentsCacheRes.success && torrentsCacheRes.data !== undefined) setTorrentsCacheInterval(torrentsCacheRes.data as number);
-      if (discordWebhookRes.success && discordWebhookRes.data) setDiscordWebhookUrl(discordWebhookRes.data as string);
-      if (updatePatchHandlingRes.success && updatePatchHandlingRes.data) setUpdatePatchHandling(updatePatchHandlingRes.data as 'penalize' | 'hide' | 'warn_only');
-      if (updatePatchPenaltyRes.success && updatePatchPenaltyRes.data !== undefined) setUpdatePatchPenalty(updatePatchPenaltyRes.data as number);
-    } catch (err) {
-      setLoadError('Failed to load settings. Please refresh the page.');
-      console.error('Failed to load settings:', err);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleRetry = () => {
+    hasSeededRef.current = false;
+    queryClient.invalidateQueries({ queryKey: queryKeys.settings.all });
   };
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -225,13 +184,12 @@ function Settings() {
     );
   }
 
-  // Error state
   if (loadError) {
     return (
       <div className="bg-red-900 bg-opacity-50 border border-red-700 rounded-lg p-6 text-center">
         <p className="text-red-200 mb-4">{loadError}</p>
         <button
-          onClick={loadAllSettings}
+          onClick={handleRetry}
           className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded transition"
         >
           Retry
@@ -332,7 +290,6 @@ function Settings() {
         <p className="text-gray-400 text-sm md:text-base">Configure Gamearr's integrations and preferences</p>
       </div>
 
-      {/* Mobile dropdown selector - visible only on small screens */}
       <div className="md:hidden mb-6">
         <label htmlFor="settings-section" className="block text-sm text-gray-400 mb-2">Settings Section</label>
         <select
@@ -349,7 +306,6 @@ function Settings() {
         </select>
       </div>
 
-      {/* Tab Navigation - Hidden on mobile, visible on md+ */}
       <div className="hidden md:block border-b border-gray-700 mb-6">
         <nav className="flex gap-1 overflow-x-auto scrollbar-hide pb-px">
           {tabs.map((tab) => (
@@ -369,7 +325,6 @@ function Settings() {
         </nav>
       </div>
 
-      {/* Tab Content with Suspense */}
       <div className="space-y-6">
         <Suspense fallback={<TabLoading />}>
           {activeTab === 'general' && (

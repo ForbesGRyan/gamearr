@@ -16,7 +16,13 @@ export function useSetting<T = string>(
 ) {
   return useQuery({
     queryKey: queryKeys.settings.byKey(key),
-    queryFn: async () => unwrap(await api.getSetting<T>(key)),
+    queryFn: async (): Promise<T | null> => {
+      const res = await api.getSetting<T>(key);
+      if (!res.success) {
+        throw new Error(res.error ?? `Failed to load setting ${key}`);
+      }
+      return (res.data ?? null) as T | null;
+    },
     enabled: options?.enabled ?? true,
   });
 }
