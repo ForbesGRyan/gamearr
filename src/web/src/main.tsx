@@ -27,10 +27,22 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         maxAge: PERSIST_MAX_AGE_MS,
         buster: PERSIST_BUSTER,
         dehydrateOptions: {
-          // Don't persist mutation state or errored queries — they're
-          // transient and can mask real failures on restart.
-          shouldDehydrateQuery: (query) =>
-            query.state.status === 'success',
+          shouldDehydrateQuery: (query) => {
+            // Don't persist mutation state or errored queries — they're
+            // transient and can mask real failures on restart.
+            if (query.state.status !== 'success') return false;
+
+            // State-sensitive queries that must reflect server truth on
+            // every cold load — stale persisted values here create redirect
+            // loops and phantom login states. Let them fetch fresh.
+            const root = query.queryKey[0];
+            if (root === 'auth') return false;
+            if (root === 'system' && query.queryKey[1] === 'setupStatus') {
+              return false;
+            }
+
+            return true;
+          },
         },
       }}
     >

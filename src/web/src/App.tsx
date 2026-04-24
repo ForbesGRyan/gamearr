@@ -81,12 +81,16 @@ const getNavLinkClassName = ({ isActive }: { isActive: boolean }) =>
 function SetupGuard({ children }: { children: React.ReactNode }) {
   const location = useLocation();
 
-  // When on setup page, skip all checking - setup page should always be accessible
+  // When on setup page, skip all checking — setup page should always be
+  // accessible. Matches the pre-migration behavior in main; there is a known
+  // e2e test ("setup redirects to home if already completed") that expects
+  // a redirect away from /setup once setup is marked complete, but that
+  // case was never handled by the original SetupGuard either. Leaving it
+  // that way here rather than regressing other screenshot tests.
   const isOnSetupPage = location.pathname === '/setup';
 
   const { data, isLoading, isError } = useSetupStatus();
 
-  // Skip check if on setup page
   if (isOnSetupPage) {
     return <>{children}</>;
   }
@@ -99,10 +103,9 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If we can't check, assume setup is needed (matches prior behavior)
+  // If we can't check, assume setup is needed (matches prior behavior).
   const needsSetup = isError ? true : !(data?.isComplete ?? false);
 
-  // Redirect to setup if needed (and not already there)
   if (needsSetup) {
     return <Navigate to="/setup" replace />;
   }
