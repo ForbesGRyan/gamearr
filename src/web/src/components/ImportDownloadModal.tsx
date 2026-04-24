@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from '../router/compat';
 import type { Download, SearchResult } from '../api/client';
 import { useLibraries } from '../queries/libraries';
 import { useSearchGames } from '../queries/search';
@@ -283,13 +282,13 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
 
                     <div className="flex-shrink-0 flex items-center">
                       {game.existingGameId ? (
-                        <Link
-                          to={`/games/${game.existingGameId}`}
+                        <a
+                          href={`/games/${game.existingGameId}`}
                           onClick={onClose}
                           className="bg-blue-600 hover:bg-blue-700 px-4 py-2 min-h-[44px] rounded transition text-white text-center"
                         >
                           View in Library
-                        </Link>
+                        </a>
                       ) : (
                         <button
                           onClick={() => handleImportGame(game)}

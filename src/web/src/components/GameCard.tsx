@@ -1,10 +1,10 @@
 import { useState, memo, useCallback } from 'react';
-import { Link } from '../router/compat';
+import { Link } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import StoreIcon, { GameStoreInfo } from './StoreIcon';
 import ConfirmModal from './ConfirmModal';
 import { EyeIcon, EyeSlashIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, GamepadIcon, RefreshIcon } from './Icons';
-import { getGameDetailPath, getGameSlugs } from '../utils/slug';
+import { getGameSlugs } from '../utils/slug';
 import { getCoverUrl } from '../utils/images';
 import { api } from '../api/client';
 import { queryKeys } from '../queries/keys';
@@ -35,7 +35,7 @@ interface GameCardProps {
 
 function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggleSelect, priority = false }: GameCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const detailPath = getGameDetailPath(game.platform, game.title);
+  const detailParams = getGameSlugs(game.platform, game.title);
   const queryClient = useQueryClient();
 
   // Prefetch the detail view's primary queries on hover so that clicking through
@@ -85,7 +85,8 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
       {/* Cover Image */}
       <div className="relative aspect-[2/3] bg-gray-700">
         <Link
-          to={detailPath}
+          to="/game/$platform/$slug"
+          params={detailParams}
           viewTransition
           className="block w-full h-full cursor-pointer"
           aria-label={`View ${game.title}`}
@@ -158,7 +159,8 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
                 {game.monitored ? <EyeIcon aria-hidden="true" /> : <EyeSlashIcon aria-hidden="true" />}
               </button>
               <Link
-                to={detailPath}
+                to="/game/$platform/$slug"
+          params={detailParams}
                 viewTransition
                 className="bg-purple-600 hover:bg-purple-700 min-h-[44px] min-w-[44px] flex items-center justify-center rounded transition text-sm"
                 title="View Details"
@@ -193,7 +195,8 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
       <div className="p-3">
         <h3 className="font-semibold text-sm truncate" title={game.title}>
           <Link
-            to={detailPath}
+            to="/game/$platform/$slug"
+          params={detailParams}
             viewTransition
             className="hover:text-blue-400 transition block truncate"
           >

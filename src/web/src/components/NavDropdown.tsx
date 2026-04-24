@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { NavLink, useLocation, useNavigate } from '../router/compat';
+import { Link, useLocation, useNavigate } from '@tanstack/react-router';
 
 interface NavItem {
   label: string;
@@ -57,15 +57,17 @@ export function NavDropdown({ label, basePath, items, end }: NavDropdownProps) {
     };
   }, []);
 
+  const currentTab = (location.search as { tab?: string } | undefined)?.tab;
+
   return (
     <div
       className="relative"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <NavLink
-        to={basePath}
-        end={end}
+      <Link
+        to={basePath as string}
+        activeOptions={{ exact: end }}
         viewTransition
         className={`px-3 py-2 min-h-[44px] rounded transition flex items-center gap-1 ${
           isActive
@@ -82,20 +84,17 @@ export function NavDropdown({ label, basePath, items, end }: NavDropdownProps) {
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
-      </NavLink>
+      </Link>
 
       {isOpen && (
         <div className="absolute left-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl min-w-[160px] py-1 z-50">
           {items.map((item) => {
-            const searchParams = new URLSearchParams(location.search);
-            const currentTab = searchParams.get('tab');
             const isItemActive = location.pathname === basePath &&
               (item.tab ? currentTab === item.tab : !currentTab);
 
             const handleClick = () => {
               setIsOpen(false);
-              // Use navigate with viewTransition for smooth page transitions
-              navigate(item.to, { viewTransition: true });
+              navigate({ href: item.to, viewTransition: true });
             };
 
             return (

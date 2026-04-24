@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from '../../router/compat';
+import { useNavigate } from '@tanstack/react-router';
 import { Game } from '../../api/client';
 import { GamepadIcon, TrashIcon, MagnifyingGlassIcon } from '../Icons';
 import StoreIcon from '../StoreIcon';
@@ -15,7 +15,7 @@ function GameDetailHeader({ game, onDelete }: GameDetailHeaderProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleSearchReleases = () => {
-    navigate(`/search?q=${encodeURIComponent(game.title)}`);
+    navigate({ to: '/search', search: { q: game.title } });
   };
 
   const getStatusBadge = () => {

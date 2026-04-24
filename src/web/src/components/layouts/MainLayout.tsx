@@ -1,17 +1,13 @@
 import { useState, type ReactNode } from 'react';
-import { NavLink } from '../../router/compat';
+import { Link } from '@tanstack/react-router';
 import { GamepadIcon } from '../Icons';
 import { NavDropdown } from '../NavDropdown';
 import { MobileNav } from '../MobileNav';
 import { UpdateBanner } from '../UpdateBanner';
 import { useAuth } from '../AuthGuard';
 
-const getNavLinkClassName = ({ isActive }: { isActive: boolean }) =>
-  `px-3 py-2 rounded transition ${
-    isActive
-      ? 'bg-blue-600 text-white'
-      : 'text-gray-300 hover:bg-gray-700'
-  }`;
+const NAV_BASE = 'px-3 py-2 rounded transition text-gray-300 hover:bg-gray-700';
+const NAV_ACTIVE = 'px-3 py-2 rounded transition bg-blue-600 text-white';
 
 function UserMenu() {
   const { user, logout } = useAuth();
@@ -44,13 +40,14 @@ function UserMenu() {
               <p className="text-xs text-gray-400 capitalize">{user.role}</p>
             </div>
             <div className="py-1">
-              <NavLink
-                to="/settings?tab=security"
+              <Link
+                to="/settings"
+                search={{ tab: 'security' }}
                 onClick={() => setIsOpen(false)}
                 className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
               >
                 Security Settings
-              </NavLink>
+              </Link>
               <button
                 onClick={() => {
                   setIsOpen(false);
@@ -109,18 +106,38 @@ export function MainLayout({ children }: MainLayoutProps) {
                     { label: 'Health', to: '/?tab=health', tab: 'health' },
                   ]}
                 />
-                <NavLink to="/discover" viewTransition className={getNavLinkClassName}>
+                <Link
+                  to="/discover"
+                  viewTransition
+                  className={NAV_BASE}
+                  activeProps={{ className: NAV_ACTIVE }}
+                >
                   Discover
-                </NavLink>
-                <NavLink to="/search" viewTransition className={getNavLinkClassName}>
+                </Link>
+                <Link
+                  to="/search"
+                  viewTransition
+                  className={NAV_BASE}
+                  activeProps={{ className: NAV_ACTIVE }}
+                >
                   Search
-                </NavLink>
-                <NavLink to="/activity" viewTransition className={getNavLinkClassName}>
+                </Link>
+                <Link
+                  to="/activity"
+                  viewTransition
+                  className={NAV_BASE}
+                  activeProps={{ className: NAV_ACTIVE }}
+                >
                   Activity
-                </NavLink>
-                <NavLink to="/updates" viewTransition className={getNavLinkClassName}>
+                </Link>
+                <Link
+                  to="/updates"
+                  viewTransition
+                  className={NAV_BASE}
+                  activeProps={{ className: NAV_ACTIVE }}
+                >
                   Updates
-                </NavLink>
+                </Link>
                 <NavDropdown
                   label="Settings"
                   basePath="/settings"

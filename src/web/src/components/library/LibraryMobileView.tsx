@@ -1,5 +1,5 @@
-import { useNavigate } from '../../router/compat';
-import { getGameDetailPath } from '../../utils/slug';
+import { useNavigate } from '@tanstack/react-router';
+import { getGameSlugs } from '../../utils/slug';
 import { getCoverUrl } from '../../utils/images';
 import { MobileCard, MobileCardButton } from '../MobileCard';
 import StoreIcon from '../StoreIcon';
@@ -45,7 +45,12 @@ export function LibraryMobileView({
             subtitle={game.platform}
             image={getCoverUrl(game.id, game.coverUrl)}
             status={statusInfo}
-            onClick={() => navigate(getGameDetailPath(game.platform, game.title))}
+            onClick={() =>
+              navigate({
+                to: '/game/$platform/$slug',
+                params: getGameSlugs(game.platform, game.title),
+              })
+            }
             fields={[
               { label: 'Year', value: game.year || '\u2014' },
               {

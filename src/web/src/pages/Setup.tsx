@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from '../router/compat';
+import { useNavigate } from '@tanstack/react-router';
 import { useSkipSetup } from '../queries/system';
 import {
   WelcomeStep,
@@ -200,7 +200,7 @@ export function Setup() {
       // server-side persistence failure shouldn't trap the user here.
       console.error('Failed to mark setup complete:', e);
     }
-    navigate('/');
+    navigate({ to: '/' });
   };
 
   const showProgressBar = currentStep !== 'welcome' && currentStep !== 'complete';

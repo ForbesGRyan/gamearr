@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { useParams, Link, useNavigate } from '../router/compat';
+import { Link, useNavigate, getRouteApi } from '@tanstack/react-router';
+
+const route = getRouteApi('/_auth/game/$platform/$slug');
 import {
   useDeleteGame,
   useGameBySlug,
@@ -37,7 +39,7 @@ const TABS: Tab[] = [
 ];
 
 function GameDetail() {
-  const { platform, slug } = useParams<{ platform: string; slug: string }>();
+  const { platform, slug } = route.useParams();
   const navigate = useNavigate();
 
   const gameQuery = useGameBySlug(platform, slug);
@@ -69,10 +71,10 @@ function GameDetail() {
       await deleteGameMutation.mutateAsync(game.id);
       if (document.startViewTransition) {
         document.startViewTransition(() => {
-          navigate('/');
+          navigate({ to: '/' });
         });
       } else {
-        navigate('/');
+        navigate({ to: '/' });
       }
     } catch {
       // Error surfaces via mutation state; navigation skipped.

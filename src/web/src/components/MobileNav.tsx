@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { NavLink, useLocation } from '../router/compat';
+import { Link, useLocation, type LinkOptions } from '@tanstack/react-router';
 import { GamepadIcon } from './Icons';
 
 interface MobileNavProps {
@@ -7,29 +7,30 @@ interface MobileNavProps {
   onClose: () => void;
 }
 
+type NavLinkOptions = LinkOptions & { end?: boolean };
+
 interface NavItemProps {
-  to: string;
+  linkProps: NavLinkOptions;
   label: string;
   onClick: () => void;
-  end?: boolean;
 }
 
-function NavItem({ to, label, onClick, end }: NavItemProps) {
+const NAV_BASE =
+  'block px-4 py-3 text-lg rounded-lg transition text-gray-300 hover:bg-gray-700 active:bg-gray-600';
+const NAV_ACTIVE = 'block px-4 py-3 text-lg rounded-lg transition bg-blue-600 text-white';
+
+function NavItem({ linkProps, label, onClick }: NavItemProps) {
+  const { end, ...rest } = linkProps;
   return (
-    <NavLink
-      to={to}
-      end={end}
+    <Link
+      {...(rest as LinkOptions)}
+      activeOptions={{ exact: end }}
       onClick={onClick}
-      className={({ isActive }) =>
-        `block px-4 py-3 text-lg rounded-lg transition ${
-          isActive
-            ? 'bg-blue-600 text-white'
-            : 'text-gray-300 hover:bg-gray-700 active:bg-gray-600'
-        }`
-      }
+      className={NAV_BASE}
+      activeProps={{ className: NAV_ACTIVE }}
     >
       {label}
-    </NavLink>
+    </Link>
   );
 }
 
@@ -122,29 +123,29 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
         {/* Navigation */}
         <nav className="p-4 overflow-y-auto h-[calc(100%-72px)]">
           <NavGroup title="Library">
-            <NavItem to="/" label="Games" onClick={onClose} end />
-            <NavItem to="/?tab=scan" label="Import" onClick={onClose} />
-            <NavItem to="/?tab=health" label="Health" onClick={onClose} />
+            <NavItem linkProps={{ to: '/', end: true }} label="Games" onClick={onClose} />
+            <NavItem linkProps={{ to: '/', search: { tab: 'scan' } }} label="Import" onClick={onClose} />
+            <NavItem linkProps={{ to: '/', search: { tab: 'health' } }} label="Health" onClick={onClose} />
           </NavGroup>
 
           <NavGroup title="Browse">
-            <NavItem to="/discover" label="Discover" onClick={onClose} />
-            <NavItem to="/search" label="Search" onClick={onClose} />
+            <NavItem linkProps={{ to: '/discover' }} label="Discover" onClick={onClose} />
+            <NavItem linkProps={{ to: '/search' }} label="Search" onClick={onClose} />
           </NavGroup>
 
           <NavGroup title="Downloads">
-            <NavItem to="/activity" label="Activity" onClick={onClose} />
-            <NavItem to="/updates" label="Updates" onClick={onClose} />
+            <NavItem linkProps={{ to: '/activity' }} label="Activity" onClick={onClose} />
+            <NavItem linkProps={{ to: '/updates' }} label="Updates" onClick={onClose} />
           </NavGroup>
 
           <NavGroup title="Settings">
-            <NavItem to="/settings" label="General" onClick={onClose} />
-            <NavItem to="/settings?tab=libraries" label="Libraries" onClick={onClose} />
-            <NavItem to="/settings?tab=indexers" label="Indexers" onClick={onClose} />
-            <NavItem to="/settings?tab=downloads" label="Downloads" onClick={onClose} />
-            <NavItem to="/settings?tab=metadata" label="Metadata" onClick={onClose} />
-            <NavItem to="/settings?tab=updates" label="Updates" onClick={onClose} />
-            <NavItem to="/settings?tab=system" label="System" onClick={onClose} />
+            <NavItem linkProps={{ to: '/settings' }} label="General" onClick={onClose} />
+            <NavItem linkProps={{ to: '/settings', search: { tab: 'libraries' } }} label="Libraries" onClick={onClose} />
+            <NavItem linkProps={{ to: '/settings', search: { tab: 'indexers' } }} label="Indexers" onClick={onClose} />
+            <NavItem linkProps={{ to: '/settings', search: { tab: 'downloads' } }} label="Downloads" onClick={onClose} />
+            <NavItem linkProps={{ to: '/settings', search: { tab: 'metadata' } }} label="Metadata" onClick={onClose} />
+            <NavItem linkProps={{ to: '/settings', search: { tab: 'updates' } }} label="Updates" onClick={onClose} />
+            <NavItem linkProps={{ to: '/settings', search: { tab: 'system' } }} label="System" onClick={onClose} />
           </NavGroup>
         </nav>
       </div>

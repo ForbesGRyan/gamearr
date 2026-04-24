@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { getRouteApi } from '@tanstack/react-router';
-import { useNavigate } from '../router/compat';
+import { getRouteApi, useNavigate } from '@tanstack/react-router';
 import { Release, SearchResult } from '../api/client';
 
 const route = getRouteApi('/_auth/search');
@@ -12,7 +11,7 @@ import {
   useGrabRelease,
 } from '../queries';
 import GameSelectionModal from '../components/GameSelectionModal';
-import { getGameDetailPath } from '../utils/slug';
+import { getGameSlugs } from '../utils/slug';
 import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
 import {
   SearchHeader,
@@ -128,7 +127,10 @@ function Search() {
       setSuccessMessage(`Added "${game.title}" to your library`);
       setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
       if (shouldSearchReleases) {
-        navigate(getGameDetailPath(added.platform, added.title));
+        navigate({
+          to: '/game/$platform/$slug',
+          params: getGameSlugs(added.platform, added.title),
+        });
       }
     } catch (err) {
       setErrorOverride(

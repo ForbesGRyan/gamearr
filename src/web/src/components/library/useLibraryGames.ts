@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { getRouteApi } from '@tanstack/react-router';
-import { useNavigate } from '../../router/compat';
+import { getRouteApi, useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 
 const route = getRouteApi('/_auth/');
@@ -13,7 +12,7 @@ import {
 } from '../../queries/games';
 import { useLibraries } from '../../queries/libraries';
 import { queryKeys } from '../../queries/keys';
-import { getGameDetailPath } from '../../utils/slug';
+import { getGameSlugs } from '../../utils/slug';
 import type {
   Filters,
   Game,
@@ -379,13 +378,15 @@ export function useLibraryGames() {
 
   const handleEdit = useCallback(
     (game: Game) => {
-      const path = getGameDetailPath(game.platform, game.title);
-      if (document.startViewTransition) {
-        document.startViewTransition(() => {
-          navigate(path);
+      const go = () =>
+        navigate({
+          to: '/game/$platform/$slug',
+          params: getGameSlugs(game.platform, game.title),
         });
+      if (document.startViewTransition) {
+        document.startViewTransition(go);
       } else {
-        navigate(path);
+        go();
       }
     },
     [navigate]

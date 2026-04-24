@@ -1,5 +1,5 @@
 import { useEffect, createContext, useContext, useCallback } from 'react';
-import { useNavigate } from '../router/compat';
+import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { getAuthToken, onAuthEvent, type AuthUser } from '../api/client';
 import { useAuthStatus, useCurrentUser, useLogout } from '../queries/auth';
@@ -81,17 +81,17 @@ export function AuthGuard({ children }: AuthGuardProps) {
     if (!authEnabled) return;
 
     if (!hasUsers) {
-      navigate('/register');
+      navigate({ to: '/register' });
       return;
     }
 
     if (!token) {
-      navigate('/login');
+      navigate({ to: '/login' });
       return;
     }
 
     if (meQuery.isError) {
-      navigate('/login');
+      navigate({ to: '/login' });
     }
   }, [
     statusQuery.isLoading,
@@ -111,7 +111,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
       if (event === 'unauthorized') {
         queryClient.removeQueries({ queryKey: queryKeys.auth.me() });
         queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
-        navigate('/login');
+        navigate({ to: '/login' });
       } else if (event === 'login') {
         queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
       } else if (event === 'logout') {
@@ -132,7 +132,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     } catch {
       // clearAuthToken + cache clear happens in onSettled regardless.
     }
-    navigate('/login');
+    navigate({ to: '/login' });
   }, [logoutMutation, navigate]);
 
   if (state === 'checking') {

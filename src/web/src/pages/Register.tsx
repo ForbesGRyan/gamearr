@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from '../router/compat';
+import { useNavigate, Link } from '@tanstack/react-router';
 import { useAuthStatus, useRegister } from '../queries/auth';
 import { useToast } from '../contexts/ToastContext';
 import { GamepadIcon } from '../components/Icons';
@@ -20,14 +20,14 @@ function Register() {
 
     // Auth is disabled — registration doesn't apply, send to main app
     if (!authStatus.data.authEnabled) {
-      navigate('/');
+      navigate({ to: '/' });
       return;
     }
 
     // Users already exist — this page is only for first-time setup
     if (authStatus.data.hasUsers) {
       showToast('An admin account already exists', 'info');
-      navigate('/login');
+      navigate({ to: '/login' });
     }
   }, [authStatus.isSuccess, authStatus.data, navigate, showToast]);
 
@@ -60,7 +60,7 @@ function Register() {
     try {
       await registerMutation.mutateAsync({ username, password });
       showToast('Account created successfully!', 'success');
-      navigate('/');
+      navigate({ to: '/' });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed';
       showToast(message, 'error');

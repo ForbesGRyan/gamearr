@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from '../router/compat';
+import { useNavigate, Link } from '@tanstack/react-router';
 import { getAuthToken } from '../api/client';
 import { useAuthStatus, useCurrentUser, useLogin } from '../queries/auth';
 import { useToast } from '../contexts/ToastContext';
@@ -26,12 +26,12 @@ function Login() {
     if (!authStatus.isSuccess || !authStatus.data) return;
 
     if (!authStatus.data.authEnabled) {
-      navigate('/');
+      navigate({ to: '/' });
       return;
     }
 
     if (token && me.isSuccess && me.data) {
-      navigate('/');
+      navigate({ to: '/' });
     }
   }, [authStatus.isSuccess, authStatus.data, token, me.isSuccess, me.data, navigate]);
 
@@ -51,7 +51,7 @@ function Login() {
 
     try {
       await loginMutation.mutateAsync({ username, password, rememberMe });
-      navigate('/');
+      navigate({ to: '/' });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed';
       showToast(message, 'error');

@@ -1,5 +1,5 @@
-import { Link } from '../../router/compat';
-import { getGameDetailPath } from '../../utils/slug';
+import { Link } from '@tanstack/react-router';
+import { getGameSlugs } from '../../utils/slug';
 import { getCoverUrl } from '../../utils/images';
 import StoreIcon from '../StoreIcon';
 import { EyeIcon, EyeSlashIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, GamepadIcon } from '../Icons';
@@ -127,7 +127,8 @@ export function LibraryTableView({
               <td className="px-4 py-3">
                 <div className="flex items-center gap-3">
                   <Link
-                    to={getGameDetailPath(game.platform, game.title)}
+                    to="/game/$platform/$slug"
+                    params={getGameSlugs(game.platform, game.title)}
                     viewTransition
                     className="w-8 h-10 rounded bg-gray-700 flex-shrink-0 overflow-hidden"
                     style={{ viewTransitionName: `game-cover-${game.id}` }}
@@ -141,7 +142,8 @@ export function LibraryTableView({
                     )}
                   </Link>
                   <Link
-                    to={getGameDetailPath(game.platform, game.title)}
+                    to="/game/$platform/$slug"
+                    params={getGameSlugs(game.platform, game.title)}
                     viewTransition
                     className="font-medium hover:text-blue-400 transition"
                   >

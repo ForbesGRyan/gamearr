@@ -1,4 +1,4 @@
-import { useNavigate } from '../../router/compat';
+import { useNavigate } from '@tanstack/react-router';
 
 type Tab = 'games' | 'scan' | 'health';
 
@@ -18,9 +18,11 @@ export function LibraryTabs({
   const navigate = useNavigate();
 
   const handleTabChange = (tab: Tab) => {
-    // Use navigate with viewTransition for smooth tab transitions
-    const url = tab === 'games' ? '/' : `/?tab=${tab}`;
-    navigate(url, { viewTransition: true });
+    navigate({
+      to: '/',
+      search: tab === 'games' ? {} : { tab },
+      viewTransition: true,
+    });
     onTabChange(tab);
   };
 

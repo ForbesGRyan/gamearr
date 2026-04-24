@@ -1,7 +1,7 @@
-import { Link } from '../../router/compat';
+import { Link } from '@tanstack/react-router';
 import StoreIcon from '../StoreIcon';
 import { EyeIcon, EyeSlashIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, GamepadIcon } from '../Icons';
-import { getGameDetailPath } from '../../utils/slug';
+import { getGameSlugs } from '../../utils/slug';
 import { getCoverUrl } from '../../utils/images';
 import type { Game, SimilarGame } from './types';
 
@@ -50,7 +50,8 @@ export function LibraryOverviewGrid({
               {/* Cover & Rating */}
               <div className="flex-shrink-0">
                 <Link
-                  to={getGameDetailPath(game.platform, game.title)}
+                  to="/game/$platform/$slug"
+                  params={getGameSlugs(game.platform, game.title)}
                   viewTransition
                   className="block w-32 h-44 rounded-lg bg-gray-700 overflow-hidden shadow-lg hover:ring-2 hover:ring-blue-400 transition"
                   style={{ viewTransitionName: `game-cover-${game.id}` }}
@@ -85,7 +86,8 @@ export function LibraryOverviewGrid({
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <Link
-                      to={getGameDetailPath(game.platform, game.title)}
+                      to="/game/$platform/$slug"
+                      params={getGameSlugs(game.platform, game.title)}
                       viewTransition
                       className="font-bold text-xl hover:text-blue-400 transition"
                     >
