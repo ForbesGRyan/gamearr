@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { api, Game, GrabbedRelease, DownloadHistoryEntry, GameUpdate, Library, GameEvent } from '../api/client';
+import { api, Game, GrabbedRelease, DownloadHistoryEntry, GameUpdate, GameEvent } from '../api/client';
+import { useLibraries } from '../queries/libraries';
 import {
   GameDetailHeader,
   GameInfoSection,
@@ -37,7 +38,7 @@ function GameDetail() {
   const [history, setHistory] = useState<DownloadHistoryEntry[]>([]);
   const [updates, setUpdates] = useState<GameUpdate[]>([]);
   const [events, setEvents] = useState<GameEvent[]>([]);
-  const [libraries, setLibraries] = useState<Library[]>([]);
+  const { data: libraries = [] } = useLibraries();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('info');
@@ -65,17 +66,6 @@ function GameDetail() {
 
     loadGame();
   }, [platform, slug]);
-
-  // Load libraries on mount
-  useEffect(() => {
-    const loadLibraries = async () => {
-      const response = await api.getLibraries();
-      if (response.success && response.data) {
-        setLibraries(response.data);
-      }
-    };
-    loadLibraries();
-  }, []);
 
   const loadAdditionalData = async (gameId: number) => {
     // Load releases, history, updates, and events in parallel

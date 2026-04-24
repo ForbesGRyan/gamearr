@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { api, Download, Library, SearchResult } from '../api/client';
+import { api, Download, SearchResult } from '../api/client';
+import { useLibraries } from '../queries/libraries';
 import { CloseIcon, GamepadIcon } from './Icons';
 
 interface ImportDownloadModalProps {
@@ -16,26 +17,16 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
   const [isSearching, setIsSearching] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [libraries, setLibraries] = useState<Library[]>([]);
+  const { data: libraries = [] } = useLibraries();
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Record<number, string>>({});
 
-  // Load libraries on mount
+  // Auto-select first library when data arrives
   useEffect(() => {
-    const loadLibraries = async () => {
-      const response = await api.getLibraries();
-      if (response.success && response.data) {
-        setLibraries(response.data);
-        // Auto-select first library if available
-        if (response.data.length > 0 && !selectedLibraryId) {
-          setSelectedLibraryId(response.data[0].id);
-        }
-      }
-    };
-    if (isOpen) {
-      loadLibraries();
+    if (isOpen && libraries.length > 0 && selectedLibraryId === null) {
+      setSelectedLibraryId(libraries[0].id);
     }
-  }, [isOpen]);
+  }, [isOpen, libraries, selectedLibraryId]);
 
   // Extract game name from torrent name and auto-search
   useEffect(() => {

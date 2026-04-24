@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { api, Library } from '../api/client';
+import { api } from '../api/client';
+import { useLibraries } from '../queries/libraries';
 import StoreSelector from './StoreSelector';
 import { CloseIcon, GamepadIcon } from './Icons';
 
@@ -47,21 +48,8 @@ function MatchFolderModal({ isOpen, onClose, onFolderMatched, folder }: MatchFol
   const [error, setError] = useState<string | null>(null);
   const [selectedStores, setSelectedStores] = useState<string[]>([]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Record<number, string>>({});
-  const [libraries, setLibraries] = useState<Library[]>([]);
+  const { data: libraries = [] } = useLibraries();
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
-
-  // Load libraries on mount
-  useEffect(() => {
-    const loadLibraries = async () => {
-      const response = await api.getLibraries();
-      if (response.success && response.data) {
-        setLibraries(response.data);
-      }
-    };
-    if (isOpen) {
-      loadLibraries();
-    }
-  }, [isOpen]);
 
   // Pre-fill search with parsed title when folder changes
   useEffect(() => {

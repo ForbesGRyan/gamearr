@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { api, Library } from '../api/client';
+import { api } from '../api/client';
+import { useLibraries } from '../queries/libraries';
 import StoreSelector from './StoreSelector';
 import ConfirmModal from './ConfirmModal';
 import { CloseIcon } from './Icons';
@@ -69,7 +70,7 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
   const [status, setStatus] = useState<'wanted' | 'downloading' | 'downloaded'>('wanted');
   const [updatePolicy, setUpdatePolicy] = useState<'notify' | 'auto' | 'ignore'>('notify');
   const [libraryId, setLibraryId] = useState<number | null>(null);
-  const [libraries, setLibraries] = useState<Library[]>([]);
+  const { data: libraries = [] } = useLibraries();
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,19 +88,6 @@ function EditGameModal({ isOpen, onClose, onGameUpdated, game }: EditGameModalPr
   const [isSearchingRematch, setIsSearchingRematch] = useState(false);
   const [selectedRematch, setSelectedRematch] = useState<IGDBSearchResult | null>(null);
   const [isRematching, setIsRematching] = useState(false);
-
-  // Load libraries on mount
-  useEffect(() => {
-    const loadLibraries = async () => {
-      const response = await api.getLibraries();
-      if (response.success && response.data) {
-        setLibraries(response.data);
-      }
-    };
-    if (isOpen) {
-      loadLibraries();
-    }
-  }, [isOpen]);
 
   // Load game data when modal opens
   useEffect(() => {
