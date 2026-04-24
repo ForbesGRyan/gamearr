@@ -1,6 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { api, Game, GrabbedRelease, DownloadHistoryEntry, GameUpdate, GameEvent } from '../api/client';
+import {
+  useDeleteGame,
+  useGameBySlug,
+  useGameEvents,
+  useGameHistory,
+  useGameReleases,
+  useGameUpdates,
+} from '../queries/games';
 import { useLibraries } from '../queries/libraries';
 import {
   GameDetailHeader,
@@ -33,85 +40,33 @@ function GameDetail() {
   const { platform, slug } = useParams<{ platform: string; slug: string }>();
   const navigate = useNavigate();
 
-  const [game, setGame] = useState<Game | null>(null);
-  const [releases, setReleases] = useState<GrabbedRelease[]>([]);
-  const [history, setHistory] = useState<DownloadHistoryEntry[]>([]);
-  const [updates, setUpdates] = useState<GameUpdate[]>([]);
-  const [events, setEvents] = useState<GameEvent[]>([]);
+  const gameQuery = useGameBySlug(platform, slug);
+  const game = gameQuery.data ?? null;
+  const gameId = game?.id;
+
+  const releasesQuery = useGameReleases(gameId);
+  const historyQuery = useGameHistory(gameId);
+  const updatesQuery = useGameUpdates(gameId);
+  const eventsQuery = useGameEvents(gameId);
   const { data: libraries = [] } = useLibraries();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const deleteGameMutation = useDeleteGame();
+
+  const releases = releasesQuery.data ?? [];
+  const history = historyQuery.data ?? [];
+  const updates = updatesQuery.data ?? [];
+  const events = eventsQuery.data ?? [];
+
   const [activeTab, setActiveTab] = useState<TabId>('info');
 
-  // Load game data
-  useEffect(() => {
-    const loadGame = async () => {
-      if (!platform || !slug) return;
-
-      setLoading(true);
-      setError(null);
-
-      const response = await api.getGameBySlug(platform, slug);
-
-      if (response.success && response.data) {
-        setGame(response.data);
-        // Load additional data
-        loadAdditionalData(response.data.id);
-      } else {
-        setError(response.error || 'Game not found');
-      }
-
-      setLoading(false);
-    };
-
-    loadGame();
-  }, [platform, slug]);
-
-  const loadAdditionalData = async (gameId: number) => {
-    // Load releases, history, updates, and events in parallel
-    const [releasesRes, historyRes, updatesRes, eventsRes] = await Promise.all([
-      api.getGameReleases(gameId),
-      api.getGameHistory(gameId),
-      api.getGameUpdates(gameId),
-      api.getGameEvents(gameId),
-    ]);
-
-    if (releasesRes.success && releasesRes.data) {
-      setReleases(releasesRes.data);
-    }
-    if (historyRes.success && historyRes.data) {
-      setHistory(historyRes.data);
-    }
-    if (updatesRes.success && updatesRes.data) {
-      setUpdates(updatesRes.data);
-    }
-    if (eventsRes.success && eventsRes.data) {
-      setEvents(eventsRes.data);
-    }
-  };
-
-  const handleGameUpdate = async () => {
-    if (!game) return;
-    // Reload game data
-    const response = await api.getGame(game.id);
-    if (response.success && response.data) {
-      setGame(response.data);
-    }
-  };
-
-  const handleUpdatesChange = async () => {
-    if (!game) return;
-    const response = await api.getGameUpdates(game.id);
-    if (response.success && response.data) {
-      setUpdates(response.data);
-    }
-  };
+  const loading = gameQuery.isLoading;
+  const error = gameQuery.isError
+    ? (gameQuery.error as Error)?.message || 'Game not found'
+    : null;
 
   const handleDelete = async () => {
     if (!game) return;
-    const response = await api.deleteGame(game.id);
-    if (response.success) {
-      // Use View Transition for delete navigation
+    try {
+      await deleteGameMutation.mutateAsync(game.id);
       if (document.startViewTransition) {
         document.startViewTransition(() => {
           navigate('/');
@@ -119,6 +74,8 @@ function GameDetail() {
       } else {
         navigate('/');
       }
+    } catch {
+      // Error surfaces via mutation state; navigation skipped.
     }
   };
 
@@ -162,9 +119,10 @@ function GameDetail() {
     );
   }
 
+  const pendingUpdateCount = updates.filter((u) => u.status === 'pending').length;
+
   return (
     <div>
-      {/* Back button */}
       <Link
         to="/"
         viewTransition
@@ -174,13 +132,8 @@ function GameDetail() {
         Back to Library
       </Link>
 
-      {/* Header */}
-      <GameDetailHeader
-        game={game}
-        onDelete={handleDelete}
-      />
+      <GameDetailHeader game={game} onDelete={handleDelete} />
 
-      {/* Tabs */}
       <div className="border-b border-gray-700 mb-6">
         <div className="flex gap-1">
           {TABS.map((tab) => (
@@ -194,9 +147,9 @@ function GameDetail() {
               }`}
             >
               {tab.label}
-              {tab.id === 'updates' && updates.filter(u => u.status === 'pending').length > 0 && (
+              {tab.id === 'updates' && pendingUpdateCount > 0 && (
                 <span className="ml-2 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full">
-                  {updates.filter(u => u.status === 'pending').length}
+                  {pendingUpdateCount}
                 </span>
               )}
             </button>
@@ -204,38 +157,21 @@ function GameDetail() {
         </div>
       </div>
 
-      {/* Tab Content */}
       <div className="animate-fade-in" key={activeTab}>
         {activeTab === 'info' && (
-          <GameInfoSection
-            game={game}
-            libraries={libraries}
-            onUpdate={handleGameUpdate}
-          />
+          <GameInfoSection game={game} libraries={libraries} />
         )}
-        {activeTab === 'metadata' && (
-          <GameMetadataSection game={game} />
-        )}
+        {activeTab === 'metadata' && <GameMetadataSection game={game} />}
         {activeTab === 'releases' && (
-          <GameReleasesSection
-            gameId={game.id}
-            releases={releases}
-            onReleaseGrabbed={() => loadAdditionalData(game.id)}
-          />
+          <GameReleasesSection gameId={game.id} releases={releases} />
         )}
         {activeTab === 'updates' && (
-          <GameUpdatesSection
-            game={game}
-            updates={updates}
-            onUpdatesChange={handleUpdatesChange}
-          />
+          <GameUpdatesSection game={game} updates={updates} />
         )}
         {activeTab === 'history' && (
           <GameHistorySection history={history} releases={releases} />
         )}
-        {activeTab === 'events' && (
-          <GameEventsSection events={events} />
-        )}
+        {activeTab === 'events' && <GameEventsSection events={events} />}
       </div>
     </div>
   );

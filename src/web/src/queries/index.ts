@@ -5,3 +5,4 @@ export * from './libraries';
 export * from './games';
 export * from './auth';
 export * from './downloads';
+export * from './search';

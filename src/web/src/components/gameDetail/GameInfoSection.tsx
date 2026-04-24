@@ -1,5 +1,13 @@
 import { useState } from 'react';
-import { api, Game, Library, SearchResult } from '../../api/client';
+import type { Game, Library, SearchResult } from '../../api/client';
+import {
+  useDeleteGameFolder,
+  useRematchGame,
+  useSetFolderAsPrimary,
+  useUpdateGame,
+  useUpdateGameStores,
+} from '../../queries/games';
+import { useSearchGames } from '../../queries/search';
 import StoreSelector from '../StoreSelector';
 import ConfirmModal from '../ConfirmModal';
 // import GameIntegrationSection from './GameIntegrationSection'; // Temporarily hidden
@@ -8,14 +16,15 @@ import { PencilIcon, CloseIcon, TrashIcon } from '../Icons';
 interface GameInfoSectionProps {
   game: Game;
   libraries: Library[];
-  onUpdate: () => void;
 }
 
-function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
-  const [saving, setSaving] = useState(false);
+function GameInfoSection({ game, libraries }: GameInfoSectionProps) {
+  const updateGame = useUpdateGame();
+  const updateGameStores = useUpdateGameStores();
+  const rematchGame = useRematchGame();
+  const deleteGameFolder = useDeleteGameFolder();
+  const setFolderAsPrimary = useSetFolderAsPrimary();
 
-  // Form state
-  // Initialize stores from stores array (many-to-many), fallback to legacy store field as single-element array
   const getInitialStores = (): string[] => {
     if (game.stores && game.stores.length > 0) {
       return game.stores.map((s) => s.name);
@@ -32,90 +41,66 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
   const [updatePolicy, setUpdatePolicy] = useState(game.updatePolicy || 'notify');
   const [platform, setPlatform] = useState(game.platform);
 
-  // Rematch state
   const [showRematch, setShowRematch] = useState(false);
   const [rematchQuery, setRematchQuery] = useState('');
-  const [rematchResults, setRematchResults] = useState<SearchResult[]>([]);
-  const [isSearchingRematch, setIsSearchingRematch] = useState(false);
   const [selectedRematch, setSelectedRematch] = useState<SearchResult | null>(null);
-  const [isRematching, setIsRematching] = useState(false);
+  const [activeRematchSearch, setActiveRematchSearch] = useState('');
 
-  // Folder management state
+  const rematchSearchQuery = useSearchGames(activeRematchSearch, {
+    enabled: activeRematchSearch.length > 0,
+  });
+  const rematchResults: SearchResult[] = rematchSearchQuery.data ?? [];
+
   const [deletingFolderId, setDeletingFolderId] = useState<number | null>(null);
-  const [settingPrimaryId, setSettingPrimaryId] = useState<number | null>(null);
 
   const handleDeleteFolder = async (folderId: number) => {
     try {
-      const response = await api.deleteGameFolder(game.id, folderId);
-      if (response.success) {
-        onUpdate();
-      }
+      await deleteGameFolder.mutateAsync({ gameId: game.id, folderId });
     } finally {
       setDeletingFolderId(null);
     }
   };
 
   const handleSetPrimary = async (folderId: number) => {
-    setSettingPrimaryId(folderId);
-    try {
-      const response = await api.setFolderAsPrimary(game.id, folderId);
-      if (response.success) {
-        onUpdate();
-      }
-    } finally {
-      setSettingPrimaryId(null);
-    }
+    await setFolderAsPrimary.mutateAsync({ gameId: game.id, folderId });
   };
 
   const handleSave = async () => {
-    setSaving(true);
-    // Update game fields
-    await api.updateGame(game.id, {
-      libraryId,
-      status,
-      monitored,
-      updatePolicy,
-      platform,
-    } as Parameters<typeof api.updateGame>[1]);
-    // Update stores separately via the stores endpoint
-    await api.updateGameStores(game.id, stores);
-    setSaving(false);
-    onUpdate();
+    await updateGame.mutateAsync({
+      id: game.id,
+      updates: {
+        libraryId,
+        status,
+        monitored,
+        updatePolicy,
+        platform,
+      } as Parameters<typeof updateGame.mutateAsync>[0]['updates'],
+    });
+    await updateGameStores.mutateAsync({ id: game.id, stores });
   };
 
-  const handleSearchRematch = async () => {
+  const handleSearchRematch = () => {
     if (!rematchQuery.trim()) return;
-    setIsSearchingRematch(true);
-    setRematchResults([]);
-    try {
-      const response = await api.searchGames(rematchQuery);
-      if (response.success && response.data) {
-        setRematchResults(response.data);
-      }
-    } finally {
-      setIsSearchingRematch(false);
-    }
+    setActiveRematchSearch(rematchQuery.trim());
   };
 
   const handleConfirmRematch = async () => {
     if (!selectedRematch) return;
-    setIsRematching(true);
-    try {
-      const response = await api.rematchGame(game.id, selectedRematch.igdbId);
-      if (response.success) {
-        onUpdate();
-        setShowRematch(false);
-        setRematchQuery('');
-        setRematchResults([]);
-        setSelectedRematch(null);
-      }
-    } finally {
-      setIsRematching(false);
-    }
+    await rematchGame.mutateAsync({
+      id: game.id,
+      igdbId: selectedRematch.igdbId,
+    });
+    setShowRematch(false);
+    setRematchQuery('');
+    setActiveRematchSearch('');
+    setSelectedRematch(null);
   };
 
-  // Check if form has changes
-  // Compare stores arrays
+  const saving = updateGame.isPending || updateGameStores.isPending;
+  const settingPrimaryId = setFolderAsPrimary.isPending
+    ? setFolderAsPrimary.variables?.folderId ?? null
+    : null;
+
   const originalStores = game.stores?.map((s) => s.name) || (game.store ? [game.store] : []);
   const storesChanged =
     stores.length !== originalStores.length ||
@@ -131,16 +116,11 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
 
   return (
     <div className="space-y-6">
-      {/* Store & Library */}
       <div className="bg-gray-800 rounded-lg p-4">
         <h3 className="text-lg font-semibold mb-4">Store & Library</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="md:col-span-2">
-            <StoreSelector
-              value={stores}
-              onChange={setStores}
-              label="Digital Stores"
-            />
+            <StoreSelector value={stores} onChange={setStores} label="Digital Stores" />
             <p className="text-xs text-gray-500 mt-1">
               Where you purchased or own this game (select all that apply)
             </p>
@@ -185,7 +165,6 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
         </div>
       </div>
 
-      {/* Status & Monitoring */}
       <div className="bg-gray-800 rounded-lg p-4">
         <h3 className="text-lg font-semibold mb-4">Status & Monitoring</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -208,9 +187,7 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
             </p>
           </div>
           <div>
-            <span className="block text-sm font-medium text-gray-300 mb-2">
-              Monitored
-            </span>
+            <span className="block text-sm font-medium text-gray-300 mb-2">Monitored</span>
             <button
               onClick={() => setMonitored(!monitored)}
               className={`w-full px-4 py-2 rounded transition ${
@@ -249,16 +226,12 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
       {/* External Data (HLTB, ProtonDB) - temporarily hidden */}
       {/* <GameIntegrationSection gameId={game.id} /> */}
 
-      {/* Installed Folders */}
       {game.folders && game.folders.length > 0 && (
         <div className="bg-gray-800 rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-4">Installed Folders</h3>
           <div className="space-y-2">
             {game.folders.map((folder) => (
-              <div
-                key={folder.id}
-                className="flex items-center gap-3 bg-gray-700 rounded p-3"
-              >
+              <div key={folder.id} className="flex items-center gap-3 bg-gray-700 rounded p-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm text-gray-300 truncate block">
@@ -308,7 +281,6 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
         </div>
       )}
 
-      {/* Change IGDB Match */}
       <div className="bg-gray-800 rounded-lg p-4">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-lg font-semibold">IGDB Match</h3>
@@ -317,7 +289,7 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
               onClick={() => {
                 setShowRematch(false);
                 setRematchQuery('');
-                setRematchResults([]);
+                setActiveRematchSearch('');
               }}
               className="text-gray-400 hover:text-white"
             >
@@ -326,7 +298,8 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
           )}
         </div>
         <p className="text-sm text-gray-400 mb-4">
-          Currently matched to IGDB ID: <span className="text-gray-200 font-mono">{game.igdbId}</span>
+          Currently matched to IGDB ID:{' '}
+          <span className="text-gray-200 font-mono">{game.igdbId}</span>
         </p>
 
         {!showRematch ? (
@@ -353,14 +326,13 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
               />
               <button
                 onClick={handleSearchRematch}
-                disabled={isSearchingRematch || !rematchQuery.trim()}
+                disabled={rematchSearchQuery.isFetching || !rematchQuery.trim()}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded transition disabled:opacity-50"
               >
-                {isSearchingRematch ? 'Searching...' : 'Search'}
+                {rematchSearchQuery.isFetching ? 'Searching...' : 'Search'}
               </button>
             </div>
 
-            {/* Search Results */}
             {rematchResults.length > 0 && (
               <div className="max-h-64 overflow-y-auto space-y-2 bg-gray-700 rounded-lg p-2">
                 {rematchResults.map((result) => (
@@ -405,7 +377,6 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
         )}
       </div>
 
-      {/* Save Button */}
       {hasChanges && (
         <div className="flex justify-end">
           <button
@@ -418,19 +389,21 @@ function GameInfoSection({ game, libraries, onUpdate }: GameInfoSectionProps) {
         </div>
       )}
 
-      {/* Rematch Confirmation Modal */}
       <ConfirmModal
         isOpen={selectedRematch !== null}
         title="Change Game Match"
-        message={selectedRematch ? `Change this game's IGDB match from "${game.title}" to "${selectedRematch.title}"? This will update the cover, metadata, and other game information.` : ''}
-        confirmText={isRematching ? 'Updating...' : 'Confirm Change'}
+        message={
+          selectedRematch
+            ? `Change this game's IGDB match from "${game.title}" to "${selectedRematch.title}"? This will update the cover, metadata, and other game information.`
+            : ''
+        }
+        confirmText={rematchGame.isPending ? 'Updating...' : 'Confirm Change'}
         cancelText="Cancel"
         variant="info"
         onConfirm={handleConfirmRematch}
         onCancel={() => setSelectedRematch(null)}
       />
 
-      {/* Delete Folder Confirmation Modal */}
       <ConfirmModal
         isOpen={deletingFolderId !== null}
         title="Remove Folder"

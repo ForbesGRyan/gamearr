@@ -331,7 +331,7 @@ interface ProtonDBDisplayData {
   lastSync: Date | null;
 }
 
-interface GameIntegrationData {
+export interface GameIntegrationData {
   hltb: HLTBDisplayData;
   protonDb: ProtonDBDisplayData;
 }

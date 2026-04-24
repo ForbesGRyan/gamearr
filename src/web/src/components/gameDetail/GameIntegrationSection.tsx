@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
-import { api, GameIntegrationData } from '../../api/client';
+import {
+  useGameIntegrations,
+  useSyncGameIntegrations,
+} from '../../queries/games';
 import { RefreshIcon, ClockIcon, LinuxIcon } from '../Icons';
 
 interface GameIntegrationSectionProps {
   gameId: number;
 }
 
-// ProtonDB tier colors
 const tierColors: Record<string, string> = {
   native: 'bg-green-500',
   platinum: 'bg-purple-500',
@@ -18,37 +19,21 @@ const tierColors: Record<string, string> = {
 };
 
 function GameIntegrationSection({ gameId }: GameIntegrationSectionProps) {
-  const [data, setData] = useState<GameIntegrationData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const integrationsQuery = useGameIntegrations(gameId);
+  const syncMutation = useSyncGameIntegrations();
 
-  const loadData = async () => {
-    const response = await api.getGameIntegrations(gameId);
-    if (response.success && response.data) {
-      setData(response.data);
-      setError(null);
-    } else {
-      setError(response.error || 'Failed to load integration data');
-    }
-    setLoading(false);
+  const data = integrationsQuery.data ?? null;
+  const loading = integrationsQuery.isLoading;
+  const syncing = syncMutation.isPending;
+  const error = integrationsQuery.isError
+    ? (integrationsQuery.error as Error)?.message ?? 'Failed to load integration data'
+    : syncMutation.isError
+    ? (syncMutation.error as Error)?.message ?? 'Failed to sync'
+    : null;
+
+  const handleSync = () => {
+    syncMutation.mutate(gameId);
   };
-
-  const handleSync = async () => {
-    setSyncing(true);
-    const response = await api.syncGameIntegrations(gameId);
-    if (response.success && response.data) {
-      setData(response.data);
-      setError(null);
-    } else {
-      setError(response.error || 'Failed to sync');
-    }
-    setSyncing(false);
-  };
-
-  useEffect(() => {
-    loadData();
-  }, [gameId]);
 
   if (loading) {
     return (
@@ -77,12 +62,9 @@ function GameIntegrationSection({ gameId }: GameIntegrationSectionProps) {
         </button>
       </div>
 
-      {error && (
-        <div className="text-red-400 text-sm mb-4">{error}</div>
-      )}
+      {error && <div className="text-red-400 text-sm mb-4">{error}</div>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* HowLongToBeat */}
         <div className="bg-gray-700 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-3">
             <ClockIcon className="w-5 h-5 text-blue-400" />
@@ -116,7 +98,6 @@ function GameIntegrationSection({ gameId }: GameIntegrationSectionProps) {
           )}
         </div>
 
-        {/* ProtonDB */}
         <div className="bg-gray-700 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-3">
             <LinuxIcon className="w-5 h-5 text-yellow-400" />
@@ -137,9 +118,7 @@ function GameIntegrationSection({ gameId }: GameIntegrationSectionProps) {
                   <span className="text-red-400 text-sm">Issues</span>
                 )}
               </div>
-              <p className="text-sm text-gray-400">
-                {data.protonDb.tierDescription}
-              </p>
+              <p className="text-sm text-gray-400">{data.protonDb.tierDescription}</p>
               {data.protonDb.lastSync && (
                 <p className="text-xs text-gray-500">
                   Updated: {new Date(data.protonDb.lastSync).toLocaleDateString()}
@@ -148,9 +127,7 @@ function GameIntegrationSection({ gameId }: GameIntegrationSectionProps) {
             </div>
           ) : (
             <div className="text-gray-500 text-sm">
-              {data?.protonDb.lastSync
-                ? 'No data (requires Steam app ID)'
-                : 'Not synced yet'}
+              {data?.protonDb.lastSync ? 'No data (requires Steam app ID)' : 'Not synced yet'}
             </div>
           )}
         </div>
