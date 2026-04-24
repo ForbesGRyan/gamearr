@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef, Suspense, lazy } from 'react';
-import { useSearchParams } from '../router/compat';
+import { useState, useEffect, useRef, Suspense, lazy, useCallback } from 'react';
+import { getRouteApi } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSetting } from '../queries/settings';
 import { queryKeys } from '../queries/keys';
+
+const route = getRouteApi('/_auth/settings');
 
 // Lazy load tab components
 const GeneralTab = lazy(() => import('../components/settings/GeneralTab'));
@@ -27,41 +29,18 @@ function TabLoading() {
 
 function Settings() {
   const queryClient = useQueryClient();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const validTabs: SettingsTab[] = ['general', 'libraries', 'indexers', 'downloads', 'metadata', 'notifications', 'updates', 'system', 'security'];
-
-  const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
-    const tabParam = searchParams.get('tab');
-    if (tabParam && validTabs.includes(tabParam as SettingsTab)) {
-      return tabParam as SettingsTab;
-    }
-    return 'general';
-  });
-
-  // Sync URL → state when URL changes externally (e.g., from nav dropdown)
-  useEffect(() => {
-    const tabParam = searchParams.get('tab');
-    const newTab: SettingsTab = (tabParam && validTabs.includes(tabParam as SettingsTab))
-      ? (tabParam as SettingsTab)
-      : 'general';
-    if (newTab !== activeTab) {
-      setActiveTab(newTab);
-    }
-  }, [searchParams]);
-
-  // Update URL when tab changes via internal clicks
-  useEffect(() => {
-    const currentTab = searchParams.get('tab');
-    const expectedTab = activeTab === 'general' ? null : activeTab;
-    if (expectedTab !== currentTab) {
-      if (activeTab === 'general') {
-        searchParams.delete('tab');
-      } else {
-        searchParams.set('tab', activeTab);
-      }
-      setSearchParams(searchParams, { replace: true });
-    }
-  }, [activeTab]);
+  const search = route.useSearch();
+  const navigate = route.useNavigate();
+  const activeTab: SettingsTab = search.tab ?? 'general';
+  const setActiveTab = useCallback(
+    (tab: SettingsTab) => {
+      navigate({
+        search: (prev) => ({ ...prev, tab: tab === 'general' ? undefined : tab }),
+        replace: true,
+      });
+    },
+    [navigate]
+  );
 
   // Settings queries — one per key, cached individually.
   // Tabs keep their existing prop interfaces; Settings.tsx owns the edit

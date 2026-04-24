@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from '../router/compat';
+import { getRouteApi } from '@tanstack/react-router';
+import { useNavigate } from '../router/compat';
 import { Release, SearchResult } from '../api/client';
+
+const route = getRouteApi('/_auth/search');
 import {
   useSearchGames,
   useManualSearchReleases,
@@ -25,10 +28,11 @@ import {
 
 function Search() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const search = route.useSearch();
+  const routeNavigate = route.useNavigate();
 
   // Derive search mode directly from URL - single source of truth
-  const searchMode: SearchMode = searchParams.get('tab') === 'releases' ? 'releases' : 'games';
+  const searchMode: SearchMode = search.tab === 'releases' ? 'releases' : 'games';
 
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
@@ -88,7 +92,10 @@ function Search() {
   };
 
   const handleModeChange = (mode: SearchMode) => {
-    setSearchParams({ tab: mode });
+    routeNavigate({
+      search: (prev) => ({ ...prev, tab: mode === 'games' ? undefined : mode }),
+      replace: true,
+    });
     setHasSearched(false);
     setSubmittedQuery('');
     setErrorOverride(null);

@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useSearchParams } from '../router/compat';
+import { getRouteApi } from '@tanstack/react-router';
 import AddGameModal from '../components/AddGameModal';
+
+const route = getRouteApi('/_auth/');
 import SearchReleasesModal from '../components/SearchReleasesModal';
 import MatchFolderModal from '../components/MatchFolderModal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -48,27 +50,22 @@ import type {
 type Tab = 'games' | 'scan' | 'health';
 
 function Library() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const search = route.useSearch();
+  const navigate = route.useNavigate();
 
   // Derive activeTab directly from URL - single source of truth
-  const activeTab: Tab = useMemo(() => {
-    const tabParam = searchParams.get('tab');
-    if (tabParam === 'scan' || tabParam === 'health') {
-      return tabParam;
-    }
-    return 'games';
-  }, [searchParams]);
+  const activeTab: Tab = search.tab ?? 'games';
 
   // Handler to change tab - updates URL which updates activeTab
-  const setActiveTab = useCallback((tab: Tab) => {
-    const newParams = new URLSearchParams(searchParams);
-    if (tab === 'games') {
-      newParams.delete('tab');
-    } else {
-      newParams.set('tab', tab);
-    }
-    setSearchParams(newParams, { replace: true });
-  }, [searchParams, setSearchParams]);
+  const setActiveTab = useCallback(
+    (tab: Tab) => {
+      navigate({
+        search: (prev) => ({ ...prev, tab: tab === 'games' ? undefined : tab }),
+        replace: true,
+      });
+    },
+    [navigate]
+  );
 
   // Use custom hook for games state and handlers
   const {

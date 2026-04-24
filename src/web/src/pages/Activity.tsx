@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from '../router/compat';
+import { getRouteApi } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
+
+const route = getRouteApi('/_auth/activity');
 import type { Download } from '../api/client';
 import {
   useCancelDownload,
@@ -24,9 +26,6 @@ import {
   StatusFilter,
   SortField,
   SortDirection,
-  validStatusFilters,
-  validSortFields,
-  validSortDirections,
   filterDownloads,
   sortDownloads,
   isPaused,
@@ -35,19 +34,14 @@ import {
 } from '../components/activity';
 
 function Activity() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const search = route.useSearch();
+  const navigate = route.useNavigate();
   const queryClient = useQueryClient();
 
-  const initialSearch = searchParams.get('q') || '';
-  const initialStatus = validStatusFilters.includes(searchParams.get('status') as StatusFilter)
-    ? (searchParams.get('status') as StatusFilter)
-    : 'all';
-  const initialSort = validSortFields.includes(searchParams.get('sort') as SortField)
-    ? (searchParams.get('sort') as SortField)
-    : 'added';
-  const initialDir = validSortDirections.includes(searchParams.get('dir') as SortDirection)
-    ? (searchParams.get('dir') as SortDirection)
-    : 'desc';
+  const initialSearch = search.q ?? '';
+  const initialStatus: StatusFilter = search.status ?? 'all';
+  const initialSort: SortField = search.sort ?? 'added';
+  const initialDir: SortDirection = search.dir ?? 'desc';
 
   const downloadsQuery = useDownloads(true);
   const downloads: Download[] = useMemo(
@@ -73,13 +67,16 @@ function Activity() {
   const [sortDirection, setSortDirection] = useState<SortDirection>(initialDir);
 
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (searchQuery) params.set('q', searchQuery);
-    if (statusFilter !== 'all') params.set('status', statusFilter);
-    if (sortField !== 'added') params.set('sort', sortField);
-    if (sortDirection !== 'desc') params.set('dir', sortDirection);
-    setSearchParams(params, { replace: true });
-  }, [searchQuery, statusFilter, sortField, sortDirection, setSearchParams]);
+    navigate({
+      search: {
+        q: searchQuery || undefined,
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        sort: sortField === 'added' ? undefined : sortField,
+        dir: sortDirection === 'desc' ? undefined : sortDirection,
+      },
+      replace: true,
+    });
+  }, [searchQuery, statusFilter, sortField, sortDirection, navigate]);
 
   const filteredDownloads = useMemo(() => {
     const filtered = filterDownloads(downloads, searchQuery, statusFilter);

@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useSearchParams } from '../../router/compat';
+import { getRouteApi } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
+
+const route = getRouteApi('/_auth/discover');
 import { api } from '../../api/client';
 import { unwrap } from '../../queries/unwrap';
 import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../../utils/constants';
@@ -23,14 +25,15 @@ import {
 } from './types';
 
 export function useDiscoverState() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const search = route.useSearch();
+  const navigate = route.useNavigate();
   const queryClient = useQueryClient();
 
   // Read initial values from URL params
-  const initialTab = (searchParams.get('tab') as TabType) || 'trending';
-  const initialQuery = searchParams.get('q') || '';
-  const initialAge = parseInt(searchParams.get('age') || '30', 10);
-  const initialType = parseInt(searchParams.get('type') || '2', 10);
+  const initialTab: TabType = search.tab ?? 'trending';
+  const initialQuery = search.q ?? '';
+  const initialAge = search.age ?? 30;
+  const initialType = search.type ?? 2;
 
   const [activeTab, setActiveTabState] = useState<TabType>(initialTab);
   const [selectedType, setSelectedTypeState] = useState<number>(initialType);
@@ -169,41 +172,38 @@ export function useDiscoverState() {
     return cleaned;
   }, []);
 
-  // Helper to update URL params
-  const updateUrlParams = useCallback((updates: Record<string, string | null>) => {
-    setSearchParams(prev => {
-      const newParams = new URLSearchParams(prev);
-      Object.entries(updates).forEach(([key, value]) => {
-        if (value === null || value === '') {
-          newParams.delete(key);
-        } else {
-          newParams.set(key, value);
-        }
-      });
-      return newParams;
-    }, { replace: true });
-  }, [setSearchParams]);
-
   // Wrapped setters that update URL
   const setActiveTab = useCallback((tab: TabType) => {
     setActiveTabState(tab);
-    updateUrlParams({ tab: tab === 'trending' ? null : tab });
-  }, [updateUrlParams]);
+    navigate({
+      search: (prev) => ({ ...prev, tab: tab === 'trending' ? undefined : tab }),
+      replace: true,
+    });
+  }, [navigate]);
 
   const setSelectedType = useCallback((type: number) => {
     setSelectedTypeState(type);
-    updateUrlParams({ type: type === 2 ? null : type.toString() });
-  }, [updateUrlParams]);
+    navigate({
+      search: (prev) => ({ ...prev, type: type === 2 ? undefined : type }),
+      replace: true,
+    });
+  }, [navigate]);
 
   const setTorrentMaxAge = useCallback((age: number) => {
     setTorrentMaxAgeState(age);
-    updateUrlParams({ age: age === 30 ? null : age.toString() });
-  }, [updateUrlParams]);
+    navigate({
+      search: (prev) => ({ ...prev, age: age === 30 ? undefined : age }),
+      replace: true,
+    });
+  }, [navigate]);
 
   const setTorrentSearchWithUrl = useCallback((query: string) => {
     setTorrentSearch(query);
-    updateUrlParams({ q: query || null });
-  }, [updateUrlParams]);
+    navigate({
+      search: (prev) => ({ ...prev, q: query || undefined }),
+      replace: true,
+    });
+  }, [navigate]);
 
   const handleTorrentSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();

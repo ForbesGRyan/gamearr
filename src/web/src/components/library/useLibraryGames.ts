@@ -1,6 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from '../../router/compat';
+import { getRouteApi } from '@tanstack/react-router';
+import { useNavigate } from '../../router/compat';
 import { useQueryClient } from '@tanstack/react-query';
+
+const route = getRouteApi('/_auth/');
 import {
   useBatchDeleteGames,
   useBatchUpdateGames,
@@ -15,10 +18,8 @@ import type {
   Filters,
   Game,
   LibraryInfo,
-  MonitoredFilter,
   SortColumn,
   SortDirection,
-  StatusFilter,
   ViewMode,
 } from './types';
 
@@ -47,7 +48,8 @@ function serializeArrayParam(arr: string[]): string | null {
 
 export function useLibraryGames() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const search = route.useSearch();
+  const routeNavigate = route.useNavigate();
   const queryClient = useQueryClient();
 
   const gamesQuery = useGames();
@@ -84,29 +86,24 @@ export function useLibraryGames() {
   const error = errorOverride ?? (queryError ? (queryError as Error).message : null);
   const setError = setErrorOverride;
 
-  const urlViewMode = searchParams.get('view');
   const viewMode: ViewMode =
-    urlViewMode && ['posters', 'table', 'overview'].includes(urlViewMode)
-      ? (urlViewMode as ViewMode)
-      : ((localStorage.getItem('library-view-mode') as ViewMode) || 'posters');
+    search.view ?? ((localStorage.getItem('library-view-mode') as ViewMode) || 'posters');
 
-  const sortColumn = (searchParams.get('sort') as SortColumn) || 'title';
-  const sortDirection = (searchParams.get('dir') as SortDirection) || 'asc';
-  const searchQuery = searchParams.get('q') || '';
-  const currentPage = parseInt(searchParams.get('page') || '1', 10) || 1;
+  const sortColumn: SortColumn = search.sort ?? 'title';
+  const sortDirection: SortDirection = search.dir ?? 'asc';
+  const searchQuery = search.q ?? '';
+  const currentPage = search.page ?? 1;
 
   const filters: Filters = useMemo(
     () => ({
-      status: (searchParams.get('status') as StatusFilter) || 'all',
-      monitored: (searchParams.get('monitored') as MonitoredFilter) || 'all',
-      genres: parseArrayParam(searchParams.get('genres')),
-      gameModes: parseArrayParam(searchParams.get('modes')),
-      libraryId: searchParams.get('library')
-        ? parseInt(searchParams.get('library')!, 10)
-        : 'all',
-      stores: parseArrayParam(searchParams.get('stores')),
+      status: search.status ?? 'all',
+      monitored: search.monitored ?? 'all',
+      genres: parseArrayParam(search.genres ?? null),
+      gameModes: parseArrayParam(search.modes ?? null),
+      libraryId: search.library ?? 'all',
+      stores: parseArrayParam(search.stores ?? null),
     }),
-    [searchParams]
+    [search.status, search.monitored, search.genres, search.modes, search.library, search.stores]
   );
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -124,23 +121,23 @@ export function useLibraryGames() {
   });
 
   const updateUrlParams = useCallback(
-    (updates: Record<string, string | null>) => {
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev);
+    (updates: Record<string, string | number | null>) => {
+      routeNavigate({
+        search: (prev) => {
+          const next: Record<string, unknown> = { ...prev };
           for (const [key, value] of Object.entries(updates)) {
             if (value === null || value === '') {
-              next.delete(key);
+              delete next[key];
             } else {
-              next.set(key, value);
+              next[key] = value;
             }
           }
           return next;
         },
-        { replace: true }
-      );
+        replace: true,
+      });
     },
-    [setSearchParams]
+    [routeNavigate]
   );
 
   const setSortColumn = useCallback(
