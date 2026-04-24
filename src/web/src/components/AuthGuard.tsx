@@ -1,6 +1,9 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useEffect, createContext, useContext, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, getAuthToken, clearAuthToken, onAuthEvent, type AuthUser } from '../api/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { getAuthToken, onAuthEvent, type AuthUser } from '../api/client';
+import { useAuthStatus, useCurrentUser, useLogout } from '../queries/auth';
+import { queryKeys } from '../queries/keys';
 
 // Auth context to share user info across components
 interface AuthContextType {
@@ -27,92 +30,110 @@ interface AuthGuardProps {
   children: React.ReactNode;
 }
 
+type AuthState = 'checking' | 'authenticated' | 'unauthenticated';
+
 export function AuthGuard({ children }: AuthGuardProps) {
   const navigate = useNavigate();
-  const [state, setState] = useState<'checking' | 'authenticated' | 'unauthenticated'>('checking');
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const queryClient = useQueryClient();
 
-  const checkAuth = async () => {
-    try {
-      // First check if auth is enabled
-      const statusResult = await api.getAuthStatus();
+  const statusQuery = useAuthStatus();
+  const token = getAuthToken();
+  const authEnabled = statusQuery.data?.authEnabled ?? false;
+  const hasUsers = statusQuery.data?.hasUsers ?? false;
 
-      if (!statusResult.success || !statusResult.data) {
-        // Can't check status, assume auth is disabled
-        setState('authenticated');
-        return;
-      }
+  // Only fetch the current user when auth is enabled AND a token is present.
+  // Otherwise the endpoint isn't meaningful and would just 401.
+  const meQuery = useCurrentUser({
+    enabled: statusQuery.isSuccess && authEnabled && !!token,
+  });
 
-      const { authEnabled, hasUsers } = statusResult.data;
+  // Derive the guard state from query results.
+  let state: AuthState;
+  if (statusQuery.isLoading) {
+    state = 'checking';
+  } else if (!statusQuery.isSuccess) {
+    // Can't reach the status endpoint — assume auth is disabled and let through.
+    // Mirrors original behavior on statusResult failure.
+    state = 'authenticated';
+  } else if (!authEnabled) {
+    state = 'authenticated';
+  } else if (!hasUsers) {
+    // Auth is on but no accounts exist yet — redirect handled in the effect below.
+    state = 'checking';
+  } else if (!token) {
+    state = 'unauthenticated';
+  } else if (meQuery.isLoading) {
+    state = 'checking';
+  } else if (meQuery.isSuccess && meQuery.data) {
+    state = 'authenticated';
+  } else {
+    // Token is present but /auth/me failed — treat as unauthenticated.
+    state = 'unauthenticated';
+  }
 
-      // If auth is not enabled, allow access
-      if (!authEnabled) {
-        setState('authenticated');
-        return;
-      }
+  const user: AuthUser | null = meQuery.data ?? null;
 
-      // If no users exist, redirect to register
-      if (!hasUsers) {
-        navigate('/register');
-        return;
-      }
+  // Handle redirects as side effects of state changes.
+  useEffect(() => {
+    if (statusQuery.isLoading) return;
+    if (!statusQuery.isSuccess) return;
 
-      // Auth is enabled, check for valid token
-      const token = getAuthToken();
-      if (!token) {
-        navigate('/login');
-        return;
-      }
+    if (!authEnabled) return;
 
-      // Validate token by calling /auth/me
-      const meResult = await api.getCurrentUser();
+    if (!hasUsers) {
+      navigate('/register');
+      return;
+    }
 
-      if (meResult.success && meResult.data) {
-        setUser(meResult.data);
-        setState('authenticated');
-      } else {
-        // Token is invalid
-        clearAuthToken();
-        navigate('/login');
-      }
-    } catch {
-      // On error, assume not authenticated
-      clearAuthToken();
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+
+    if (meQuery.isError) {
       navigate('/login');
     }
-  };
+  }, [
+    statusQuery.isLoading,
+    statusQuery.isSuccess,
+    authEnabled,
+    hasUsers,
+    token,
+    meQuery.isError,
+    navigate,
+  ]);
 
-  const refreshUser = async () => {
-    const result = await api.getCurrentUser();
-    if (result.success && result.data) {
-      setUser(result.data);
-    }
-  };
-
-  const logout = async () => {
-    await api.logout();
-    clearAuthToken();
-    setUser(null);
-    navigate('/login');
-  };
-
+  // Bridge the api client's auth event bus into the Query cache so other
+  // parts of the app (Login page, 401 handler) can trigger a re-validation
+  // without importing the QueryClient.
   useEffect(() => {
-    checkAuth();
-
-    // Listen for auth events
     const unsubscribe = onAuthEvent((event) => {
       if (event === 'unauthorized') {
-        setUser(null);
-        setState('unauthenticated');
+        queryClient.removeQueries({ queryKey: queryKeys.auth.me() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
         navigate('/login');
       } else if (event === 'login') {
-        // Re-check auth after login
-        checkAuth();
+        queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
+      } else if (event === 'logout') {
+        queryClient.removeQueries({ queryKey: queryKeys.auth.me() });
       }
     });
-
     return unsubscribe;
-  }, [navigate]);
+  }, [queryClient, navigate]);
+
+  const refreshUser = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.auth.me() });
+  }, [queryClient]);
+
+  const logoutMutation = useLogout();
+  const logout = useCallback(async () => {
+    try {
+      await logoutMutation.mutateAsync();
+    } catch {
+      // clearAuthToken + cache clear happens in onSettled regardless.
+    }
+    navigate('/login');
+  }, [logoutMutation, navigate]);
 
   if (state === 'checking') {
     return (
@@ -143,4 +164,3 @@ export function AuthGuard({ children }: AuthGuardProps) {
     </AuthContext.Provider>
   );
 }
-

@@ -1,5 +1,17 @@
 import { useState, useEffect } from 'react';
-import { api, type AuthUser, type AuthStatus, setAuthToken } from '../../api/client';
+import {
+  useAuthStatus,
+  useChangePassword,
+  useCreateUser,
+  useDeleteUser,
+  useDisableAuth,
+  useEnableAuth,
+  useGenerateApiKey,
+  useRegister,
+  useResetUserPassword,
+  useRevokeApiKey,
+  useUsers,
+} from '../../queries/auth';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../AuthGuard';
 
@@ -7,94 +19,88 @@ function SecurityTab() {
   const { user, refreshUser } = useAuth();
   const { showToast } = useToast();
 
-  // Auth status state
-  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
-  const [isLoadingStatus, setIsLoadingStatus] = useState(true);
+  // Auth status via TanStack Query
+  const authStatusQuery = useAuthStatus();
+  const authStatus = authStatusQuery.data ?? null;
+  const isLoadingStatus = authStatusQuery.isLoading;
 
   // Enable auth state (for when auth is disabled)
   const [enableUsername, setEnableUsername] = useState('');
   const [enablePassword, setEnablePassword] = useState('');
   const [enableConfirmPassword, setEnableConfirmPassword] = useState('');
-  const [isEnabling, setIsEnabling] = useState(false);
-
-  // Disable auth state
-  const [isDisabling, setIsDisabling] = useState(false);
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  // API key state
+  // API key state — apiKey is shown once after generation, then cleared.
+  // hasApiKey mirrors user.hasApiKey so the UI can show active/regenerate state.
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
-  const [isGeneratingKey, setIsGeneratingKey] = useState(false);
-  const [isRevokingKey, setIsRevokingKey] = useState(false);
 
-  // User management state (admin only)
-  const [users, setUsers] = useState<AuthUser[]>([]);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  // User management state
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState<'admin' | 'user' | 'viewer'>('user');
-  const [isAddingUser, setIsAddingUser] = useState(false);
 
   // Password reset state (for when auth is disabled)
   const [resetUserId, setResetUserId] = useState<number | null>(null);
   const [resetPassword, setResetPassword] = useState('');
   const [resetConfirmPassword, setResetConfirmPassword] = useState('');
-  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   const isAdmin = user?.role === 'admin';
 
-  // Load auth status on mount
-  useEffect(() => {
-    loadAuthStatus();
-  }, []);
+  // Users list — load for admin with auth enabled, OR when auth is disabled but
+  // users exist (so the admin UI can be used to reset passwords before turning
+  // auth on).
+  const shouldLoadUsers = Boolean(
+    (isAdmin && authStatus?.authEnabled) ||
+      (authStatus && !authStatus.authEnabled && authStatus.hasUsers)
+  );
+  const usersQuery = useUsers({ enabled: shouldLoadUsers });
+  const users = usersQuery.data ?? [];
+  const isLoadingUsers = usersQuery.isLoading && shouldLoadUsers;
 
-  // Load user data
+  // Mutations
+  const registerMutation = useRegister();
+  const enableAuthMutation = useEnableAuth();
+  const disableAuthMutation = useDisableAuth();
+  const changePasswordMutation = useChangePassword();
+  const generateApiKeyMutation = useGenerateApiKey();
+  const revokeApiKeyMutation = useRevokeApiKey();
+  const createUserMutation = useCreateUser();
+  const deleteUserMutation = useDeleteUser();
+  const resetUserPasswordMutation = useResetUserPassword();
+
+  const isEnabling = enableAuthMutation.isPending || registerMutation.isPending;
+  const isDisabling = disableAuthMutation.isPending;
+  const isChangingPassword = changePasswordMutation.isPending;
+  const isGeneratingKey = generateApiKeyMutation.isPending;
+  const isRevokingKey = revokeApiKeyMutation.isPending;
+  const isAddingUser = createUserMutation.isPending;
+  const isResettingPassword = resetUserPasswordMutation.isPending;
+
+  // Sync API key presence from the user profile
   useEffect(() => {
     if (user?.hasApiKey !== undefined) {
       setHasApiKey(user.hasApiKey);
     }
   }, [user]);
 
-  // Load users list for admin OR when auth is disabled but users exist
+  // Surface auth-status load errors via toast to preserve original behavior.
   useEffect(() => {
-    if ((isAdmin && authStatus?.authEnabled) || (!authStatus?.authEnabled && authStatus?.hasUsers)) {
-      loadUsers();
-    }
-  }, [isAdmin, authStatus?.authEnabled, authStatus?.hasUsers]);
-
-  const loadAuthStatus = async () => {
-    setIsLoadingStatus(true);
-    try {
-      const result = await api.getAuthStatus();
-      if (result.success && result.data) {
-        setAuthStatus(result.data);
-      }
-    } catch {
+    if (authStatusQuery.isError) {
       showToast('Failed to load auth status', 'error');
-    } finally {
-      setIsLoadingStatus(false);
     }
-  };
+  }, [authStatusQuery.isError, showToast]);
 
-  const loadUsers = async () => {
-    setIsLoadingUsers(true);
-    try {
-      const result = await api.getUsers();
-      if (result.success && result.data) {
-        setUsers(result.data);
-      }
-    } catch {
+  useEffect(() => {
+    if (usersQuery.isError) {
       showToast('Failed to load users', 'error');
-    } finally {
-      setIsLoadingUsers(false);
     }
-  };
+  }, [usersQuery.isError, showToast]);
 
   // Enable authentication handler (with new admin user)
   const handleEnableAuthWithUser = async (e: React.FormEvent) => {
@@ -104,43 +110,29 @@ function SecurityTab() {
       showToast('Please fill in all fields', 'error');
       return;
     }
-
     if (enableUsername.length < 3) {
       showToast('Username must be at least 3 characters', 'error');
       return;
     }
-
     if (enablePassword.length < 8) {
       showToast('Password must be at least 8 characters', 'error');
       return;
     }
-
     if (enablePassword !== enableConfirmPassword) {
       showToast('Passwords do not match', 'error');
       return;
     }
 
-    setIsEnabling(true);
     try {
-      const result = await api.register(enableUsername, enablePassword);
-      if (result.success && result.data) {
-        // Save the token
-        setAuthToken(result.data.token);
-        showToast('Authentication enabled! You are now logged in.', 'success');
-        // Reload auth status and refresh user
-        await loadAuthStatus();
-        await refreshUser();
-        // Clear form
-        setEnableUsername('');
-        setEnablePassword('');
-        setEnableConfirmPassword('');
-      } else {
-        showToast(result.error || 'Failed to enable authentication', 'error');
-      }
-    } catch {
-      showToast('Failed to enable authentication', 'error');
-    } finally {
-      setIsEnabling(false);
+      await registerMutation.mutateAsync({ username: enableUsername, password: enablePassword });
+      showToast('Authentication enabled! You are now logged in.', 'success');
+      await refreshUser();
+      setEnableUsername('');
+      setEnablePassword('');
+      setEnableConfirmPassword('');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to enable authentication';
+      showToast(message, 'error');
     }
   };
 
@@ -150,20 +142,13 @@ function SecurityTab() {
       return;
     }
 
-    setIsEnabling(true);
     try {
-      const result = await api.enableAuth();
-      if (result.success) {
-        showToast('Authentication enabled. Please log in.', 'success');
-        // Redirect to login page
-        window.location.href = '/login';
-      } else {
-        showToast(result.error || 'Failed to enable authentication', 'error');
-      }
-    } catch {
-      showToast('Failed to enable authentication', 'error');
-    } finally {
-      setIsEnabling(false);
+      await enableAuthMutation.mutateAsync();
+      showToast('Authentication enabled. Please log in.', 'success');
+      window.location.href = '/login';
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to enable authentication';
+      showToast(message, 'error');
     }
   };
 
@@ -173,19 +158,12 @@ function SecurityTab() {
       return;
     }
 
-    setIsDisabling(true);
     try {
-      const result = await api.disableAuth();
-      if (result.success) {
-        showToast('Authentication disabled', 'success');
-        await loadAuthStatus();
-      } else {
-        showToast(result.error || 'Failed to disable authentication', 'error');
-      }
-    } catch {
-      showToast('Failed to disable authentication', 'error');
-    } finally {
-      setIsDisabling(false);
+      await disableAuthMutation.mutateAsync();
+      showToast('Authentication disabled', 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to disable authentication';
+      showToast(message, 'error');
     }
   };
 
@@ -193,40 +171,29 @@ function SecurityTab() {
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!resetUserId) {
-      return;
-    }
-
+    if (!resetUserId) return;
     if (!resetPassword) {
       showToast('Please enter a new password', 'error');
       return;
     }
-
     if (resetPassword.length < 8) {
       showToast('Password must be at least 8 characters', 'error');
       return;
     }
-
     if (resetPassword !== resetConfirmPassword) {
       showToast('Passwords do not match', 'error');
       return;
     }
 
-    setIsResettingPassword(true);
     try {
-      const result = await api.resetUserPassword(resetUserId, resetPassword);
-      if (result.success) {
-        showToast('Password reset successfully', 'success');
-        setResetUserId(null);
-        setResetPassword('');
-        setResetConfirmPassword('');
-      } else {
-        showToast(result.error || 'Failed to reset password', 'error');
-      }
-    } catch {
-      showToast('Failed to reset password', 'error');
-    } finally {
-      setIsResettingPassword(false);
+      await resetUserPasswordMutation.mutateAsync({ id: resetUserId, newPassword: resetPassword });
+      showToast('Password reset successfully', 'success');
+      setResetUserId(null);
+      setResetPassword('');
+      setResetConfirmPassword('');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to reset password';
+      showToast(message, 'error');
     }
   };
 
@@ -238,52 +205,37 @@ function SecurityTab() {
       showToast('Please fill in all fields', 'error');
       return;
     }
-
     if (newPassword.length < 8) {
       showToast('New password must be at least 8 characters', 'error');
       return;
     }
-
     if (newPassword !== confirmPassword) {
       showToast('Passwords do not match', 'error');
       return;
     }
 
-    setIsChangingPassword(true);
     try {
-      const result = await api.changePassword(currentPassword, newPassword);
-      if (result.success) {
-        showToast('Password changed successfully', 'success');
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-      } else {
-        showToast(result.error || 'Failed to change password', 'error');
-      }
-    } catch {
-      showToast('Failed to change password', 'error');
-    } finally {
-      setIsChangingPassword(false);
+      await changePasswordMutation.mutateAsync({ currentPassword, newPassword });
+      showToast('Password changed successfully', 'success');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to change password';
+      showToast(message, 'error');
     }
   };
 
   // API key handlers
   const handleGenerateApiKey = async () => {
-    setIsGeneratingKey(true);
     try {
-      const result = await api.generateApiKey();
-      if (result.success && result.data) {
-        setApiKey(result.data.apiKey);
-        setHasApiKey(true);
-        await refreshUser();
-        showToast('API key generated. Copy it now - it will not be shown again!', 'success');
-      } else {
-        showToast(result.error || 'Failed to generate API key', 'error');
-      }
-    } catch {
-      showToast('Failed to generate API key', 'error');
-    } finally {
-      setIsGeneratingKey(false);
+      const data = await generateApiKeyMutation.mutateAsync();
+      setApiKey(data.apiKey);
+      setHasApiKey(true);
+      showToast('API key generated. Copy it now - it will not be shown again!', 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to generate API key';
+      showToast(message, 'error');
     }
   };
 
@@ -292,21 +244,14 @@ function SecurityTab() {
       return;
     }
 
-    setIsRevokingKey(true);
     try {
-      const result = await api.revokeApiKey();
-      if (result.success) {
-        setApiKey(null);
-        setHasApiKey(false);
-        await refreshUser();
-        showToast('API key revoked', 'success');
-      } else {
-        showToast(result.error || 'Failed to revoke API key', 'error');
-      }
-    } catch {
-      showToast('Failed to revoke API key', 'error');
-    } finally {
-      setIsRevokingKey(false);
+      await revokeApiKeyMutation.mutateAsync();
+      setApiKey(null);
+      setHasApiKey(false);
+      showToast('API key revoked', 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to revoke API key';
+      showToast(message, 'error');
     }
   };
 
@@ -325,34 +270,29 @@ function SecurityTab() {
       showToast('Please fill in all fields', 'error');
       return;
     }
-
     if (newUsername.length < 3) {
       showToast('Username must be at least 3 characters', 'error');
       return;
     }
-
     if (newUserPassword.length < 8) {
       showToast('Password must be at least 8 characters', 'error');
       return;
     }
 
-    setIsAddingUser(true);
     try {
-      const result = await api.createUser(newUsername, newUserPassword, newUserRole);
-      if (result.success) {
-        showToast('User created successfully', 'success');
-        setNewUsername('');
-        setNewUserPassword('');
-        setNewUserRole('user');
-        setShowAddUser(false);
-        loadUsers();
-      } else {
-        showToast(result.error || 'Failed to create user', 'error');
-      }
-    } catch {
-      showToast('Failed to create user', 'error');
-    } finally {
-      setIsAddingUser(false);
+      await createUserMutation.mutateAsync({
+        username: newUsername,
+        password: newUserPassword,
+        role: newUserRole,
+      });
+      showToast('User created successfully', 'success');
+      setNewUsername('');
+      setNewUserPassword('');
+      setNewUserRole('user');
+      setShowAddUser(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create user';
+      showToast(message, 'error');
     }
   };
 
@@ -362,15 +302,11 @@ function SecurityTab() {
     }
 
     try {
-      const result = await api.deleteUser(userId);
-      if (result.success) {
-        showToast('User deleted', 'success');
-        loadUsers();
-      } else {
-        showToast(result.error || 'Failed to delete user', 'error');
-      }
-    } catch {
-      showToast('Failed to delete user', 'error');
+      await deleteUserMutation.mutateAsync(userId);
+      showToast('User deleted', 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete user';
+      showToast(message, 'error');
     }
   };
 
@@ -432,39 +368,10 @@ function SecurityTab() {
 
                 {/* Add User Form */}
                 {showAddUser && (
-                  <form onSubmit={async (e) => {
-                    e.preventDefault();
-                    if (!newUsername || !newUserPassword) {
-                      showToast('Please fill in all fields', 'error');
-                      return;
-                    }
-                    if (newUsername.length < 3) {
-                      showToast('Username must be at least 3 characters', 'error');
-                      return;
-                    }
-                    if (newUserPassword.length < 8) {
-                      showToast('Password must be at least 8 characters', 'error');
-                      return;
-                    }
-                    setIsAddingUser(true);
-                    try {
-                      const result = await api.createUser(newUsername, newUserPassword, newUserRole);
-                      if (result.success) {
-                        showToast('User created successfully', 'success');
-                        setNewUsername('');
-                        setNewUserPassword('');
-                        setNewUserRole('user');
-                        setShowAddUser(false);
-                        loadUsers();
-                      } else {
-                        showToast(result.error || 'Failed to create user', 'error');
-                      }
-                    } catch {
-                      showToast('Failed to create user', 'error');
-                    } finally {
-                      setIsAddingUser(false);
-                    }
-                  }} className="mb-4 p-4 bg-gray-800 rounded-lg border border-gray-600">
+                  <form
+                    onSubmit={handleAddUser}
+                    className="mb-4 p-4 bg-gray-800 rounded-lg border border-gray-600"
+                  >
                     <h5 className="font-medium mb-3">Create New User</h5>
                     <div className="space-y-3">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
