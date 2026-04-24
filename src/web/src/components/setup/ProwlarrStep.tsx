@@ -30,13 +30,10 @@ export default function ProwlarrStep({
     setError(null);
 
     try {
-      // Save first, then test
-      await api.updateSettings({
-        prowlarr_url: url.trim(),
-        prowlarr_api_key: apiKey.trim(),
+      const response = await api.testProwlarrConnection({
+        url: url.trim(),
+        apiKey: apiKey.trim(),
       });
-
-      const response = await api.testProwlarrConnection();
       if (response.success && response.data) {
         setTestStatus('success');
       } else {

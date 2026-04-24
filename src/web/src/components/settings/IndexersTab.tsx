@@ -49,7 +49,10 @@ export default function IndexersTab({
   const testProwlarrConnection = useCallback(async () => {
     setProwlarrTest({ status: 'testing' });
     try {
-      const response = await api.testProwlarrConnection();
+      const response = await api.testProwlarrConnection({
+        url: prowlarrUrl.trim(),
+        apiKey: prowlarrApiKey.trim(),
+      });
       if (response.success && response.data) {
         setProwlarrTest({ status: 'success', message: 'Connected successfully!' });
       } else {
@@ -58,7 +61,7 @@ export default function IndexersTab({
     } catch {
       setProwlarrTest({ status: 'error', message: 'Connection test failed' });
     }
-  }, []);
+  }, [prowlarrUrl, prowlarrApiKey]);
 
   return (
     <>

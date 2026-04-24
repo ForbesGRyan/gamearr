@@ -34,14 +34,11 @@ export default function QBittorrentStep({
     setError(null);
 
     try {
-      // Save first, then test
-      await api.updateSettings({
-        qbittorrent_host: host.trim(),
-        qbittorrent_username: username.trim(),
-        qbittorrent_password: password,
+      const response = await api.testQbittorrentConnection({
+        host: host.trim(),
+        username: username.trim(),
+        password,
       });
-
-      const response = await api.testQbittorrentConnection();
       if (response.success && response.data) {
         setTestStatus('success');
       } else {
