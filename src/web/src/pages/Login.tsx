@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link } from '../router/compat';
 import { getAuthToken } from '../api/client';
 import { useAuthStatus, useCurrentUser, useLogin } from '../queries/auth';
 import { useToast } from '../contexts/ToastContext';

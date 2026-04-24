@@ -31,7 +31,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           // Split React into its own chunk for better caching
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'react-vendor': ['react', 'react-dom', '@tanstack/react-router'],
         },
       },
     },

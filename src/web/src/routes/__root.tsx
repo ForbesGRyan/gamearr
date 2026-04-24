@@ -4,6 +4,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { queryKeys } from '../queries/keys';
 import { unwrap } from '../queries/unwrap';
+import ToastContainer from '../components/ToastContainer';
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -34,6 +35,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 function RootComponent() {
   return (
     <>
+      <ToastContainer />
       <Outlet />
       {import.meta.env.DEV && <TanStackRouterDevtools position="bottom-right" />}
     </>

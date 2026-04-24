@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from '../../router/compat';
 import { GamepadIcon } from '../Icons';
 import { NavDropdown } from '../NavDropdown';
 import { MobileNav } from '../MobileNav';

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '../router/compat';
 import type { Download, SearchResult } from '../api/client';
 import { useLibraries } from '../queries/libraries';
 import { useSearchGames } from '../queries/search';

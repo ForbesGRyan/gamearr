@@ -1,5 +1,5 @@
 import { useEffect, createContext, useContext, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../router/compat';
 import { useQueryClient } from '@tanstack/react-query';
 import { getAuthToken, onAuthEvent, type AuthUser } from '../api/client';
 import { useAuthStatus, useCurrentUser, useLogout } from '../queries/auth';

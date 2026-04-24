@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../../router/compat';
 import { Game } from '../../api/client';
 import { GamepadIcon, TrashIcon, MagnifyingGlassIcon } from '../Icons';
 import StoreIcon from '../StoreIcon';

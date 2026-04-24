@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../../router/compat';
 import { getGameDetailPath } from '../../utils/slug';
 import { getCoverUrl } from '../../utils/images';
 import { MobileCard, MobileCardButton } from '../MobileCard';

@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../../router/compat';
 
 type Tab = 'games' | 'scan' | 'health';
 

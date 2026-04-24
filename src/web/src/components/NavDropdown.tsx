@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from '../router/compat';
 
 interface NavItem {
   label: string;

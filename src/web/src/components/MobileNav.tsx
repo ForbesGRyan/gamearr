@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation } from '../router/compat';
 import { GamepadIcon } from './Icons';
 
 interface MobileNavProps {
