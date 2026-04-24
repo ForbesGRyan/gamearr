@@ -136,6 +136,13 @@ export function useTestSabnzbdConnection() {
   });
 }
 
+export function useTestIgdbConnection() {
+  return useMutation({
+    mutationFn: async (config?: { clientId: string; clientSecret: string }) =>
+      unwrap(await api.testIgdbConnection(config)),
+  });
+}
+
 export function useTestSteamConnection() {
   return useMutation({
     mutationFn: async (config?: { apiKey: string; steamId: string }) =>

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useToast } from '../../contexts/ToastContext';
 import {
   useUpdateSetting,
+  useTestIgdbConnection,
   useTestSteamConnection,
   useTestGogConnection,
   useGogAuthUrl,
@@ -44,12 +45,14 @@ export default function MetadataTab({
   const [isSavingIgdb, setIsSavingIgdb] = useState(false);
   const [isSavingSteam, setIsSavingSteam] = useState(false);
   const [isSavingGog, setIsSavingGog] = useState(false);
+  const [igdbTest, setIgdbTest] = useState<ConnectionTestResult>({ status: 'idle' });
   const [steamTest, setSteamTest] = useState<ConnectionTestResult>({ status: 'idle' });
   const [gogTest, setGogTest] = useState<ConnectionTestResult>({ status: 'idle' });
   const [showGogCodeInput, setShowGogCodeInput] = useState(false);
   const [gogCode, setGogCode] = useState('');
 
   const updateSetting = useUpdateSetting();
+  const testIgdb = useTestIgdbConnection();
   const testSteam = useTestSteamConnection();
   const testGog = useTestGogConnection();
   const gogAuthUrl = useGogAuthUrl();
@@ -105,6 +108,28 @@ export default function MetadataTab({
       setIsSavingIgdb(false);
     }
   }, [igdbClientId, igdbClientSecret, addToast, updateSetting]);
+
+  const testIgdbConnection = useCallback(async () => {
+    if (!igdbClientId.trim() || !igdbClientSecret.trim()) {
+      setIgdbTest({ status: 'error', message: 'Enter Client ID and Client Secret first' });
+      return;
+    }
+    setIgdbTest({ status: 'testing' });
+    try {
+      const connected = await testIgdb.mutateAsync({
+        clientId: igdbClientId.trim(),
+        clientSecret: igdbClientSecret.trim(),
+      });
+      if (connected) {
+        setIgdbTest({ status: 'success', message: 'Connected successfully!' });
+      } else {
+        setIgdbTest({ status: 'error', message: 'Connection failed. Check Client ID and Secret.' });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Connection test failed';
+      setIgdbTest({ status: 'error', message });
+    }
+  }, [igdbClientId, igdbClientSecret, testIgdb]);
 
   const handleSaveSteam = useCallback(async () => {
     setIsSavingSteam(true);
@@ -300,13 +325,29 @@ export default function MetadataTab({
               Found under your application's settings in the Twitch Developer Console
             </p>
           </div>
-          <button
-            onClick={handleSaveIgdb}
-            disabled={isSavingIgdb}
-            className="w-full sm:w-auto bg-green-600 hover:bg-green-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
-          >
-            {isSavingIgdb ? 'Saving...' : 'Save'}
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={handleSaveIgdb}
+              disabled={isSavingIgdb}
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
+            >
+              {isSavingIgdb ? 'Saving...' : 'Save'}
+            </button>
+            <button
+              onClick={testIgdbConnection}
+              disabled={igdbTest.status === 'testing'}
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded transition disabled:opacity-50 min-h-[44px]"
+            >
+              {igdbTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
+            </button>
+          </div>
+          {igdbTest.status !== 'idle' && igdbTest.status !== 'testing' && (
+            <p className={`text-sm mt-2 ${
+              igdbTest.status === 'success' ? 'text-green-400' : 'text-red-400'
+            }`}>
+              {igdbTest.message}
+            </p>
+          )}
         </div>
       </div>
 

@@ -904,6 +904,15 @@ class ApiClient {
     });
   }
 
+  async testIgdbConnection(
+    config?: { clientId: string; clientSecret: string }
+  ): Promise<ApiResponse<boolean>> {
+    return this.request<boolean>('/settings/test/igdb', {
+      method: 'POST',
+      body: config ? JSON.stringify(config) : undefined,
+    });
+  }
+
   async testSteamConnection(
     config?: { apiKey: string; steamId: string }
   ): Promise<ApiResponse<{ connected: boolean; playerName?: string }>> {
