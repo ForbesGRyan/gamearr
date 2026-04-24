@@ -136,6 +136,9 @@ function initializeSchema() {
         indexer TEXT NOT NULL,
         quality TEXT,
         torrent_hash TEXT,
+        protocol TEXT DEFAULT 'torrent',
+        download_client TEXT,
+        download_id TEXT,
         grabbed_at INTEGER,
         status TEXT NOT NULL DEFAULT 'pending'
       )
@@ -265,6 +268,7 @@ function initializeSchema() {
     sqlite.run('CREATE INDEX IF NOT EXISTS releases_game_id_idx ON releases(game_id)');
     sqlite.run('CREATE INDEX IF NOT EXISTS releases_status_idx ON releases(status)');
     sqlite.run('CREATE INDEX IF NOT EXISTS releases_torrent_hash_idx ON releases(torrent_hash)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS releases_download_client_idx ON releases(download_client)');
     sqlite.run('CREATE INDEX IF NOT EXISTS download_history_game_id_idx ON download_history(game_id)');
     sqlite.run('CREATE INDEX IF NOT EXISTS download_history_release_id_idx ON download_history(release_id)');
     sqlite.run('CREATE INDEX IF NOT EXISTS download_history_status_idx ON download_history(status)');
@@ -382,6 +386,14 @@ function runMigrations() {
   addColumnIfMissing('games', 'protondb_tier', 'TEXT');
   addColumnIfMissing('games', 'protondb_score', 'INTEGER');
   addColumnIfMissing('games', 'protondb_last_sync', 'INTEGER');
+
+  // Releases table migrations (SABnzbd / second download client support)
+  addColumnIfMissing('releases', 'protocol', "TEXT DEFAULT 'torrent'");
+  addColumnIfMissing('releases', 'download_client', 'TEXT');
+  addColumnIfMissing('releases', 'download_id', 'TEXT');
+  if (columnExists('releases', 'download_client')) {
+    sqlite.run('CREATE INDEX IF NOT EXISTS releases_download_client_idx ON releases(download_client)');
+  }
 
   // Create api_cache table if missing (server-side caching for discover data)
   if (!tableExists('api_cache')) {
