@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api/client';
+import { useSkipSetup } from '../queries/system';
 import {
   WelcomeStep,
   LibraryStep,
@@ -153,6 +153,7 @@ function StepContent({
 
 export function Setup() {
   const navigate = useNavigate();
+  const skipSetupMutation = useSkipSetup();
   const [currentStep, setCurrentStep] = useState<Step>('welcome');
   const [error, setError] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<TestStatus>('idle');
@@ -191,22 +192,13 @@ export function Setup() {
     }
   };
 
-  const handleFinish = async () => {
+  const finishOrSkip = async () => {
     try {
-      await api.skipSetup();
+      await skipSetupMutation.mutateAsync();
     } catch (e) {
-      // Navigate anyway - setup complete is the important action
+      // Navigate anyway — the local intent is "I'm done with setup",
+      // server-side persistence failure shouldn't trap the user here.
       console.error('Failed to mark setup complete:', e);
-    }
-    navigate('/');
-  };
-
-  const handleSkipSetup = async () => {
-    try {
-      await api.skipSetup();
-    } catch (e) {
-      // Navigate anyway - user wants to skip
-      console.error('Failed to skip setup:', e);
     }
     navigate('/');
   };
@@ -224,8 +216,8 @@ export function Setup() {
           currentStep={currentStep}
           onNext={goNext}
           onBack={goBack}
-          onFinish={handleFinish}
-          onSkipSetup={handleSkipSetup}
+          onFinish={finishOrSkip}
+          onSkipSetup={finishOrSkip}
           error={error}
           setError={setError}
           testStatus={testStatus}

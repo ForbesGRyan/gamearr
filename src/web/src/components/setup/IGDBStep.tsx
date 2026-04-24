@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { api } from '../../api/client';
+import { useUpdateSettings } from '../../queries/settings';
 import type { BaseStepProps } from './types';
 
 interface IGDBStepProps extends BaseStepProps {
@@ -19,7 +18,7 @@ export default function IGDBStep({
   clientSecret,
   setClientSecret,
 }: IGDBStepProps) {
-  const [isLoading, setIsLoading] = useState(false);
+  const updateSettings = useUpdateSettings();
 
   const handleSave = async () => {
     if (!clientId.trim() || !clientSecret.trim()) {
@@ -27,24 +26,16 @@ export default function IGDBStep({
       return;
     }
 
-    setIsLoading(true);
     setError(null);
 
     try {
-      const response = await api.updateSettings({
+      await updateSettings.mutateAsync({
         igdb_client_id: clientId.trim(),
         igdb_client_secret: clientSecret.trim(),
       });
-
-      if (response.success) {
-        onNext();
-      } else {
-        setError(response.error || 'Failed to save IGDB settings');
-      }
-    } catch {
-      setError('Failed to save IGDB settings');
-    } finally {
-      setIsLoading(false);
+      onNext();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save IGDB settings');
     }
   };
 
@@ -112,10 +103,10 @@ export default function IGDBStep({
         </button>
         <button
           onClick={handleSave}
-          disabled={isLoading}
+          disabled={updateSettings.isPending}
           className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg font-medium transition disabled:opacity-50"
         >
-          {isLoading ? 'Saving...' : 'Continue'}
+          {updateSettings.isPending ? 'Saving...' : 'Continue'}
         </button>
       </div>
     </div>
