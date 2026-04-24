@@ -1,32 +1,35 @@
 import { useState, useEffect } from 'react';
-import { api } from '../api/client';
+import { useSearchGames, useAddGame, useUpdateGameStores } from '../queries';
 import StoreSelector from './StoreSelector';
 import LibrarySelector from './LibrarySelector';
 import { CloseIcon, GamepadIcon } from './Icons';
 
-interface SearchResult {
-  igdbId: number;
-  title: string;
-  year?: number;
-  coverUrl?: string;
-  summary?: string;
-  platforms?: string[];
-}
-
 interface AddGameModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onGameAdded: () => void;
 }
 
-function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
+function AddGameModal({ isOpen, onClose }: AddGameModalProps) {
+  const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedStores, setSelectedStores] = useState<string[]>([]);
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
+
+  const searchQueryHook = useSearchGames(searchQuery, {
+    enabled: searchQuery.trim().length > 0,
+  });
+  const addGameMutation = useAddGame();
+  const updateStoresMutation = useUpdateGameStores();
+
+  const searchResults = searchQueryHook.data ?? [];
+  const isSearching = searchQueryHook.isFetching;
+  const isAdding = addGameMutation.isPending || updateStoresMutation.isPending;
+
+  const searchError = searchQueryHook.error
+    ? ((searchQueryHook.error as Error).message || 'Search failed')
+    : null;
+  const displayError = error ?? searchError;
 
   // Handle Escape key to close modal
   useEffect(() => {
@@ -44,63 +47,40 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
 
   if (!isOpen) return null;
 
-  const handleSearch = async (e: React.FormEvent) => {
+  const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!searchQuery.trim()) return;
-
-    setIsSearching(true);
+    if (!searchInput.trim()) return;
     setError(null);
-
-    try {
-      const response = await api.searchGames(searchQuery);
-
-      if (response.success && response.data) {
-        setSearchResults(response.data as SearchResult[]);
-      } else {
-        setError(response.error || 'Search failed');
-        setSearchResults([]);
-      }
-    } catch (err) {
-      console.error('Search error:', err);
-      setError('Failed to search games');
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
+    setSearchQuery(searchInput.trim());
   };
 
   const handleAddGame = async (igdbId: number) => {
-    setIsAdding(true);
     setError(null);
 
     try {
       // Add the game first (using first store for legacy field)
-      const response = await api.addGame({
+      const added = await addGameMutation.mutateAsync({
         igdbId,
         monitored: true,
         store: selectedStores[0] || null,
         libraryId: selectedLibraryId ?? undefined,
       });
 
-      if (response.success && response.data) {
-        // If multiple stores selected, update stores via the dedicated endpoint
-        if (selectedStores.length > 0) {
-          await api.updateGameStores(response.data.id, selectedStores);
-        }
-        onGameAdded();
-        onClose();
-        setSearchQuery('');
-        setSearchResults([]);
-        setSelectedStores([]);
-        setSelectedLibraryId(null);
-      } else {
-        setError(response.error || 'Failed to add game');
+      // If multiple stores selected, update stores via the dedicated endpoint
+      if (selectedStores.length > 0) {
+        await updateStoresMutation.mutateAsync({
+          id: added.id,
+          stores: selectedStores,
+        });
       }
+
+      onClose();
+      setSearchInput('');
+      setSearchQuery('');
+      setSelectedStores([]);
+      setSelectedLibraryId(null);
     } catch (err) {
-      setError('Failed to add game');
-    } finally {
-      setIsAdding(false);
+      setError(err instanceof Error ? err.message : 'Failed to add game');
     }
   };
 
@@ -131,15 +111,15 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
             <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-2" role="search">
               <input
                 type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search for a game..."
                 className="bg-gray-700 flex-1 px-4 py-2 min-h-[44px] rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-white"
                 aria-label="Search for games"
               />
               <button
                 type="submit"
-                disabled={isSearching || !searchQuery.trim()}
+                disabled={isSearching || !searchInput.trim()}
                 className="bg-blue-600 hover:bg-blue-700 px-6 py-2 min-h-[44px] rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white"
               >
                 {isSearching ? 'Searching...' : 'Search'}
@@ -161,9 +141,9 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
               />
             </div>
 
-            {error && (
+            {displayError && (
               <div className="bg-red-900 mt-3 p-3 border border-red-700 rounded text-red-200 text-sm">
-                {error}
+                {displayError}
               </div>
             )}
           </div>

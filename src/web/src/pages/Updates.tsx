@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { api } from '../api/client';
+import { useState } from 'react';
+import { usePendingUpdates, useGrabUpdate, useDismissUpdate } from '../queries';
 import ConfirmModal from '../components/ConfirmModal';
 import { formatBytes, formatDate } from '../utils/formatters';
 import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../utils/constants';
@@ -25,75 +25,55 @@ interface GameUpdate {
 type UpdateTypeFilter = 'all' | 'version' | 'dlc' | 'better_release';
 
 function Updates() {
-  const [updates, setUpdates] = useState<GameUpdate[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<UpdateTypeFilter>('all');
   const [updateToGrab, setUpdateToGrab] = useState<GameUpdate | null>(null);
   const [updateToDismiss, setUpdateToDismiss] = useState<GameUpdate | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorOverride, setErrorOverride] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadUpdates();
-  }, []);
+  const updatesQuery = usePendingUpdates();
+  const grabUpdateMutation = useGrabUpdate();
+  const dismissUpdateMutation = useDismissUpdate();
 
-  const loadUpdates = async () => {
-    setIsLoading(true);
-    setError(null);
+  const updates = (updatesQuery.data ?? []) as GameUpdate[];
+  const isLoading = updatesQuery.isLoading;
+  const isFetching = updatesQuery.isFetching;
+  const isProcessing =
+    grabUpdateMutation.isPending || dismissUpdateMutation.isPending;
 
-    try {
-      const response = await api.getPendingUpdates();
-      if (response.success && response.data) {
-        setUpdates(response.data as GameUpdate[]);
-      } else {
-        setError(response.error || 'Failed to load updates');
-      }
-    } catch (err) {
-      setError('Failed to load updates');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const queryError = updatesQuery.error
+    ? ((updatesQuery.error as Error).message || 'Failed to load updates')
+    : null;
+  const error = errorOverride ?? queryError;
 
   const handleGrab = async () => {
     if (!updateToGrab) return;
+    const target = updateToGrab;
 
-    setIsProcessing(true);
     try {
-      const response = await api.grabUpdate(updateToGrab.id);
-      if (response.success) {
-        setSuccessMessage(`Started download: ${updateToGrab.title}`);
-        setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
-        // Remove from list
-        setUpdates(updates.filter(u => u.id !== updateToGrab.id));
-      } else {
-        setError(response.error || 'Failed to grab update');
-      }
+      await grabUpdateMutation.mutateAsync(target.id);
+      setSuccessMessage(`Started download: ${target.title}`);
+      setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
     } catch (err) {
-      setError('Failed to grab update');
+      setErrorOverride(
+        err instanceof Error && err.message ? err.message : 'Failed to grab update'
+      );
     } finally {
-      setIsProcessing(false);
       setUpdateToGrab(null);
     }
   };
 
   const handleDismiss = async () => {
     if (!updateToDismiss) return;
+    const target = updateToDismiss;
 
-    setIsProcessing(true);
     try {
-      const response = await api.dismissUpdate(updateToDismiss.id);
-      if (response.success) {
-        // Remove from list
-        setUpdates(updates.filter(u => u.id !== updateToDismiss.id));
-      } else {
-        setError(response.error || 'Failed to dismiss update');
-      }
+      await dismissUpdateMutation.mutateAsync(target.id);
     } catch (err) {
-      setError('Failed to dismiss update');
+      setErrorOverride(
+        err instanceof Error && err.message ? err.message : 'Failed to dismiss update'
+      );
     } finally {
-      setIsProcessing(false);
       setUpdateToDismiss(null);
     }
   };
@@ -164,7 +144,7 @@ function Updates() {
         <div className="mb-6 p-4 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg text-red-200 flex items-center justify-between">
           <span>{error}</span>
           <button
-            onClick={() => setError(null)}
+            onClick={() => setErrorOverride(null)}
             className="ml-4 text-red-300 hover:text-red-100 min-h-[44px] px-2 flex items-center"
           >
             Dismiss
@@ -201,11 +181,11 @@ function Updates() {
         </div>
 
         <button
-          onClick={loadUpdates}
-          disabled={isLoading}
+          onClick={() => updatesQuery.refetch()}
+          disabled={isFetching}
           className="ml-auto flex items-center gap-2 px-4 py-2 min-h-[44px] bg-gray-700 hover:bg-gray-600 rounded-lg transition disabled:opacity-50"
         >
-          <svg className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           Refresh
