@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 import type { Game } from '../db/schema';
 import type { ReleaseSearchResult } from '../integrations/prowlarr/types';
 import { detectReleaseType, type ReleaseType } from '../utils/releaseType';
+import { jobRegistry } from './JobRegistry';
 
 /**
  * RSS Sync Job
@@ -41,8 +42,18 @@ export class RssSync {
 
     logger.info(`Starting RSS sync (runs every ${this.currentIntervalMinutes} minutes)`);
 
+    jobRegistry.register({
+      name: 'rss-sync',
+      schedule: `every ${this.currentIntervalMinutes} minutes`,
+      kind: 'interval',
+      intervalMs: this.currentIntervalMinutes * 60 * 1000,
+      runNow: () => this.sync(),
+    });
+
     // Run immediately on start, then at the configured interval
-    this.sync().catch((err) => logger.error('Initial RSS sync failed:', err));
+    jobRegistry
+      .recordRun('rss-sync', () => this.sync())
+      .catch((err) => logger.error('Initial RSS sync failed:', err));
 
     this.intervalId = setInterval(async () => {
       // Check if interval has changed
@@ -54,7 +65,7 @@ export class RssSync {
         return;
       }
 
-      await this.sync();
+      await jobRegistry.recordRun('rss-sync', () => this.sync());
     }, this.currentIntervalMinutes * 60 * 1000);
   }
 

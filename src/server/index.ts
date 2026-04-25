@@ -38,6 +38,7 @@ import authRouter from './routes/auth';
 import imagesRouter from './routes/images';
 import notificationsRouter from './routes/notifications';
 import tasksRouter from './routes/tasks';
+import jobsRouter from './routes/jobs';
 
 // Initialize database
 import './db';
@@ -59,6 +60,7 @@ import { handlerRegistry } from './queue/registry';
 import { TaskWorker } from './queue/TaskWorker';
 import { registerAllHandlers } from './queue/handlers';
 import { runArchiveSweep } from './queue/TaskArchiver';
+import { jobRegistry } from './jobs/JobRegistry';
 
 // Import integration clients for configuration
 import { qbittorrentClient } from './integrations/qbittorrent/QBittorrentClient';
@@ -137,6 +139,7 @@ app.route('/api/v1/gog', gogRouter);
 app.route('/api/v1/images', imagesRouter);
 app.route('/api/v1/notifications', notificationsRouter);
 app.route('/api/v1/tasks', tasksRouter);
+app.route('/api/v1/jobs', jobsRouter);
 
 // Serve static frontend files
 // Use embedded VFS in production (single binary), fall back to filesystem in development
@@ -278,15 +281,25 @@ initializeClients().then(async () => {
   // Register task handlers and start the queue worker.
   registerAllHandlers();
   taskWorker.start();
+  jobRegistry.register({
+    name: 'task-queue-worker',
+    schedule: 'continuous (poll 2s, wake on enqueue)',
+    kind: 'continuous',
+  });
   logger.info('✅ Task queue worker started');
 
   // Daily archive sweep at 03:15 local time.
+  jobRegistry.register({
+    name: 'task-archive-sweep',
+    schedule: 'daily at 03:15',
+    kind: 'cron',
+    cronExpr: '0 15 3 * * *',
+    runNow: () => runArchiveSweep(),
+  });
   new CronJob('0 15 3 * * *', () => {
-    try {
+    void jobRegistry.recordRun('task-archive-sweep', async () => {
       runArchiveSweep();
-    } catch (err) {
-      logger.error('Task archive sweep failed:', err);
-    }
+    });
   }).start();
 
   // Warm the embedding model so the first search doesn't pay the load cost.

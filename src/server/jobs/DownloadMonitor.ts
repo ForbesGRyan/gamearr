@@ -2,6 +2,7 @@ import { CronJob } from 'cron';
 import { downloadService } from '../services/DownloadService';
 import { logger } from '../utils/logger';
 import { QBittorrentError, SabnzbdError, ErrorCode } from '../utils/errors';
+import { jobRegistry } from './JobRegistry';
 
 interface ClientState {
   connected: boolean;
@@ -37,9 +38,17 @@ export class DownloadMonitor {
 
     logger.info('Starting download monitor (runs every 30 seconds)');
 
+    jobRegistry.register({
+      name: 'download-monitor',
+      schedule: 'every 30 seconds',
+      kind: 'cron',
+      cronExpr: '*/30 * * * * *',
+      runNow: () => this.sync(),
+    });
+
     // Run every 30 seconds
     this.job = new CronJob('*/30 * * * * *', async () => {
-      await this.sync();
+      await jobRegistry.recordRun('download-monitor', () => this.sync());
     });
 
     this.job.start();

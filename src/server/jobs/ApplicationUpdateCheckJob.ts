@@ -1,6 +1,7 @@
 import { applicationUpdateService, APP_UPDATE_SETTINGS } from '../services/ApplicationUpdateService';
 import { settingsService } from '../services/SettingsService';
 import { logger } from '../utils/logger';
+import { jobRegistry } from './JobRegistry';
 
 /**
  * Background job to check for Gamearr application updates.
@@ -29,14 +30,22 @@ export class ApplicationUpdateCheckJob {
 
     logger.info(`Application update check schedule: ${schedule} (every ${Math.round(intervalMs / 1000 / 60 / 60)} hours)`);
 
+    jobRegistry.register({
+      name: 'app-update-check',
+      schedule: `${schedule}`,
+      kind: 'interval',
+      intervalMs: intervalMs,
+      runNow: () => this.checkForUpdates(),
+    });
+
     // Run initial check after a delay (don't slow down startup)
     setTimeout(() => {
-      this.checkForUpdates();
+      void jobRegistry.recordRun('app-update-check', () => this.checkForUpdates());
     }, 2 * 60 * 1000); // 2 minutes after startup
 
     // Then run on schedule
     this.intervalId = setInterval(() => {
-      this.checkForUpdates();
+      void jobRegistry.recordRun('app-update-check', () => this.checkForUpdates());
     }, intervalMs);
   }
 

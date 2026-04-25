@@ -1,6 +1,7 @@
 import { CronJob } from 'cron';
 import { sessionRepository } from '../repositories/SessionRepository';
 import { logger } from '../utils/logger';
+import { jobRegistry } from './JobRegistry';
 
 /**
  * Session Cleanup Job
@@ -21,15 +22,25 @@ export class SessionCleanupJob {
 
     logger.info('Starting session cleanup job (runs hourly)');
 
+    jobRegistry.register({
+      name: 'session-cleanup',
+      schedule: 'hourly',
+      kind: 'cron',
+      cronExpr: '0 0 * * * *',
+      runNow: () => this.cleanup(),
+    });
+
     // Run at the start of every hour
     this.job = new CronJob('0 0 * * * *', async () => {
-      await this.cleanup();
+      await jobRegistry.recordRun('session-cleanup', () => this.cleanup());
     });
 
     this.job.start();
 
     // Also run immediately on startup to clean up any old sessions
-    this.cleanup().catch((err) => logger.error('Initial session cleanup failed:', err));
+    jobRegistry
+      .recordRun('session-cleanup', () => this.cleanup())
+      .catch((err) => logger.error('Initial session cleanup failed:', err));
   }
 
   /**

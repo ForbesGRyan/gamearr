@@ -2,6 +2,7 @@ import { gameRepository } from '../repositories/GameRepository';
 import { igdbClient } from '../integrations/igdb/IGDBClient';
 import { taskQueue } from '../queue/TaskQueue';
 import { logger } from '../utils/logger';
+import { jobRegistry } from './JobRegistry';
 
 /**
  * Background job: scans for games missing metadata and enqueues a metadata.refresh
@@ -13,9 +14,17 @@ export class MetadataRefreshJob {
 
   start(intervalMs: number = 5 * 60 * 1000) {
     logger.info('Starting MetadataRefreshJob (enqueue mode)...');
-    void this.scan();
+    const minutes = Math.round(intervalMs / 60_000);
+    jobRegistry.register({
+      name: 'metadata-refresh-scan',
+      schedule: `every ${minutes} minutes`,
+      kind: 'interval',
+      intervalMs: intervalMs,
+      runNow: () => this.scan(),
+    });
+    void jobRegistry.recordRun('metadata-refresh-scan', () => this.scan());
     this.intervalId = setInterval(() => {
-      void this.scan();
+      void jobRegistry.recordRun('metadata-refresh-scan', () => this.scan());
     }, intervalMs);
   }
 

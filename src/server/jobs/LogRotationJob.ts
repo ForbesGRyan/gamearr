@@ -4,6 +4,7 @@ import { createGzip } from 'zlib';
 import { join } from 'path';
 import { pipeline } from 'stream/promises';
 import { logger } from '../utils/logger';
+import { jobRegistry } from './JobRegistry';
 
 /**
  * Log Rotation Job
@@ -27,15 +28,25 @@ export class LogRotationJob {
 
     logger.info('Starting log rotation job (runs daily at midnight)');
 
+    jobRegistry.register({
+      name: 'log-rotation',
+      schedule: 'daily at 00:00',
+      kind: 'cron',
+      cronExpr: '0 0 0 * * *',
+      runNow: () => this.rotate(),
+    });
+
     // Run at midnight every day
     this.job = new CronJob('0 0 0 * * *', async () => {
-      await this.rotate();
+      await jobRegistry.recordRun('log-rotation', () => this.rotate());
     });
 
     this.job.start();
 
     // Also run immediately on startup to clean up any old logs
-    this.rotate().catch((err) => logger.error('Initial log rotation failed:', err));
+    jobRegistry
+      .recordRun('log-rotation', () => this.rotate())
+      .catch((err) => logger.error('Initial log rotation failed:', err));
   }
 
   /**
