@@ -1,9 +1,10 @@
+// Set before logger import — singleton reads LOG_LEVEL at construction.
+process.env.LOG_LEVEL = 'debug';
+
 import { describe, test, expect, beforeEach, afterEach, spyOn } from 'bun:test';
 import { existsSync, rmSync } from 'fs';
 import { join } from 'path';
-
-// We need to test the Logger class directly, so we'll create a test instance
-// by reimporting or testing via the exported singleton
+import type { Logger as LoggerType } from '../logger';
 
 describe('Logger', () => {
   const testLogDir = join(process.cwd(), 'test-logs');
@@ -630,6 +631,107 @@ describe('Logger', () => {
       }
 
       expect(foundMaxDepth).toBe(true);
+    });
+  });
+
+  describe('Log level filtering', () => {
+    const originalLevel = process.env.LOG_LEVEL;
+    let consoleWarnSpy: ReturnType<typeof spyOn>;
+
+    beforeEach(() => {
+      consoleWarnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleWarnSpy.mockRestore();
+      process.env.LOG_LEVEL = originalLevel;
+    });
+
+    test('default (no env) filters debug, allows info/warn/error', () => {
+      delete process.env.LOG_LEVEL;
+      const { Logger } = require('../logger') as { Logger: typeof LoggerType };
+      const l = new Logger();
+      consoleSpy.mockClear();
+
+      l.debug('debug msg');
+      expect(consoleSpy).not.toHaveBeenCalled();
+
+      l.info('info msg');
+      l.warn('warn msg');
+      l.error('error msg');
+      expect(consoleSpy).toHaveBeenCalledTimes(3);
+    });
+
+    test('LOG_LEVEL=warn filters info and debug', () => {
+      process.env.LOG_LEVEL = 'warn';
+      const { Logger } = require('../logger') as { Logger: typeof LoggerType };
+      const l = new Logger();
+      consoleSpy.mockClear();
+
+      l.debug('debug msg');
+      l.info('info msg');
+      expect(consoleSpy).not.toHaveBeenCalled();
+
+      l.warn('warn msg');
+      l.error('error msg');
+      expect(consoleSpy).toHaveBeenCalledTimes(2);
+    });
+
+    test('LOG_LEVEL=error allows only error', () => {
+      process.env.LOG_LEVEL = 'error';
+      const { Logger } = require('../logger') as { Logger: typeof LoggerType };
+      const l = new Logger();
+      consoleSpy.mockClear();
+
+      l.debug('d');
+      l.info('i');
+      l.warn('w');
+      expect(consoleSpy).not.toHaveBeenCalled();
+
+      l.error('e');
+      expect(consoleSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test('LOG_LEVEL=debug allows all levels', () => {
+      process.env.LOG_LEVEL = 'debug';
+      const { Logger } = require('../logger') as { Logger: typeof LoggerType };
+      const l = new Logger();
+      consoleSpy.mockClear();
+
+      l.debug('d');
+      l.info('i');
+      l.warn('w');
+      l.error('e');
+      expect(consoleSpy).toHaveBeenCalledTimes(4);
+    });
+
+    test('invalid LOG_LEVEL falls back to info and warns once', () => {
+      process.env.LOG_LEVEL = 'bogus';
+      const { Logger } = require('../logger') as { Logger: typeof LoggerType };
+      const l = new Logger();
+      consoleSpy.mockClear();
+
+      expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
+      expect(consoleWarnSpy.mock.calls[0][0]).toContain('Invalid LOG_LEVEL');
+
+      l.debug('d');
+      expect(consoleSpy).not.toHaveBeenCalled();
+
+      l.info('i');
+      expect(consoleSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test('LOG_LEVEL is case-insensitive', () => {
+      process.env.LOG_LEVEL = 'WARN';
+      const { Logger } = require('../logger') as { Logger: typeof LoggerType };
+      const l = new Logger();
+      consoleSpy.mockClear();
+
+      l.info('i');
+      expect(consoleSpy).not.toHaveBeenCalled();
+
+      l.warn('w');
+      expect(consoleSpy).toHaveBeenCalledTimes(1);
     });
   });
 

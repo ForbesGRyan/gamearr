@@ -3,6 +3,13 @@ import { join, dirname } from 'path';
 
 type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 
+const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
+  error: 0,
+  warn: 1,
+  info: 2,
+  debug: 3,
+};
+
 interface LogEntry {
   timestamp: string;
   level: LogLevel;
@@ -42,8 +49,19 @@ class Logger {
   private currentLogFile: string = '';
   private maxFileSize: number = 10 * 1024 * 1024; // 10MB
   private fileLoggingEnabled: boolean = true;
+  private minLevel: LogLevel;
 
   constructor() {
+    const envLevel = process.env.LOG_LEVEL?.toLowerCase();
+    if (envLevel && envLevel in LOG_LEVEL_PRIORITY) {
+      this.minLevel = envLevel as LogLevel;
+    } else {
+      if (envLevel) {
+        console.warn(`Invalid LOG_LEVEL "${envLevel}", defaulting to "info"`);
+      }
+      this.minLevel = 'info';
+    }
+
     this.logDir = this.getLogDirectory();
     this.ensureLogDirectory();
   }
@@ -235,6 +253,8 @@ class Logger {
   }
 
   private log(level: LogLevel, message: string, data?: unknown) {
+    if (LOG_LEVEL_PRIORITY[level] > LOG_LEVEL_PRIORITY[this.minLevel]) return;
+
     const sanitizedMessage = this.sanitizeString(message);
     const sanitizedData = data !== undefined ? this.sanitize(data) : undefined;
 
@@ -293,4 +313,5 @@ class Logger {
   }
 }
 
+export { Logger };
 export const logger = new Logger();

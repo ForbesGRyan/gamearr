@@ -478,7 +478,7 @@ export class IGDBClient {
     let epicId: string | undefined;
 
     if (game.websites && game.websites.length > 0) {
-      logger.debug(`IGDB websites for ${game.name}: ${JSON.stringify(game.websites)}`);
+      logger.debug(`IGDB websites for ${game.name}`, game.websites);
       for (const website of game.websites) {
         const url = website.url;
 
