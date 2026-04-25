@@ -29,6 +29,8 @@ export function parseVersion(text: string): string | null {
   const patterns = [
     // v1.2.3 or v1.2 (with separator before to avoid matching mid-word)
     /[._\s-]v(\d+(?:\.\d+)+)/i,
+    // v1 06 or v1_06 (space/underscore-separated two-part, e.g. GOG installer naming)
+    /[._\s-]v(\d+)[\s_]+(\d+)(?=[._\s-]|$)/i,
     // v1 alone (single number version, with separator)
     /[._\s-]v(\d+)(?:[._\s-]|$)/i,
     // Leading v1.2.3 or v1.2 (at start of string)
@@ -52,7 +54,7 @@ export function parseVersion(text: string): string | null {
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (match) {
-      return match[1];
+      return match.slice(1).filter(Boolean).join('.');
     }
   }
 

@@ -60,6 +60,13 @@ describe('version utilities', () => {
         expect(parseVersion('Game.V1.2.3')).toBe('1.2.3');
         expect(parseVersion('Game-V5')).toBe('5');
       });
+
+      test('should parse space/underscore-separated two-part versions (GOG-style)', () => {
+        expect(parseVersion('Game v1 06')).toBe('1.06');
+        expect(parseVersion('Game v1 06 CODEX')).toBe('1.06');
+        expect(parseVersion('Game.v1_06.GOG')).toBe('1.06');
+        expect(parseVersion('Game v2 10')).toBe('2.10');
+      });
     });
 
     describe('version keyword patterns', () => {
