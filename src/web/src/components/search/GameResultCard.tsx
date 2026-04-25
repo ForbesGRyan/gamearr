@@ -81,6 +81,7 @@ function GameResultCard({
         <button
           onClick={() => onAddGame(game, false)}
           disabled={isAdding}
+          title="Add this game to your library. Stays on the search page."
           className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm"
         >
           {isAdding ? 'Adding...' : 'Add to Library'}
@@ -88,9 +89,10 @@ function GameResultCard({
         <button
           onClick={() => onAddGame(game, true)}
           disabled={isAdding}
+          title="Add this game then open its detail page and search indexers for downloadable releases."
           className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm"
         >
-          {isAdding ? 'Adding...' : 'Add & Search'}
+          {isAdding ? 'Adding...' : 'Add & Find Releases'}
         </button>
       </div>
     </div>
