@@ -26,8 +26,21 @@ type UpdateTypeFilter = 'all' | 'version' | 'dlc' | 'better_release';
 
 function Updates() {
   const [filter, setFilter] = useState<UpdateTypeFilter>('all');
+  const [expandedGames, setExpandedGames] = useState<Set<string>>(new Set());
   const [updateToGrab, setUpdateToGrab] = useState<GameUpdate | null>(null);
   const [updateToDismiss, setUpdateToDismiss] = useState<GameUpdate | null>(null);
+
+  const toggleGame = (gameId: string) => {
+    setExpandedGames(prev => {
+      const next = new Set(prev);
+      if (next.has(gameId)) {
+        next.delete(gameId);
+      } else {
+        next.add(gameId);
+      }
+      return next;
+    });
+  };
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorOverride, setErrorOverride] = useState<string | null>(null);
 
@@ -216,10 +229,17 @@ function Updates() {
         </div>
       ) : (
         <div className="space-y-6">
-          {gameGroups.map(([gameId, group]) => (
+          {gameGroups.map(([gameId, group]) => {
+            const isExpanded = expandedGames.has(gameId);
+            return (
             <div key={gameId} className="bg-gray-800 rounded-lg overflow-hidden">
               {/* Game Header */}
-              <div className="flex items-center gap-4 p-4 border-b border-gray-700 bg-gray-850">
+              <button
+                type="button"
+                onClick={() => toggleGame(gameId)}
+                aria-expanded={isExpanded}
+                className={`w-full flex items-center gap-4 p-4 bg-gray-850 hover:bg-gray-750 transition text-left ${isExpanded ? 'border-b border-gray-700' : ''}`}
+              >
                 {group.gameCoverUrl ? (
                   <img
                     src={group.gameCoverUrl}
@@ -234,15 +254,24 @@ function Updates() {
                     </svg>
                   </div>
                 )}
-                <div>
-                  <h3 className="text-lg font-semibold text-white">{group.gameTitle}</h3>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-semibold text-white truncate">{group.gameTitle}</h3>
                   <p className="text-sm text-gray-400">
                     {group.updates.length} update{group.updates.length !== 1 ? 's' : ''} available
                   </p>
                 </div>
-              </div>
+                <svg
+                  className={`w-5 h-5 text-gray-400 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
 
               {/* Updates List */}
+              {isExpanded && (
               <div className="divide-y divide-gray-700">
                 {group.updates.map((update) => (
                   <div key={update.id} className="p-4 hover:bg-gray-750 transition">
@@ -326,8 +355,10 @@ function Updates() {
                   </div>
                 ))}
               </div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

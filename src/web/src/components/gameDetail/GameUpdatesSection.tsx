@@ -4,6 +4,7 @@ import {
   useDismissUpdate,
   useGrabUpdate,
 } from '../../queries/games';
+import { useToast } from '../../contexts/ToastContext';
 import { RefreshIcon, DownloadIcon, CloseIcon } from '../Icons';
 
 interface GameUpdatesSectionProps {
@@ -12,6 +13,7 @@ interface GameUpdatesSectionProps {
 }
 
 function GameUpdatesSection({ game, updates }: GameUpdatesSectionProps) {
+  const { addToast } = useToast();
   const checkForUpdates = useCheckGameForUpdates();
   const grabUpdate = useGrabUpdate();
   const dismissUpdate = useDismissUpdate();
@@ -23,7 +25,19 @@ function GameUpdatesSection({ game, updates }: GameUpdatesSectionProps) {
   const grabbingId = grabUpdate.isPending ? grabUpdate.variables ?? null : null;
 
   const handleCheckForUpdates = async () => {
-    await checkForUpdates.mutateAsync(game.id);
+    try {
+      const result = await checkForUpdates.mutateAsync(game.id);
+      const found = result?.updatesFound ?? 0;
+      addToast(
+        found === 0
+          ? 'No updates found'
+          : `Found ${found} update${found === 1 ? '' : 's'}`,
+        'success'
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to check for updates';
+      addToast(message, 'error');
+    }
   };
 
   const handleGrabUpdate = async (updateId: number) => {
