@@ -22,6 +22,8 @@ export const SORT_OPTIONS: Array<{ id: string; desc: boolean; label: string; gro
   { id: 'stores', desc: true, label: 'Store (Z-A)', group: 'Store' },
   { id: 'status', desc: false, label: 'Wanted first', group: 'Status' },
   { id: 'status', desc: true, label: 'Downloaded first', group: 'Status' },
+  { id: 'addedAt', desc: true, label: 'Date Added (Newest)', group: 'Date Added' },
+  { id: 'addedAt', desc: false, label: 'Date Added (Oldest)', group: 'Date Added' },
 ];
 
 export function getSortLabel(sortId: string | undefined, desc: boolean): string {

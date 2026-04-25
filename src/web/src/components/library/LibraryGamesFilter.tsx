@@ -5,7 +5,7 @@ import { FilterPopover } from './FilterPopover';
 import { SortPopover, getSortLabel } from './SortPopover';
 import { ActiveFilterChips } from './ActiveFilterChips';
 import type { GameRow } from './libraryColumns';
-import type { LibraryInfo, ViewMode } from './types';
+import type { LibraryInfo } from './types';
 
 interface LibraryGamesFilterProps {
   table: Table<GameRow>;
@@ -16,7 +16,6 @@ interface LibraryGamesFilterProps {
   filteredCount: number;
   totalCount: number;
   activeFilterCount: number;
-  viewMode: ViewMode;
 }
 
 function ChevronDown({ className = 'w-4 h-4' }: { className?: string }) {
@@ -52,7 +51,6 @@ export function LibraryGamesFilter({
   filteredCount,
   totalCount,
   activeFilterCount,
-  viewMode,
 }: LibraryGamesFilterProps) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
@@ -62,9 +60,6 @@ export function LibraryGamesFilter({
   const globalFilter = table.getState().globalFilter ?? '';
   const sorting = table.getState().sorting[0];
   const sortLabel = getSortLabel(sorting?.id, sorting?.desc ?? false);
-
-  // Sort button is hidden in table view — column headers own sort there.
-  const showSortButton = viewMode !== 'table';
 
   return (
     <div className="mb-4">
@@ -129,32 +124,30 @@ export function LibraryGamesFilter({
             />
           </div>
 
-          {/* Sort button (grid modes only) */}
-          {showSortButton && (
-            <div className="relative shrink-0">
-              <button
-                ref={sortBtnRef}
-                type="button"
-                onClick={() => {
-                  setSortOpen((v) => !v);
-                  setFiltersOpen(false);
-                }}
-                aria-expanded={sortOpen}
-                aria-haspopup="menu"
-                className="h-full inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm bg-gray-700 border border-gray-600 text-gray-200 hover:bg-gray-600 transition"
-              >
-                <SortIcon />
-                <span className="hidden md:inline truncate max-w-[10rem]">{sortLabel}</span>
-                <ChevronDown />
-              </button>
-              <SortPopover
-                table={table}
-                open={sortOpen}
-                onClose={() => setSortOpen(false)}
-                anchorRef={sortBtnRef}
-              />
-            </div>
-          )}
+          {/* Sort button */}
+          <div className="relative shrink-0">
+            <button
+              ref={sortBtnRef}
+              type="button"
+              onClick={() => {
+                setSortOpen((v) => !v);
+                setFiltersOpen(false);
+              }}
+              aria-expanded={sortOpen}
+              aria-haspopup="menu"
+              className="h-full inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm bg-gray-700 border border-gray-600 text-gray-200 hover:bg-gray-600 transition"
+            >
+              <SortIcon />
+              <span className="hidden md:inline truncate max-w-[10rem]">{sortLabel}</span>
+              <ChevronDown />
+            </button>
+            <SortPopover
+              table={table}
+              open={sortOpen}
+              onClose={() => setSortOpen(false)}
+              anchorRef={sortBtnRef}
+            />
+          </div>
         </div>
 
         <ActiveFilterChips table={table} libraries={libraries} />

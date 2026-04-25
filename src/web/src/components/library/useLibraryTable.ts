@@ -111,13 +111,9 @@ export function useLibraryTable() {
   const handleViewModeChange = useCallback(
     (mode: ViewMode) => {
       routeNavigate({
-        search: (prev) => {
-          const next: Record<string, unknown> = { ...prev };
-          if (mode === 'posters') delete next.view;
-          else next.view = mode;
-          return next;
-        },
+        search: (prev) => ({ ...prev, view: mode }),
         replace: true,
+        viewTransition: false,
       });
       try {
         localStorage.setItem(VIEW_MODE_KEY, mode);
@@ -136,13 +132,9 @@ export function useLibraryTable() {
   const handlePosterSizeChange = useCallback(
     (size: PosterSize) => {
       routeNavigate({
-        search: (prev) => {
-          const next: Record<string, unknown> = { ...prev };
-          if (size === 'md') delete next.size;
-          else next.size = size;
-          return next;
-        },
+        search: (prev) => ({ ...prev, size }),
         replace: true,
+        viewTransition: false,
       });
       try {
         localStorage.setItem(POSTER_SIZE_KEY, size);
@@ -240,16 +232,10 @@ export function useLibraryTable() {
 
   const handleEdit = useCallback(
     (game: Game) => {
-      const go = () =>
-        navigate({
-          to: '/game/$platform/$slug',
-          params: getGameSlugs(game.platform, game.title),
-        });
-      if (typeof document !== 'undefined' && document.startViewTransition) {
-        document.startViewTransition(go);
-      } else {
-        go();
-      }
+      navigate({
+        to: '/game/$platform/$slug',
+        params: getGameSlugs(game.platform, game.title),
+      });
     },
     [navigate]
   );

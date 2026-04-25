@@ -52,7 +52,6 @@ export function LibraryOverviewGrid({
                 <Link
                   to="/game/$platform/$slug"
                   params={getGameSlugs(game.platform, game.title)}
-                  viewTransition
                   className="block w-32 h-44 rounded-lg bg-gray-700 overflow-hidden shadow-lg hover:ring-2 hover:ring-blue-400 transition"
                   style={{ viewTransitionName: `game-cover-${game.id}` }}
                 >
@@ -88,7 +87,6 @@ export function LibraryOverviewGrid({
                     <Link
                       to="/game/$platform/$slug"
                       params={getGameSlugs(game.platform, game.title)}
-                      viewTransition
                       className="font-bold text-xl hover:text-blue-400 transition"
                     >
                       {game.title}

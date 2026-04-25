@@ -26,7 +26,6 @@ export interface LibraryTableMeta {
 }
 
 declare module '@tanstack/react-table' {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface TableMeta<TData extends RowData> extends LibraryTableMeta {}
 }
 
@@ -46,22 +45,44 @@ const storeSortFn: SortingFn<GameRow> = (a, b) => {
   return av.localeCompare(bv, undefined, { sensitivity: 'base' });
 };
 
+const addedAtSortFn: SortingFn<GameRow> = (a, b) => {
+  const av = a.original.addedAt ? Date.parse(a.original.addedAt) : 0;
+  const bv = b.original.addedAt ? Date.parse(b.original.addedAt) : 0;
+  return av - bv;
+};
+
 // ---- Filter fns ----
+
+function splitIncludeExclude(filterValue: string[]): { includes: string[]; excludes: string[] } {
+  const includes: string[] = [];
+  const excludes: string[] = [];
+  for (const v of filterValue) {
+    if (v.startsWith('!')) excludes.push(v.slice(1));
+    else includes.push(v);
+  }
+  return { includes, excludes };
+}
 
 const arrayIncludesAnyFn: FilterFn<GameRow> = (row, columnId, filterValue: string[]) => {
   if (!filterValue?.length) return true;
+  const { includes, excludes } = splitIncludeExclude(filterValue);
   const cellValue = row.getValue<string[]>(columnId);
-  return filterValue.some((v) => cellValue.includes(v));
+  if (excludes.some((v) => cellValue.includes(v))) return false;
+  if (includes.length === 0) return true;
+  return includes.some((v) => cellValue.includes(v));
 };
 
 const storeFilterFn: FilterFn<GameRow> = (row, _columnId, filterValue: string[]) => {
   if (!filterValue?.length) return true;
+  const { includes, excludes } = splitIncludeExclude(filterValue);
   const g = row.original;
   const names = [
     ...(g.stores?.map((s) => s.name) ?? []),
     ...(g.store ? [g.store] : []),
   ];
-  return filterValue.some((s) => names.includes(s));
+  if (excludes.some((s) => names.includes(s))) return false;
+  if (includes.length === 0) return true;
+  return includes.some((s) => names.includes(s));
 };
 
 const monitoredFilterFn: FilterFn<GameRow> = (row, _columnId, filterValue) => {
@@ -125,7 +146,6 @@ function TitleCell({ game }: { game: GameRow }) {
       <Link
         to="/game/$platform/$slug"
         params={getGameSlugs(game.platform, game.title)}
-        viewTransition
         className="w-8 h-10 rounded bg-gray-700 flex-shrink-0 overflow-hidden"
         style={{ viewTransitionName: `game-cover-${game.id}` }}
       >
@@ -140,7 +160,6 @@ function TitleCell({ game }: { game: GameRow }) {
       <Link
         to="/game/$platform/$slug"
         params={getGameSlugs(game.platform, game.title)}
-        viewTransition
         className="font-medium hover:text-blue-400 transition"
       >
         {game.title}
@@ -338,6 +357,19 @@ export const libraryColumns: ColumnDef<GameRow>[] = [
     enableGlobalFilter: false,
   },
   {
+    id: 'addedAt',
+    accessorKey: 'addedAt',
+    header: 'Added',
+    cell: ({ getValue }) => {
+      const v = getValue<string | undefined>();
+      if (!v) return <span className="text-gray-500">{'—'}</span>;
+      const d = new Date(v);
+      return <span className="text-gray-400">{d.toLocaleDateString()}</span>;
+    },
+    sortingFn: addedAtSortFn,
+    enableGlobalFilter: false,
+  },
+  {
     id: 'actions',
     header: () => <span className="text-right block">Actions</span>,
     cell: ({ row, table }) => (
@@ -352,4 +384,5 @@ export const libraryColumns: ColumnDef<GameRow>[] = [
 export const DEFAULT_HIDDEN_COLUMNS = {
   libraryId: false,
   gameModes: false,
+  addedAt: false,
 } as const;

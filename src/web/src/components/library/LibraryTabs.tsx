@@ -1,5 +1,3 @@
-import { useNavigate } from '@tanstack/react-router';
-
 type Tab = 'games' | 'scan' | 'health';
 
 interface LibraryTabsProps {
@@ -15,14 +13,7 @@ export function LibraryTabs({
   libraryFoldersCount,
   healthIssuesCount,
 }: LibraryTabsProps) {
-  const navigate = useNavigate();
-
   const handleTabChange = (tab: Tab) => {
-    navigate({
-      to: '/',
-      search: tab === 'games' ? {} : { tab },
-      viewTransition: true,
-    });
     onTabChange(tab);
   };
 

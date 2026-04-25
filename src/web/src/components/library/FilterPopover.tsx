@@ -65,45 +65,63 @@ function ToggleGroup<T extends string | undefined>({
   );
 }
 
+type ChipState = 'neutral' | 'include' | 'exclude';
+
+function getChipState(opt: string, values: string[]): ChipState {
+  if (values.includes(opt)) return 'include';
+  if (values.includes(`!${opt}`)) return 'exclude';
+  return 'neutral';
+}
+
 function ChipPicker({
   label,
   options,
-  selected,
-  onToggle,
+  values,
+  onCycle,
   emptyHint,
   activeColor,
 }: {
   label: string;
   options: string[];
-  selected: string[];
-  onToggle: (value: string) => void;
+  values: string[];
+  onCycle: (value: string) => void;
   emptyHint?: string;
   activeColor: string;
 }) {
   if (options.length === 0) return null;
+  const includeCount = values.filter((v) => !v.startsWith('!')).length;
+  const excludeCount = values.filter((v) => v.startsWith('!')).length;
   return (
     <div>
       <div className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-2 flex items-center gap-2">
         <span>{label}</span>
-        {selected.length > 0 && (
-          <span className="text-[10px] bg-blue-600 text-white rounded-full px-1.5 py-0.5">{selected.length}</span>
+        {includeCount > 0 && (
+          <span className="text-[10px] bg-blue-600 text-white rounded-full px-1.5 py-0.5">+{includeCount}</span>
+        )}
+        {excludeCount > 0 && (
+          <span className="text-[10px] bg-red-600 text-white rounded-full px-1.5 py-0.5">−{excludeCount}</span>
         )}
       </div>
       <div className="flex flex-wrap gap-1.5">
         {options.map((opt) => {
-          const active = selected.includes(opt);
+          const state = getChipState(opt, values);
+          const baseCls = 'px-2.5 py-1 rounded-full text-xs transition border inline-flex items-center gap-1';
+          const stateCls =
+            state === 'include'
+              ? `${activeColor} text-white border-transparent`
+              : state === 'exclude'
+                ? 'bg-red-600 text-white border-transparent line-through'
+                : 'bg-gray-700/60 border-gray-600 text-gray-300 hover:bg-gray-700';
           return (
             <button
               key={opt}
               type="button"
-              onClick={() => onToggle(opt)}
-              aria-pressed={active}
-              className={`px-2.5 py-1 rounded-full text-xs transition border ${
-                active
-                  ? `${activeColor} text-white border-transparent`
-                  : 'bg-gray-700/60 border-gray-600 text-gray-300 hover:bg-gray-700'
-              }`}
+              onClick={() => onCycle(opt)}
+              aria-pressed={state !== 'neutral'}
+              title={state === 'exclude' ? `Excluding ${opt}` : state === 'include' ? `Including ${opt}` : `Click to include ${opt}, click again to exclude`}
+              className={`${baseCls} ${stateCls}`}
             >
+              {state === 'exclude' && <span aria-hidden="true">−</span>}
               {opt}
             </button>
           );
@@ -173,8 +191,20 @@ export function FilterPopover({
     table.getColumn(id)?.setFilterValue(value);
   };
 
-  const toggleArr = (id: string, current: string[], value: string) => {
-    const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
+  // Cycles a chip through neutral → include → exclude → neutral.
+  const cycleArr = (id: string, current: string[], value: string) => {
+    const negated = `!${value}`;
+    let next: string[];
+    if (current.includes(value)) {
+      // include → exclude
+      next = current.filter((v) => v !== value).concat(negated);
+    } else if (current.includes(negated)) {
+      // exclude → neutral
+      next = current.filter((v) => v !== negated);
+    } else {
+      // neutral → include
+      next = [...current, value];
+    }
     setColFilter(id, next.length ? next : undefined);
   };
 
@@ -189,7 +219,7 @@ export function FilterPopover({
       ref={popoverRef}
       role="dialog"
       aria-label="Filter games"
-      className="absolute z-30 mt-2 right-0 w-[min(calc(100vw-2rem),32rem)] max-h-[min(70vh,640px)] overflow-y-auto bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-4 space-y-4"
+      className="absolute z-30 mt-2 right-0 w-[min(calc(100vw-2rem),32rem)] bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-4 space-y-4"
     >
       <ToggleGroup
         label="Status"
@@ -227,27 +257,31 @@ export function FilterPopover({
         </div>
       )}
 
+      <p className="text-xs text-gray-500 -mt-1">
+        Click a chip to include, click again to exclude, click a third time to clear.
+      </p>
+
       <ChipPicker
         label="Stores"
         options={allStores}
-        selected={stores}
-        onToggle={(v) => toggleArr('stores', stores, v)}
+        values={stores}
+        onCycle={(v) => cycleArr('stores', stores, v)}
         activeColor="bg-green-600"
       />
 
       <ChipPicker
         label="Genres"
         options={allGenres}
-        selected={genres}
-        onToggle={(v) => toggleArr('genres', genres, v)}
+        values={genres}
+        onCycle={(v) => cycleArr('genres', genres, v)}
         activeColor="bg-blue-600"
       />
 
       <ChipPicker
         label="Modes"
         options={allGameModes}
-        selected={modes}
-        onToggle={(v) => toggleArr('gameModes', modes, v)}
+        values={modes}
+        onCycle={(v) => cycleArr('gameModes', modes, v)}
         activeColor="bg-purple-600"
       />
 

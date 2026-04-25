@@ -27,7 +27,7 @@ function serializeArrayParam(arr: string[]): string | null {
 }
 
 interface RawSearch {
-  sort?: 'title' | 'year' | 'rating' | 'monitored' | 'store' | 'status';
+  sort?: 'title' | 'year' | 'rating' | 'monitored' | 'store' | 'status' | 'added';
   dir?: 'asc' | 'desc';
   q?: string;
   page?: number;
@@ -43,12 +43,14 @@ interface RawSearch {
 function urlSortToColumnId(sort: RawSearch['sort'] | undefined): string {
   if (!sort) return 'title';
   if (sort === 'store') return 'stores';
+  if (sort === 'added') return 'addedAt';
   return sort;
 }
 
 function columnIdToUrlSort(id: string): RawSearch['sort'] | null {
   if (id === 'title') return null;
   if (id === 'stores') return 'store';
+  if (id === 'addedAt') return 'added';
   if (
     id === 'year' || id === 'rating' || id === 'monitored' ||
     id === 'status'
@@ -86,6 +88,7 @@ export function useUrlSyncedTableState() {
           return next;
         },
         replace: true,
+        viewTransition: false,
       });
     },
     [navigate]

@@ -30,6 +30,7 @@ export interface Game {
   latestVersion?: string | null;
   updatePolicy?: 'notify' | 'auto' | 'ignore';
   libraryId?: number | null;
+  addedAt?: string;
 }
 
 export interface SimilarGame {
@@ -95,7 +96,7 @@ export interface DuplicateGroup {
 
 export type ViewMode = 'posters' | 'table' | 'overview';
 export type PosterSize = 'sm' | 'md' | 'lg';
-export type SortColumn = 'title' | 'year' | 'rating' | 'monitored' | 'store' | 'status';
+export type SortColumn = 'title' | 'year' | 'rating' | 'monitored' | 'store' | 'status' | 'added';
 export type SortDirection = 'asc' | 'desc';
 export type StatusFilter = 'all' | 'wanted' | 'downloading' | 'downloaded';
 export type MonitoredFilter = 'all' | 'monitored' | 'unmonitored';

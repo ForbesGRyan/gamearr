@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { GamepadIcon, MagnifyingGlassIcon } from '../Icons';
 import StoreSelector from '../StoreSelector';
 import { LibraryPagination } from './LibraryPagination';
@@ -165,8 +165,7 @@ export function LibraryScanTab({
     return filteredAndSortedFolders.slice(startIndex, startIndex + pageSize);
   }, [filteredAndSortedFolders, currentPage, pageSize]);
 
-  // Reset to page 1 when filters change or folders change significantly
-  useMemo(() => {
+  useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(1);
     }

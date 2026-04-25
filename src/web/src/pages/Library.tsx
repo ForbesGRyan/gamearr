@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { getRouteApi } from '@tanstack/react-router';
 import AddGameModal from '../components/AddGameModal';
+import { saveLibrarySearch } from '../utils/librarySearchMemory';
 
 const route = getRouteApi('/_auth/');
 import SearchReleasesModal from '../components/SearchReleasesModal';
@@ -54,6 +55,10 @@ function Library() {
   const navigate = route.useNavigate();
 
   const activeTab: Tab = search.tab ?? 'games';
+
+  useEffect(() => {
+    saveLibrarySearch(search as Record<string, unknown>);
+  }, [search]);
 
   const setActiveTab = useCallback(
     (tab: Tab) => {
@@ -714,7 +719,6 @@ function Library() {
           filteredCount={filteredCount}
           totalCount={games.length}
           activeFilterCount={activeFilterCount}
-          viewMode={viewMode}
         />
       )}
 

@@ -38,7 +38,7 @@ export function LibraryHeader({
   const showPosterSizeRow = activeTab === 'games' && viewMode === 'posters';
 
   return (
-    <div className="mb-6">
+    <div className="mb-6 relative">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl md:text-3xl font-bold">Library</h2>
@@ -110,7 +110,7 @@ export function LibraryHeader({
 
       {/* Poster size toggle row — only in poster view, anchored under view-mode toggle */}
       {showPosterSizeRow && (
-        <div className="hidden sm:flex justify-end mt-2">
+        <div className="hidden sm:flex justify-end absolute right-0 top-full mt-2 z-10">
           <div className="flex bg-gray-700 rounded overflow-hidden" role="group" aria-label="Poster size">
             <button
               onClick={() => onPosterSizeChange('sm')}
