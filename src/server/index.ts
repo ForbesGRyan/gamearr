@@ -52,6 +52,13 @@ import { logRotationJob } from './jobs/LogRotationJob';
 import { discoverCacheJob } from './jobs/DiscoverCacheJob';
 import { applicationUpdateCheckJob } from './jobs/ApplicationUpdateCheckJob';
 import { sessionCleanupJob } from './jobs/SessionCleanupJob';
+import { CronJob } from 'cron';
+import { taskRepository } from './queue/TaskRepository';
+import { taskQueue } from './queue/TaskQueue';
+import { handlerRegistry } from './queue/registry';
+import { TaskWorker } from './queue/TaskWorker';
+import { registerAllHandlers } from './queue/handlers';
+import { runArchiveSweep } from './queue/TaskArchiver';
 
 // Import integration clients for configuration
 import { qbittorrentClient } from './integrations/qbittorrent/QBittorrentClient';
@@ -62,6 +69,14 @@ import { discordClient } from './integrations/discord/DiscordWebhookClient';
 import { settingsService } from './services/SettingsService';
 import { libraryService } from './services/LibraryService';
 import { embeddingService } from './services/EmbeddingService';
+
+// Single in-process queue worker. Started after handlers register.
+const taskWorker = new TaskWorker({
+  repo: taskRepository,
+  queue: taskQueue,
+  registry: handlerRegistry,
+  workerId: `gamearr-${process.pid}`,
+});
 
 const app = new Hono();
 
@@ -260,6 +275,20 @@ initializeClients().then(async () => {
   sessionCleanupJob.start();
   logger.info('✅ Background jobs started');
 
+  // Register task handlers and start the queue worker.
+  registerAllHandlers();
+  taskWorker.start();
+  logger.info('✅ Task queue worker started');
+
+  // Daily archive sweep at 03:15 local time.
+  new CronJob('0 15 3 * * *', () => {
+    try {
+      runArchiveSweep();
+    } catch (err) {
+      logger.error('Task archive sweep failed:', err);
+    }
+  }).start();
+
   // Warm the embedding model so the first search doesn't pay the load cost.
   // Fire-and-forget; failures are logged inside the service and degrade to
   // non-semantic search.
@@ -275,3 +304,16 @@ Bun.serve({
   // the embedding model download (~30s cold) or large IGDB result parses.
   idleTimeout: 120,
 });
+
+async function shutdown(signal: string) {
+  logger.info(`${signal} received, shutting down...`);
+  try {
+    await taskWorker.stop(10_000);
+    logger.info('Task worker stopped');
+  } catch (err) {
+    logger.error('Error stopping task worker:', err);
+  }
+  process.exit(0);
+}
+process.on('SIGINT', () => void shutdown('SIGINT'));
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
