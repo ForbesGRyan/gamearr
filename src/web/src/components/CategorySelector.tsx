@@ -25,15 +25,15 @@ function CategorySelector() {
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const saveMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasInitializedRef = useRef(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   // Seed draft from server once the selected categories query resolves.
   useEffect(() => {
-    if (!hasInitializedRef.current && serverSelected !== undefined) {
+    if (!hasInitialized && serverSelected !== undefined) {
       setSelectedCategories(serverSelected);
-      hasInitializedRef.current = true;
+      setHasInitialized(true);
     }
-  }, [serverSelected]);
+  }, [serverSelected, hasInitialized]);
 
   useEffect(() => {
     return () => {
@@ -46,7 +46,7 @@ function CategorySelector() {
   const isLoading =
     categoriesQuery.isLoading ||
     selectedQuery.isLoading ||
-    !hasInitializedRef.current;
+    !hasInitialized;
 
   // Get the parent category ID for a given category (e.g., 4050 -> 4000)
   const getParentId = (categoryId: number): number => {

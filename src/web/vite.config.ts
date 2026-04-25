@@ -8,7 +8,16 @@ export default defineConfig({
       target: 'react',
       autoCodeSplitting: true,
     }),
-    react(),
+    react({
+      babel: {
+        plugins: [
+          ['babel-plugin-react-compiler', {
+            compilationMode: 'infer',
+            sources: (filename: string) => !filename.includes('routeTree.gen'),
+          }],
+        ],
+      },
+    }),
   ],
   server: {
     port: 3000,
@@ -26,12 +35,17 @@ export default defineConfig({
   build: {
     outDir: '../../dist',
     emptyOutDir: true,
-    // Optimize chunk splitting
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Split React into its own chunk for better caching
-          'react-vendor': ['react', 'react-dom', '@tanstack/react-router'],
+        manualChunks: (id) => {
+          if (
+            id.includes('node_modules/react/') ||
+            id.includes('node_modules/react-dom/') ||
+            id.includes('node_modules/@tanstack/react-router/')
+          ) {
+            return 'react-vendor';
+          }
+          return undefined;
         },
       },
     },

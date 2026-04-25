@@ -6,7 +6,7 @@ interface SortPopoverProps {
   table: Table<GameRow>;
   open: boolean;
   onClose: () => void;
-  anchorRef: React.RefObject<HTMLElement>;
+  anchorRef: React.RefObject<HTMLElement | null>;
 }
 
 export const SORT_OPTIONS: Array<{ id: string; desc: boolean; label: string; group: string }> = [

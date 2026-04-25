@@ -1,6 +1,6 @@
 'use no memo';
 
-import { useState, useEffect, useRef, Suspense, lazy, useCallback } from 'react';
+import { useState, useEffect, useRef, Suspense, lazy, useCallback, type ReactElement } from 'react';
 import { getRouteApi } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSetting } from '../queries/settings';
@@ -181,7 +181,7 @@ function Settings() {
     );
   }
 
-  const tabs: { id: SettingsTab; label: string; icon: JSX.Element }[] = [
+  const tabs: { id: SettingsTab; label: string; icon: ReactElement }[] = [
     {
       id: 'general',
       label: 'General',

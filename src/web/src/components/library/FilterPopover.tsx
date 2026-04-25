@@ -7,7 +7,7 @@ interface FilterPopoverProps {
   table: Table<GameRow>;
   open: boolean;
   onClose: () => void;
-  anchorRef: React.RefObject<HTMLElement>;
+  anchorRef: React.RefObject<HTMLElement | null>;
   allGenres: string[];
   allGameModes: string[];
   allStores: string[];

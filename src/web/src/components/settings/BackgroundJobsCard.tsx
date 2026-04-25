@@ -51,7 +51,7 @@ export default function BackgroundJobsCard() {
   const deleteMutation = useDeleteTask();
   const now = useNow(1000);
 
-  const tasks = tasksQuery.data ?? [];
+  const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Task[]>();
