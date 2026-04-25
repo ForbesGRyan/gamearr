@@ -6,6 +6,9 @@ interface GameResultsListProps {
   addingGameId: number | null;
   selectedPlatforms: Record<number, string>;
   onPlatformChange: (igdbId: number, platform: string) => void;
+  selectedLibraries: Record<number, number | null>;
+  defaultLibraryId: number | null;
+  onCardLibraryChange: (igdbId: number, libraryId: number | null) => void;
   onAddGame: (game: SearchResult, searchReleases: boolean) => void;
 }
 
@@ -14,6 +17,9 @@ function GameResultsList({
   addingGameId,
   selectedPlatforms,
   onPlatformChange,
+  selectedLibraries,
+  defaultLibraryId,
+  onCardLibraryChange,
   onAddGame,
 }: GameResultsListProps) {
   return (
@@ -25,16 +31,22 @@ function GameResultsList({
       </div>
 
       <div className="space-y-3">
-        {results.map((game) => (
-          <GameResultCard
-            key={game.igdbId}
-            game={game}
-            addingGameId={addingGameId}
-            selectedPlatform={selectedPlatforms[game.igdbId]}
-            onPlatformChange={onPlatformChange}
-            onAddGame={onAddGame}
-          />
-        ))}
+        {results.map((game) => {
+          const cardLibrary = selectedLibraries[game.igdbId];
+          const effectiveLibrary = cardLibrary !== undefined ? cardLibrary : defaultLibraryId;
+          return (
+            <GameResultCard
+              key={game.igdbId}
+              game={game}
+              addingGameId={addingGameId}
+              selectedPlatform={selectedPlatforms[game.igdbId]}
+              onPlatformChange={onPlatformChange}
+              selectedLibraryId={effectiveLibrary}
+              onLibraryChange={(libraryId) => onCardLibraryChange(game.igdbId, libraryId)}
+              onAddGame={onAddGame}
+            />
+          );
+        })}
       </div>
     </div>
   );

@@ -44,6 +44,7 @@ function Search() {
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
   const [addingGameId, setAddingGameId] = useState<number | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Record<number, string>>({});
+  const [selectedLibraries, setSelectedLibraries] = useState<Record<number, number | null>>({});
 
   // Releases search state
   const [sortField, setSortField] = useState<SortField>('seeders');
@@ -105,6 +106,9 @@ function Search() {
     setAddingGameId(game.igdbId);
     setErrorOverride(null);
     const platform = selectedPlatforms[game.igdbId] || game.platforms?.[0];
+    const perCardLibrary = selectedLibraries[game.igdbId];
+    const libraryId =
+      perCardLibrary !== undefined ? perCardLibrary : selectedLibraryId;
 
     try {
       // Add the game first (using first store for legacy field)
@@ -112,7 +116,7 @@ function Search() {
         igdbId: game.igdbId,
         monitored: true,
         store: selectedStores[0] || null,
-        libraryId: selectedLibraryId ?? undefined,
+        libraryId: libraryId ?? undefined,
         platform,
       });
 
@@ -143,6 +147,10 @@ function Search() {
 
   const handlePlatformChange = (igdbId: number, platform: string) => {
     setSelectedPlatforms((prev) => ({ ...prev, [igdbId]: platform }));
+  };
+
+  const handleCardLibraryChange = (igdbId: number, libraryId: number | null) => {
+    setSelectedLibraries((prev) => ({ ...prev, [igdbId]: libraryId }));
   };
 
   const handleSort = (field: SortField) => {
@@ -208,6 +216,9 @@ function Search() {
         addingGameId={addingGameId}
         selectedPlatforms={selectedPlatforms}
         onPlatformChange={handlePlatformChange}
+        selectedLibraries={selectedLibraries}
+        defaultLibraryId={selectedLibraryId}
+        onCardLibraryChange={handleCardLibraryChange}
         onAddGame={handleAddGame}
         releases={releases}
         sortField={sortField}

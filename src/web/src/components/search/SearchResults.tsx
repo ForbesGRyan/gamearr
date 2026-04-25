@@ -16,6 +16,9 @@ interface SearchResultsProps {
   addingGameId: number | null;
   selectedPlatforms: Record<number, string>;
   onPlatformChange: (igdbId: number, platform: string) => void;
+  selectedLibraries: Record<number, number | null>;
+  defaultLibraryId: number | null;
+  onCardLibraryChange: (igdbId: number, libraryId: number | null) => void;
   onAddGame: (game: SearchResult, searchReleases: boolean) => void;
   // Releases props
   releases: Release[];
@@ -34,6 +37,9 @@ function SearchResults({
   addingGameId,
   selectedPlatforms,
   onPlatformChange,
+  selectedLibraries,
+  defaultLibraryId,
+  onCardLibraryChange,
   onAddGame,
   releases,
   sortField,
@@ -58,6 +64,9 @@ function SearchResults({
         addingGameId={addingGameId}
         selectedPlatforms={selectedPlatforms}
         onPlatformChange={onPlatformChange}
+        selectedLibraries={selectedLibraries}
+        defaultLibraryId={defaultLibraryId}
+        onCardLibraryChange={onCardLibraryChange}
         onAddGame={onAddGame}
       />
     );
