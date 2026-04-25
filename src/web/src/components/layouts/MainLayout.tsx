@@ -4,6 +4,7 @@ import { GamepadIcon } from '../Icons';
 import { NavDropdown } from '../NavDropdown';
 import { MobileNav } from '../MobileNav';
 import { UpdateBanner } from '../UpdateBanner';
+import { DryRunBanner } from '../DryRunBanner';
 import { useAuth } from '../AuthGuard';
 
 const NAV_BASE = 'px-3 py-2 rounded transition text-gray-300 hover:bg-gray-700';
@@ -160,6 +161,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         </div>
       </header>
 
+      <DryRunBanner />
       <UpdateBanner />
 
       <main className="container mx-auto px-4 py-6 md:py-8" role="main">
