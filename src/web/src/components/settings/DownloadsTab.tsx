@@ -204,7 +204,7 @@ export default function DownloadsTab({
             </h3>
             <p className={`text-sm ${dryRun ? 'text-amber-100' : 'text-gray-400'}`}>
               {dryRun
-                ? 'Releases you grab are logged only — no torrents or NZBs reach your download clients. Disable below to actually download.'
+                ? 'Releases you grab are logged only — no torrents or NZBs reach your download clients. Disable to actually download.'
                 : 'When enabled, Gamearr logs what it would download but does not send releases to download clients. Useful for testing your configuration.'}
             </p>
           </div>

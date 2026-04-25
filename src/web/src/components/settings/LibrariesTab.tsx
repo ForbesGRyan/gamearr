@@ -198,31 +198,50 @@ export default function LibrariesTab() {
 
   return (
     <>
-      {/* Header */}
-      <div className="bg-gray-800 rounded-lg p-4 md:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2">
-            <svg className="w-5 h-5 md:w-6 md:h-6 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-            <h3 className="text-lg md:text-xl font-semibold">Libraries</h3>
-          </div>
-          {!showForm && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded transition flex items-center justify-center gap-2 min-h-[44px]"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+      {/* Header + About row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Header */}
+        <div className="bg-gray-800 rounded-lg p-4 md:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 md:w-6 md:h-6 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
               </svg>
-              Add Library
-            </button>
-          )}
+              <h3 className="text-lg md:text-xl font-semibold">Libraries</h3>
+            </div>
+            {!showForm && (
+              <button
+                onClick={() => setShowForm(true)}
+                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded transition flex items-center justify-center gap-2 min-h-[44px]"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Library
+              </button>
+            )}
+          </div>
+          <p className="text-gray-400 text-sm md:text-base">
+            Configure multiple game library folders for different platforms or collections.
+            Each library can be independently monitored and used for downloads.
+          </p>
         </div>
-        <p className="text-gray-400 text-sm md:text-base">
-          Configure multiple game library folders for different platforms or collections.
-          Each library can be independently monitored and used for downloads.
-        </p>
+
+        {/* About Libraries Info */}
+        <div className="bg-gray-800 rounded-lg p-4 md:p-6 border-l-4 border-blue-500">
+          <h4 className="font-semibold mb-2 flex items-center gap-2">
+            <svg className="w-5 h-5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            About Libraries
+          </h4>
+          <ul className="text-gray-400 text-sm space-y-1 list-disc list-inside">
+            <li><strong>Monitored</strong> libraries are scanned for existing games</li>
+            <li><strong>Downloads-enabled</strong> libraries can receive new downloads</li>
+            <li><strong>Platform</strong> tags help filter games in the library view</li>
+            <li>Higher <strong>priority</strong> libraries are preferred when multiple match</li>
+          </ul>
+        </div>
       </div>
 
       {/* Add/Edit Form */}
@@ -485,22 +504,6 @@ export default function LibrariesTab() {
           ))}
         </div>
       )}
-
-      {/* Info Box */}
-      <div className="bg-gray-800 rounded-lg p-4 md:p-6 border-l-4 border-blue-500">
-        <h4 className="font-semibold mb-2 flex items-center gap-2">
-          <svg className="w-5 h-5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          About Libraries
-        </h4>
-        <ul className="text-gray-400 text-sm space-y-1 list-disc list-inside">
-          <li><strong>Monitored</strong> libraries are scanned for existing games</li>
-          <li><strong>Downloads-enabled</strong> libraries can receive new downloads</li>
-          <li><strong>Platform</strong> tags help filter games in the library view</li>
-          <li>Higher <strong>priority</strong> libraries are preferred when multiple match</li>
-        </ul>
-      </div>
     </>
   );
 }

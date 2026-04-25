@@ -47,6 +47,17 @@ export default function UpdatesTab({
     }
   }, [updateCheckEnabled, updateCheckSchedule, defaultUpdatePolicy, updatePatchHandling, updatePatchPenalty, addToast, updateSetting]);
 
+  const handleToggleUpdateCheckEnabled = useCallback(async () => {
+    const next = !updateCheckEnabled;
+    setUpdateCheckEnabled(next);
+    try {
+      await updateSetting.mutateAsync({ key: 'update_check_enabled', value: next });
+    } catch {
+      setUpdateCheckEnabled(!next);
+      addToast('Failed to update setting', 'error');
+    }
+  }, [updateCheckEnabled, setUpdateCheckEnabled, updateSetting, addToast]);
+
   const handleCheckUpdatesNow = useCallback(async () => {
     try {
       const data = await checkAllUpdates.mutateAsync();
@@ -81,7 +92,7 @@ export default function UpdatesTab({
               </p>
             </div>
             <button
-              onClick={() => setUpdateCheckEnabled(!updateCheckEnabled)}
+              onClick={handleToggleUpdateCheckEnabled}
               className={`relative inline-flex h-8 w-14 md:h-6 md:w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                 updateCheckEnabled ? 'bg-blue-600' : 'bg-gray-600'
               }`}
