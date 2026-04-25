@@ -1,6 +1,7 @@
 import type { Database } from 'bun:sqlite';
 import type { TaskRow, EnqueueOptions, TaskStatus } from './types';
 import { DEFAULT_MAX_ATTEMPTS } from './types';
+import { sqlite } from '../db';
 
 function rowToTask(row: Record<string, unknown>): TaskRow {
   return {
@@ -181,7 +182,7 @@ export class TaskRepository {
     const result = this.sqlite.run(
       `UPDATE tasks SET status = 'pending', attempts = 0, last_error = NULL,
        locked_by = NULL, locked_until = NULL, run_at = ?, updated_at = ?
-       WHERE id = ? AND status IN ('failed','dead')`,
+       WHERE id = ? AND status = 'dead'`,
       [now, now, id]
     );
     return result.changes > 0;
@@ -193,5 +194,4 @@ export class TaskRepository {
   }
 }
 
-import { sqlite } from '../db';
 export const taskRepository = new TaskRepository(sqlite);
