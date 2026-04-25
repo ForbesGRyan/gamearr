@@ -5,19 +5,53 @@ import { getRouteApi } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSetting } from '../queries/settings';
 import { queryKeys } from '../queries/keys';
+import { api } from '../api/client';
+import { unwrap } from '../queries/unwrap';
 
 const route = getRouteApi('/_auth/settings');
 
-// Lazy load tab components
-const GeneralTab = lazy(() => import('../components/settings/GeneralTab'));
-const LibrariesTab = lazy(() => import('../components/settings/LibrariesTab'));
-const IndexersTab = lazy(() => import('../components/settings/IndexersTab'));
-const DownloadsTab = lazy(() => import('../components/settings/DownloadsTab'));
-const MetadataTab = lazy(() => import('../components/settings/MetadataTab'));
-const NotificationsTab = lazy(() => import('../components/settings/NotificationsTab'));
-const UpdatesTab = lazy(() => import('../components/settings/UpdatesTab'));
-const SystemTab = lazy(() => import('../components/settings/SystemTab'));
-const SecurityTab = lazy(() => import('../components/settings/SecurityTab'));
+const tabImports = {
+  general: () => import('../components/settings/GeneralTab'),
+  libraries: () => import('../components/settings/LibrariesTab'),
+  indexers: () => import('../components/settings/IndexersTab'),
+  downloads: () => import('../components/settings/DownloadsTab'),
+  metadata: () => import('../components/settings/MetadataTab'),
+  notifications: () => import('../components/settings/NotificationsTab'),
+  updates: () => import('../components/settings/UpdatesTab'),
+  system: () => import('../components/settings/SystemTab'),
+  security: () => import('../components/settings/SecurityTab'),
+} as const;
+
+const GeneralTab = lazy(tabImports.general);
+const LibrariesTab = lazy(tabImports.libraries);
+const IndexersTab = lazy(tabImports.indexers);
+const DownloadsTab = lazy(tabImports.downloads);
+const MetadataTab = lazy(tabImports.metadata);
+const NotificationsTab = lazy(tabImports.notifications);
+const UpdatesTab = lazy(tabImports.updates);
+const SystemTab = lazy(tabImports.system);
+const SecurityTab = lazy(tabImports.security);
+
+function scheduleIdle(cb: () => void) {
+  const ric = (globalThis as { requestIdleCallback?: (cb: () => void) => number })
+    .requestIdleCallback;
+  if (typeof ric === 'function') ric(cb);
+  else setTimeout(cb, 200);
+}
+
+const FIVE_MIN = 5 * 60_000;
+const tabPrefetches: ReadonlyArray<{
+  key: readonly unknown[];
+  fetch: () => Promise<unknown>;
+  staleTime?: number;
+}> = [
+  { key: queryKeys.libraries.list(), fetch: async () => unwrap(await api.getLibraries()), staleTime: FIVE_MIN },
+  { key: queryKeys.system.status(), fetch: async () => unwrap(await api.getSystemStatus()), staleTime: 30_000 },
+  { key: queryKeys.system.logs(), fetch: async () => unwrap(await api.getLogFiles()), staleTime: 30_000 },
+  { key: queryKeys.system.appUpdate(), fetch: async () => unwrap(await api.getAppUpdateStatus()), staleTime: FIVE_MIN },
+  { key: queryKeys.system.appUpdateSettings(), fetch: async () => unwrap(await api.getAppUpdateSettings()), staleTime: FIVE_MIN },
+  { key: queryKeys.auth.status(), fetch: async () => unwrap(await api.getAuthStatus()), staleTime: FIVE_MIN },
+];
 
 type SettingsTab = 'general' | 'libraries' | 'indexers' | 'downloads' | 'metadata' | 'notifications' | 'updates' | 'system' | 'security';
 
@@ -150,6 +184,20 @@ function Settings() {
     // Init-only sync from server queries; including all data deps would cause the form to overwrite user edits on refetch.
     // File opts out of React Compiler via 'use no memo' directive at top.
   }, [isLoading]);
+
+  const hasWarmedRef = useRef(false);
+  useEffect(() => {
+    if (hasWarmedRef.current) return;
+    if (isLoading) return;
+    hasWarmedRef.current = true;
+
+    scheduleIdle(() => {
+      for (const importer of Object.values(tabImports)) importer();
+      for (const { key, fetch, staleTime } of tabPrefetches) {
+        queryClient.prefetchQuery({ queryKey: key, queryFn: fetch, staleTime });
+      }
+    });
+  }, [isLoading, queryClient]);
 
   const handleRetry = () => {
     hasSeededRef.current = false;
