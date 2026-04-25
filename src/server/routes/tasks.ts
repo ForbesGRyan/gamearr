@@ -51,6 +51,20 @@ router.post('/:id/retry', (c) => {
 router.delete('/:id', (c) => {
   const id = parseInt(c.req.param('id'), 10);
   if (!Number.isFinite(id)) return c.json({ success: false, error: 'Invalid id' }, 400);
+  const task = taskRepository.findById(id);
+  if (!task) return c.json({ success: false, error: 'Task not found' }, 404);
+  if (task.status === 'done') {
+    return c.json(
+      { success: false, error: 'Cannot delete completed tasks (kept as audit log; archived after 7 days)' },
+      409
+    );
+  }
+  if (task.status === 'running') {
+    return c.json(
+      { success: false, error: 'Cannot delete running tasks; wait for them to finish' },
+      409
+    );
+  }
   const ok = taskRepository.delete(id);
   if (!ok) return c.json({ success: false, error: 'Task not found' }, 404);
   return c.json({ success: true });
