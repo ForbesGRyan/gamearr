@@ -10,7 +10,7 @@ Gamearr is an automated game library management system following the *arr ecosys
 - Runtime: Bun 1.x
 - Backend: Hono 4.x framework with TypeScript
 - Database: SQLite with Drizzle ORM
-- Frontend: React 18 + Vite 5 + TailwindCSS
+- Frontend: React 19 (with React Compiler) + Vite 8 + Tailwind 4 + TanStack Router/Query/Table
 - Build: Single binary compilation via Bun
 
 ## Essential Commands

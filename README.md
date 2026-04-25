@@ -11,6 +11,13 @@ Gamearr monitors your wanted games, automatically searches for releases via Prow
 > **Breaking change in v0.1.15: default port is now `8484` (was `7878`).**
 > `7878` collides with Radarr. Existing installs that relied on the default must either update bookmarks / reverse proxies / port mappings to `8484`, or set `PORT=7878` to keep the old behavior. See [docs/PORT_MIGRATION.md](docs/PORT_MIGRATION.md) for full upgrade steps.
 
+## Tech Stack
+
+- **Runtime:** Bun 1.x
+- **Backend:** Hono 4 + TypeScript, SQLite via Drizzle ORM
+- **Frontend:** React 19 (with React Compiler), Vite 8, Tailwind 4, TanStack Router/Query/Table
+- **Build:** Single self-contained binary via `bun build --compile` with embedded VFS
+
 ## Features
 
 - **IGDB Integration** - Search and add games with full metadata (cover art, year, platforms, descriptions)
@@ -20,6 +27,7 @@ Gamearr monitors your wanted games, automatically searches for releases via Prow
 - **qBittorrent Integration** - Automated download management with progress tracking
 - **Library Scanning** - Scan existing game folders and match to database
 - **Library Health** - Detect duplicate games and organize loose files
+- **Auto-Link Imports** - Manual downloads of wanted games are auto-linked and toast-notified on import
 - **RSS Automation** - Automatically grab new releases matching your wanted games
 - **Quality Scoring** - Intelligent release selection (prefers GOG, DRM-Free, repacks)
 - **Update Monitoring** - Track game updates and new versions
