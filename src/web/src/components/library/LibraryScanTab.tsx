@@ -442,11 +442,11 @@ export function LibraryScanTab({
           {/* Pagination - Top */}
           {filteredAndSortedFolders.length > 0 && (
             <LibraryPagination
-              currentPage={currentPage}
-              totalPages={totalPages}
+              pageIndex={Math.max(0, currentPage - 1)}
+              pageCount={totalPages}
               pageSize={pageSize}
               totalItems={filteredAndSortedFolders.length}
-              onPageChange={setCurrentPage}
+              onPageChange={(idx) => setCurrentPage(idx + 1)}
               onPageSizeChange={handlePageSizeChange}
               itemLabel="folders"
             />

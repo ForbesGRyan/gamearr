@@ -1,316 +1,170 @@
+import { useRef, useState } from 'react';
+import type { Table } from '@tanstack/react-table';
 import { MagnifyingGlassIcon } from '../Icons';
-import type { Filters, SortColumn, SortDirection, StatusFilter, MonitoredFilter, LibraryInfo } from './types';
+import { FilterPopover } from './FilterPopover';
+import { SortPopover, getSortLabel } from './SortPopover';
+import { ActiveFilterChips } from './ActiveFilterChips';
+import type { GameRow } from './libraryColumns';
+import type { LibraryInfo, ViewMode } from './types';
 
 interface LibraryGamesFilterProps {
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-  sortColumn: SortColumn;
-  sortDirection: SortDirection;
-  onSortChange: (column: SortColumn, direction: SortDirection) => void;
-  filters: Filters;
-  onFiltersChange: (filters: Filters) => void;
+  table: Table<GameRow>;
   allGenres: string[];
   allGameModes: string[];
   allStores: string[];
-  activeFilterCount: number;
+  libraries: LibraryInfo[];
   filteredCount: number;
   totalCount: number;
-  libraries: LibraryInfo[];
-  onClearFilters: () => void;
+  activeFilterCount: number;
+  viewMode: ViewMode;
+}
+
+function ChevronDown({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+}
+
+function FilterIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+    </svg>
+  );
+}
+
+function SortIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+    </svg>
+  );
 }
 
 export function LibraryGamesFilter({
-  searchQuery,
-  onSearchChange,
-  sortColumn,
-  sortDirection,
-  onSortChange,
-  filters,
-  onFiltersChange,
+  table,
   allGenres,
   allGameModes,
   allStores,
-  activeFilterCount,
+  libraries,
   filteredCount,
   totalCount,
-  libraries,
-  onClearFilters,
+  activeFilterCount,
+  viewMode,
 }: LibraryGamesFilterProps) {
-  const toggleGenreFilter = (genre: string) => {
-    onFiltersChange({
-      ...filters,
-      genres: filters.genres.includes(genre)
-        ? filters.genres.filter((g) => g !== genre)
-        : [...filters.genres, genre],
-    });
-  };
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+  const filtersBtnRef = useRef<HTMLButtonElement>(null);
+  const sortBtnRef = useRef<HTMLButtonElement>(null);
 
-  const toggleGameModeFilter = (mode: string) => {
-    onFiltersChange({
-      ...filters,
-      gameModes: filters.gameModes.includes(mode)
-        ? filters.gameModes.filter((m) => m !== mode)
-        : [...filters.gameModes, mode],
-    });
-  };
+  const globalFilter = table.getState().globalFilter ?? '';
+  const sorting = table.getState().sorting[0];
+  const sortLabel = getSortLabel(sorting?.id, sorting?.desc ?? false);
 
-  const toggleStoreFilter = (store: string) => {
-    onFiltersChange({
-      ...filters,
-      stores: filters.stores.includes(store)
-        ? filters.stores.filter((s) => s !== store)
-        : [...filters.stores, store],
-    });
-  };
+  // Sort button is hidden in table view — column headers own sort there.
+  const showSortButton = viewMode !== 'table';
 
   return (
-    <div className="mb-6 bg-gray-800 rounded-lg p-3 sm:p-4">
-      <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 sm:gap-4">
-        {/* Search Input */}
-        <div className="relative w-full sm:w-auto">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search games..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="bg-gray-700 border border-gray-600 rounded pl-9 pr-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto sm:min-w-[200px]"
-          />
-          {searchQuery && (
+    <div className="mb-4">
+      <div className="bg-gray-800 rounded-lg p-3 sm:p-4">
+        <div className="flex flex-row items-stretch gap-2">
+          {/* Search */}
+          <div className="relative flex-1 min-w-0">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search games..."
+              value={globalFilter}
+              onChange={(e) => table.setGlobalFilter(e.target.value)}
+              className="w-full bg-gray-700 border border-gray-600 rounded-md pl-9 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {globalFilter && (
+              <button
+                onClick={() => table.setGlobalFilter('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-white"
+                aria-label="Clear search"
+              >
+                &times;
+              </button>
+            )}
+          </div>
+
+          {/* Filters button */}
+          <div className="relative shrink-0">
             <button
-              onClick={() => onSearchChange('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+              ref={filtersBtnRef}
+              type="button"
+              onClick={() => {
+                setFiltersOpen((v) => !v);
+                setSortOpen(false);
+              }}
+              aria-expanded={filtersOpen}
+              aria-haspopup="dialog"
+              className={`h-full inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm transition border ${
+                activeFilterCount > 0
+                  ? 'bg-blue-600/20 border-blue-500 text-blue-100 hover:bg-blue-600/30'
+                  : 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600'
+              }`}
             >
-              &times;
+              <FilterIcon />
+              <span className="hidden sm:inline">Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="bg-blue-600 text-white rounded-full text-[11px] font-semibold min-w-[1.25rem] px-1.5 py-0.5 leading-none inline-flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+              <ChevronDown />
             </button>
+            <FilterPopover
+              table={table}
+              open={filtersOpen}
+              onClose={() => setFiltersOpen(false)}
+              anchorRef={filtersBtnRef}
+              allGenres={allGenres}
+              allGameModes={allGameModes}
+              allStores={allStores}
+              libraries={libraries}
+            />
+          </div>
+
+          {/* Sort button (grid modes only) */}
+          {showSortButton && (
+            <div className="relative shrink-0">
+              <button
+                ref={sortBtnRef}
+                type="button"
+                onClick={() => {
+                  setSortOpen((v) => !v);
+                  setFiltersOpen(false);
+                }}
+                aria-expanded={sortOpen}
+                aria-haspopup="menu"
+                className="h-full inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm bg-gray-700 border border-gray-600 text-gray-200 hover:bg-gray-600 transition"
+              >
+                <SortIcon />
+                <span className="hidden md:inline truncate max-w-[10rem]">{sortLabel}</span>
+                <ChevronDown />
+              </button>
+              <SortPopover
+                table={table}
+                open={sortOpen}
+                onClose={() => setSortOpen(false)}
+                anchorRef={sortBtnRef}
+              />
+            </div>
           )}
         </div>
 
-        {/* Sort Dropdown */}
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label htmlFor="games-filter-sort" className="text-sm text-gray-400 shrink-0">Sort:</label>
-          <select
-            id="games-filter-sort"
-            value={`${sortColumn}-${sortDirection}`}
-            onChange={(e) => {
-              const [col, dir] = e.target.value.split('-') as [SortColumn, SortDirection];
-              onSortChange(col, dir);
-            }}
-            className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
-          >
-            <option value="title-asc">Title (A-Z)</option>
-            <option value="title-desc">Title (Z-A)</option>
-            <option value="year-desc">Year (Newest)</option>
-            <option value="year-asc">Year (Oldest)</option>
-            <option value="rating-desc">Rating (Highest)</option>
-            <option value="rating-asc">Rating (Lowest)</option>
-            <option value="monitored-asc">Monitored first</option>
-            <option value="monitored-desc">Unmonitored first</option>
-            <option value="store-asc">Store (A-Z)</option>
-            <option value="store-desc">Store (Z-A)</option>
-            <option value="status-asc">Status (Wanted first)</option>
-            <option value="status-desc">Status (Downloaded first)</option>
-          </select>
-        </div>
+        <ActiveFilterChips table={table} libraries={libraries} />
 
-        {/* Status Filter */}
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label htmlFor="games-filter-status" className="text-sm text-gray-400 shrink-0">Status:</label>
-          <select
-            id="games-filter-status"
-            value={filters.status}
-            onChange={(e) => onFiltersChange({ ...filters, status: e.target.value as StatusFilter })}
-            className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
-          >
-            <option value="all">All</option>
-            <option value="wanted">Wanted</option>
-            <option value="downloading">Downloading</option>
-            <option value="downloaded">Downloaded</option>
-          </select>
-        </div>
-
-        {/* Monitored Filter */}
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label htmlFor="games-filter-monitored" className="text-sm text-gray-400 shrink-0">Monitored:</label>
-          <select
-            id="games-filter-monitored"
-            value={filters.monitored}
-            onChange={(e) => onFiltersChange({ ...filters, monitored: e.target.value as MonitoredFilter })}
-            className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
-          >
-            <option value="all">All</option>
-            <option value="monitored">Monitored</option>
-            <option value="unmonitored">Unmonitored</option>
-          </select>
-        </div>
-
-        {/* Library Filter */}
-        {libraries.length > 0 && (
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <label htmlFor="games-filter-library" className="text-sm text-gray-400 shrink-0">Library:</label>
-            <select
-              id="games-filter-library"
-              value={filters.libraryId}
-              onChange={(e) => {
-                const value = e.target.value;
-                onFiltersChange({
-                  ...filters,
-                  libraryId: value === 'all' ? 'all' : parseInt(value, 10),
-                });
-              }}
-              className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
-            >
-              <option value="all">All Libraries</option>
-              {libraries.map((lib) => (
-                <option key={lib.id} value={lib.id}>
-                  {lib.name}
-                  {lib.platform ? ` (${lib.platform})` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Store Filter */}
-        {allStores.length > 0 && (
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <label htmlFor="games-filter-store" className="text-sm text-gray-400 shrink-0">Store:</label>
-            <div className="relative flex-1 sm:flex-none">
-              <select
-                id="games-filter-store"
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) toggleStoreFilter(e.target.value);
-                }}
-                className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
-              >
-                <option value="">
-                  {filters.stores.length > 0 ? `${filters.stores.length} selected` : 'Select...'}
-                </option>
-                {allStores.map((store) => (
-                  <option key={store} value={store}>
-                    {filters.stores.includes(store) ? `[x] ${store}` : store}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-
-        {/* Genre Filter */}
-        {allGenres.length > 0 && (
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <label htmlFor="games-filter-genres" className="text-sm text-gray-400 shrink-0">Genres:</label>
-            <div className="relative flex-1 sm:flex-none">
-              <select
-                id="games-filter-genres"
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) toggleGenreFilter(e.target.value);
-                }}
-                className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
-              >
-                <option value="">
-                  {filters.genres.length > 0 ? `${filters.genres.length} selected` : 'Select...'}
-                </option>
-                {allGenres.map((genre) => (
-                  <option key={genre} value={genre}>
-                    {filters.genres.includes(genre) ? `[x] ${genre}` : genre}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-
-        {/* Game Modes Filter */}
-        {allGameModes.length > 0 && (
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <label htmlFor="games-filter-modes" className="text-sm text-gray-400 shrink-0">Modes:</label>
-            <div className="relative flex-1 sm:flex-none">
-              <select
-                id="games-filter-modes"
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) toggleGameModeFilter(e.target.value);
-                }}
-                className="bg-gray-700 border border-gray-600 rounded px-3 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
-              >
-                <option value="">
-                  {filters.gameModes.length > 0 ? `${filters.gameModes.length} selected` : 'Select...'}
-                </option>
-                {allGameModes.map((mode) => (
-                  <option key={mode} value={mode}>
-                    {filters.gameModes.includes(mode) ? `[x] ${mode}` : mode}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-
-        {/* Clear Filters Button */}
         {activeFilterCount > 0 && (
-          <button
-            onClick={onClearFilters}
-            className="w-full sm:w-auto sm:ml-auto text-sm px-3 py-2 sm:py-1.5 rounded bg-gray-700 hover:bg-gray-600 transition flex items-center justify-center gap-1"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-            Clear Filters ({activeFilterCount})
-          </button>
+          <div className="text-xs text-gray-400 mt-2">
+            Showing {filteredCount} of {totalCount} games
+          </div>
         )}
       </div>
-
-      {/* Active Filter Chips */}
-      {(filters.genres.length > 0 || filters.gameModes.length > 0 || filters.stores.length > 0) && (
-        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-700">
-          {filters.stores.map((store) => (
-            <button
-              key={store}
-              onClick={() => toggleStoreFilter(store)}
-              className="text-xs bg-green-600 hover:bg-green-500 px-2.5 py-1 rounded-full flex items-center gap-1 transition"
-            >
-              {store}
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          ))}
-          {filters.genres.map((genre) => (
-            <button
-              key={genre}
-              onClick={() => toggleGenreFilter(genre)}
-              className="text-xs bg-blue-600 hover:bg-blue-500 px-2.5 py-1 rounded-full flex items-center gap-1 transition"
-            >
-              {genre}
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          ))}
-          {filters.gameModes.map((mode) => (
-            <button
-              key={mode}
-              onClick={() => toggleGameModeFilter(mode)}
-              className="text-xs bg-purple-600 hover:bg-purple-500 px-2.5 py-1 rounded-full flex items-center gap-1 transition"
-            >
-              {mode}
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Results Count */}
-      {activeFilterCount > 0 && (
-        <div className="text-sm text-gray-400 mt-3">
-          Showing {filteredCount} of {totalCount} games
-        </div>
-      )}
     </div>
   );
 }

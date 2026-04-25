@@ -1,24 +1,28 @@
 interface LibraryPaginationProps {
-  currentPage: number;
-  totalPages: number;
+  pageIndex: number; // 0-based
+  pageCount: number;
   pageSize: number;
   totalItems: number;
-  onPageChange: (page: number) => void;
+  onPageChange: (pageIndex: number) => void;
   onPageSizeChange: (size: number) => void;
   itemLabel?: string;
 }
 
 export function LibraryPagination({
-  currentPage,
-  totalPages,
+  pageIndex,
+  pageCount,
   pageSize,
   totalItems,
   onPageChange,
   onPageSizeChange,
   itemLabel = 'games',
 }: LibraryPaginationProps) {
-  const startItem = (currentPage - 1) * pageSize + 1;
-  const endItem = Math.min(currentPage * pageSize, totalItems);
+  const currentPage = pageIndex + 1;
+  const totalPages = Math.max(pageCount, 1);
+  const startItem = totalItems === 0 ? 0 : pageIndex * pageSize + 1;
+  const endItem = Math.min((pageIndex + 1) * pageSize, totalItems);
+  const isFirst = pageIndex <= 0;
+  const isLast = pageIndex >= pageCount - 1;
 
   return (
     <div className="mt-6 flex items-center justify-between bg-gray-800 rounded-lg p-4">
@@ -45,15 +49,15 @@ export function LibraryPagination({
       </div>
       <div className="flex items-center gap-2">
         <button
-          onClick={() => onPageChange(1)}
-          disabled={currentPage === 1}
+          onClick={() => onPageChange(0)}
+          disabled={isFirst}
           className="px-3 py-2 min-h-[44px] md:min-h-0 md:py-1.5 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm"
         >
           First
         </button>
         <button
-          onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-          disabled={currentPage === 1}
+          onClick={() => onPageChange(Math.max(0, pageIndex - 1))}
+          disabled={isFirst}
           className="px-3 py-2 min-h-[44px] md:min-h-0 md:py-1.5 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm"
         >
           Previous
@@ -62,15 +66,15 @@ export function LibraryPagination({
           Page {currentPage} of {totalPages}
         </span>
         <button
-          onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(Math.min(pageCount - 1, pageIndex + 1))}
+          disabled={isLast}
           className="px-3 py-2 min-h-[44px] md:min-h-0 md:py-1.5 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm"
         >
           Next
         </button>
         <button
-          onClick={() => onPageChange(totalPages)}
-          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(pageCount - 1)}
+          disabled={isLast}
           className="px-3 py-2 min-h-[44px] md:min-h-0 md:py-1.5 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm"
         >
           Last

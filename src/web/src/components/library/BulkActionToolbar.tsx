@@ -2,22 +2,28 @@ import { EyeIcon, EyeSlashIcon, TrashIcon } from '../Icons';
 
 interface BulkActionToolbarProps {
   selectedCount: number;
+  totalFilteredCount: number;
   isLoading: boolean;
   onMonitor: () => void;
   onUnmonitor: () => void;
   onDelete: () => void;
   onClear: () => void;
+  onSelectAllFiltered: () => void;
 }
 
 export function BulkActionToolbar({
   selectedCount,
+  totalFilteredCount,
   isLoading,
   onMonitor,
   onUnmonitor,
   onDelete,
   onClear,
+  onSelectAllFiltered,
 }: BulkActionToolbarProps) {
   if (selectedCount === 0) return null;
+
+  const showSelectAllFiltered = selectedCount < totalFilteredCount;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-blue-900/95 border-t border-blue-700 p-3 flex items-center justify-between z-40 backdrop-blur-sm">
@@ -25,6 +31,14 @@ export function BulkActionToolbar({
         <span className="text-sm font-medium">
           {selectedCount} game{selectedCount !== 1 ? 's' : ''} selected
         </span>
+        {showSelectAllFiltered && (
+          <button
+            onClick={onSelectAllFiltered}
+            className="text-sm text-blue-200 hover:text-white underline transition min-h-[44px] px-2 flex items-center"
+          >
+            Select all {totalFilteredCount}
+          </button>
+        )}
         <button
           onClick={onClear}
           className="text-sm text-gray-300 hover:text-white transition min-h-[44px] px-2 flex items-center"

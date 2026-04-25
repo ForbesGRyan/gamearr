@@ -6,7 +6,7 @@ export { GogImportModal } from './GogImportModal';
 export { LibraryHealthTab } from './LibraryHealthTab';
 export { LibraryScanTab } from './LibraryScanTab';
 
-// New extracted components
+// View components
 export { LibraryTableView } from './LibraryTableView';
 export { LibraryMobileView } from './LibraryMobileView';
 export { LibraryPosterGrid } from './LibraryPosterGrid';
@@ -15,10 +15,14 @@ export { LibraryEmptyState } from './LibraryEmptyState';
 export { LibraryHeader } from './LibraryHeader';
 export { LibraryTabs } from './LibraryTabs';
 export { LibraryGamesFilter } from './LibraryGamesFilter';
+export { FilterPopover } from './FilterPopover';
+export { SortPopover } from './SortPopover';
+export { ActiveFilterChips } from './ActiveFilterChips';
 export { LibraryToasts } from './LibraryToasts';
 
 // Hooks
-export { useLibraryGames } from './useLibraryGames';
+export { useLibraryTable } from './useLibraryTable';
+export type { GameRow, LibraryTableMeta } from './libraryColumns';
 
 // Type exports
 export type {

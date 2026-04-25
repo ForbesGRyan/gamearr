@@ -21,7 +21,6 @@ import {
 } from '../queries/library';
 import { useUpdateGameStores } from '../queries/games';
 
-// Import library-specific components and hooks
 import {
   LibraryPagination,
   LibraryScanTab,
@@ -38,7 +37,7 @@ import {
   GogImportModal,
   BulkActionToolbar,
   LibraryToasts,
-  useLibraryGames,
+  useLibraryTable,
 } from '../components/library';
 import type {
   LibraryFolder,
@@ -46,6 +45,7 @@ import type {
   LooseFile,
   DuplicateGroup,
 } from '../components/library';
+import type { Game } from '../components/library/types';
 
 type Tab = 'games' | 'scan' | 'health';
 
@@ -53,10 +53,8 @@ function Library() {
   const search = route.useSearch();
   const navigate = route.useNavigate();
 
-  // Derive activeTab directly from URL - single source of truth
   const activeTab: Tab = search.tab ?? 'games';
 
-  // Handler to change tab - updates URL which updates activeTab
   const setActiveTab = useCallback(
     (tab: Tab) => {
       navigate({
@@ -67,18 +65,18 @@ function Library() {
     [navigate]
   );
 
-  // Use custom hook for games state and handlers
   const {
+    table,
     games,
+    libraries,
+    allGenres,
+    allGameModes,
+    allStores,
     isLoading,
     error,
     setError,
     viewMode,
-    sortColumn,
-    sortDirection,
-    filters,
-    searchQuery,
-    libraries,
+    handleViewModeChange,
     isModalOpen,
     setIsModalOpen,
     isSearchModalOpen,
@@ -87,44 +85,70 @@ function Library() {
     setSelectedGame,
     gameToDelete,
     setGameToDelete,
-    selectedGameIds,
+    selectedIds,
+    selectedCount,
     bulkActionLoading,
-    isAllSelected,
-    isSomeSelected,
-    currentPage,
-    setCurrentPage,
-    pageSize,
-    totalPages,
-    allGenres,
-    allGameModes,
-    allStores,
-    filteredAndSortedGames,
-    paginatedGames,
-    activeFilterCount,
-    handleViewModeChange,
-    handleSort,
-    handleToggleMonitor,
-    handleDelete,
-    handleSearch,
-    handleEdit,
-    handlePageSizeChange,
-    clearFilters,
-    toggleGameSelection,
-    selectAllGames,
-    clearSelection,
     handleBulkMonitor,
     handleBulkDelete,
+    selectAllFiltered,
+    clearSelection,
+    filteredCount,
+    handleDelete,
+    activeFilterCount,
     loadGames,
-    setSearchQuery,
-    setFilters,
-    setSort,
-  } = useLibraryGames();
+  } = useLibraryTable();
 
-  // Match folder modal state
+  // Derived data for view components.
+  const { rows: visibleRows } = table.getRowModel();
+  const visibleGames = useMemo(() => visibleRows.map((r) => r.original), [visibleRows]);
+  const selectedGameIds = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+  const tableState = table.getState();
+  const pageIndex = tableState.pagination.pageIndex;
+  const pageSize = tableState.pagination.pageSize;
+  const pageCount = table.getPageCount();
+
+  // Action callbacks consumed by view components (poster, overview, mobile).
+  const onToggleMonitor = useCallback(
+    (id: number) => {
+      table.options.meta?.onToggleMonitor(id);
+    },
+    [table]
+  );
+
+  const onSearch = useCallback(
+    (game: Game) => {
+      table.options.meta?.onSearch(game);
+    },
+    [table]
+  );
+
+  const onEdit = useCallback(
+    (game: Game) => {
+      table.options.meta?.onEdit(game);
+    },
+    [table]
+  );
+
+  const onRowDelete = useCallback(
+    (game: Game) => {
+      setGameToDelete(game);
+    },
+    [setGameToDelete]
+  );
+
+  const toggleGameSelection = useCallback(
+    (gameId: number) => {
+      table.getRow(String(gameId))?.toggleSelected();
+    },
+    [table]
+  );
+
+  // ---------- Match folder + scan + health (unchanged from before) ----------
+
   const [isMatchModalOpen, setIsMatchModalOpen] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<LibraryFolder | null>(null);
 
-  // Scan tab state
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const [libraryFolders, setLibraryFolders] = useState<LibraryFolder[]>([]);
   const [isScanLoaded, setIsScanLoaded] = useState(false);
@@ -133,12 +157,10 @@ function Library() {
   const [selectedStores, setSelectedStores] = useState<Record<string, string[]>>({});
   const [selectedLibraryForMatch, setSelectedLibraryForMatch] = useState<Record<string, number | undefined>>({});
 
-  // Background auto-matching state
   const [isBackgroundAutoMatching, setIsBackgroundAutoMatching] = useState(false);
   const [backgroundAutoMatchProgress, setBackgroundAutoMatchProgress] = useState({ current: 0, total: 0 });
   const backgroundAutoMatchAbortRef = useRef(false);
 
-  // Library health/scan queries and mutations
   const scanCountQuery = useLibraryScanCount();
   const healthCountQuery = useLibraryHealthCount();
   const duplicatesQuery = useLibraryDuplicates();
@@ -197,7 +219,6 @@ function Library() {
   const [gogSearchQuery, setGogSearchQuery] = useState('');
   const [gogShowOwned, setGogShowOwned] = useState(true);
 
-  // Computed values
   const visibleDuplicates = useMemo(() => {
     return duplicates.filter((group) => {
       const key = group.games.map((g) => g.id).sort().join('-');
@@ -216,12 +237,8 @@ function Library() {
       if (!steamShowOwned && game.alreadyInLibrary) return false;
       return true;
     });
-    // Sort the filtered results
     return filtered.sort((a, b) => {
-      if (steamSortBy === 'name') {
-        return a.name.localeCompare(b.name);
-      }
-      // Default: sort by playtime (descending)
+      if (steamSortBy === 'name') return a.name.localeCompare(b.name);
       return b.playtimeMinutes - a.playtimeMinutes;
     });
   }, [steamGames, steamSearchQuery, steamMinPlaytime, steamShowOwned, steamSortBy]);
@@ -237,8 +254,6 @@ function Library() {
     });
   }, [gogGames, gogSearchQuery, gogShowOwned]);
 
-  // Data loading
-  // Load the cached library scan (GET) on demand (tab visit / after match).
   const loadScanData = useCallback(async () => {
     try {
       const response = await api.getLibraryScan();
@@ -252,14 +267,12 @@ function Library() {
     }
   }, []);
 
-  // Load full scan data only when the scan tab is visited.
   useEffect(() => {
     if (activeTab === 'scan' && !isScanLoaded) {
       loadScanData();
     }
   }, [activeTab, isScanLoaded, loadScanData]);
 
-  // Scan handlers - parallel auto-matching with concurrency limit
   const runBackgroundAutoMatch = useCallback(async (folders: LibraryFolder[]) => {
     const foldersToMatch = folders.filter(f => !f.matched && !autoMatchSuggestions[f.path]);
     if (foldersToMatch.length === 0) return;
@@ -271,10 +284,8 @@ function Library() {
     const CONCURRENCY_LIMIT = 5;
     let completedCount = 0;
 
-    // Process folders in batches with concurrency limit
     const processFolder = async (folder: LibraryFolder) => {
       if (backgroundAutoMatchAbortRef.current) return;
-
       setIsAutoMatching((prev) => ({ ...prev, [folder.path]: true }));
 
       try {
@@ -300,7 +311,7 @@ function Library() {
           }
         }
       } catch {
-        // Silently continue on error
+        // continue
       } finally {
         setIsAutoMatching((prev) => ({ ...prev, [folder.path]: false }));
         completedCount++;
@@ -308,10 +319,8 @@ function Library() {
       }
     };
 
-    // Process in batches with concurrency limit
     for (let i = 0; i < foldersToMatch.length; i += CONCURRENCY_LIMIT) {
       if (backgroundAutoMatchAbortRef.current) break;
-
       const batch = foldersToMatch.slice(i, i + CONCURRENCY_LIMIT);
       await Promise.all(batch.map(processFolder));
     }
@@ -440,18 +449,17 @@ function Library() {
         folderPath: folder.path,
         folderName: folder.folderName,
         igdbGame: suggestionWithPlatform,
-        store: folderStores[0] || null, // Use first store for legacy field
+        store: folderStores[0] || null,
         libraryId: selectedLibraryForMatch[folder.path] || null,
       });
 
-      // If multiple stores selected, update stores via the dedicated endpoint
       if (folderStores.length > 0) {
         await updateGameStoresMutation.mutateAsync({ id: matched.id, stores: folderStores });
       }
       setAutoMatchSuggestions((prev) => {
-        const newSuggestions = { ...prev };
-        delete newSuggestions[folder.path];
-        return newSuggestions;
+        const next = { ...prev };
+        delete next[folder.path];
+        return next;
       });
       setScanMessage(`Successfully matched "${folder.folderName}" to ${suggestion.title}`);
       setTimeout(() => setScanMessage(null), SUCCESS_MESSAGE_TIMEOUT_MS);
@@ -461,13 +469,13 @@ function Library() {
       const message = err instanceof Error ? err.message : 'Failed to match folder';
       setError(message);
     }
-  }, [autoMatchSuggestions, selectedLibraryForMatch, selectedStores, libraries, loadGames, loadScanData, setError, matchFolderMutation]);
+  }, [autoMatchSuggestions, selectedLibraryForMatch, selectedStores, libraries, loadGames, loadScanData, setError, matchFolderMutation, updateGameStoresMutation]);
 
   const handleCancelAutoMatch = useCallback((folder: LibraryFolder) => {
     setAutoMatchSuggestions((prev) => {
-      const newSuggestions = { ...prev };
-      delete newSuggestions[folder.path];
-      return newSuggestions;
+      const next = { ...prev };
+      delete next[folder.path];
+      return next;
     });
   }, []);
 
@@ -475,7 +483,6 @@ function Library() {
     handleMatchFolder(folder);
   }, [handleMatchFolder]);
 
-  // Health tab handlers
   const handleOrganizeFile = useCallback(async (filePath: string, folderName: string) => {
     setOrganizingFile(filePath);
     setOrganizeError(null);
@@ -493,14 +500,13 @@ function Library() {
   const handleDismissDuplicate = useCallback((group: DuplicateGroup) => {
     const key = group.games.map((g) => g.id).sort().join('-');
     setDismissedDuplicates((prev) => {
-      const newDismissed = new Set(prev);
-      newDismissed.add(key);
-      localStorage.setItem('dismissed-duplicates', JSON.stringify([...newDismissed]));
-      return newDismissed;
+      const next = new Set(prev);
+      next.add(key);
+      localStorage.setItem('dismissed-duplicates', JSON.stringify([...next]));
+      return next;
     });
   }, []);
 
-  // Steam import handlers
   const handleOpenSteamImport = useCallback(async () => {
     setIsSteamModalOpen(true);
     setIsLoadingSteam(true);
@@ -523,18 +529,15 @@ function Library() {
   const handleToggleSteamGame = useCallback((appId: number) => {
     setSelectedSteamGames((prev) => {
       const next = new Set(prev);
-      if (next.has(appId)) {
-        next.delete(appId);
-      } else {
-        next.add(appId);
-      }
+      if (next.has(appId)) next.delete(appId);
+      else next.add(appId);
       return next;
     });
   }, []);
 
   const handleSelectAllSteamGames = useCallback(() => {
-    const importableGames = filteredSteamGames.filter((g) => !g.alreadyInLibrary);
-    setSelectedSteamGames(new Set(importableGames.map((g) => g.appId)));
+    const importable = filteredSteamGames.filter((g) => !g.alreadyInLibrary);
+    setSelectedSteamGames(new Set(importable.map((g) => g.appId)));
   }, [filteredSteamGames]);
 
   const handleImportSteamGames = useCallback(async () => {
@@ -584,7 +587,6 @@ function Library() {
     }
   }, [selectedSteamGames, loadGames]);
 
-  // GOG import handlers
   const handleOpenGogImport = useCallback(async () => {
     setIsGogModalOpen(true);
     setIsLoadingGog(true);
@@ -607,18 +609,15 @@ function Library() {
   const handleToggleGogGame = useCallback((id: number) => {
     setSelectedGogGames((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
 
   const handleSelectAllGogGames = useCallback(() => {
-    const importableGames = filteredGogGames.filter((g) => !g.alreadyInLibrary);
-    setSelectedGogGames(new Set(importableGames.map((g) => g.id)));
+    const importable = filteredGogGames.filter((g) => !g.alreadyInLibrary);
+    setSelectedGogGames(new Set(importable.map((g) => g.id)));
   }, [filteredGogGames]);
 
   const handleImportGogGames = useCallback(async () => {
@@ -688,42 +687,35 @@ function Library() {
         healthIssuesCount={isHealthLoaded ? visibleDuplicates.length + looseFiles.length : healthCount}
       />
 
-      {/* Bulk Action Toolbar */}
       {activeTab === 'games' && (
         <BulkActionToolbar
-          selectedCount={selectedGameIds.size}
+          selectedCount={selectedCount}
+          totalFilteredCount={filteredCount}
           isLoading={bulkActionLoading}
           onMonitor={() => handleBulkMonitor(true)}
           onUnmonitor={() => handleBulkMonitor(false)}
           onDelete={handleBulkDelete}
           onClear={clearSelection}
+          onSelectAllFiltered={selectAllFiltered}
         />
       )}
 
-      {/* Games Filter Bar */}
       {activeTab === 'games' && games.length > 0 && (
         <LibraryGamesFilter
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          sortColumn={sortColumn}
-          sortDirection={sortDirection}
-          onSortChange={setSort}
-          filters={filters}
-          onFiltersChange={setFilters}
+          table={table}
           allGenres={allGenres}
           allGameModes={allGameModes}
           allStores={allStores}
-          activeFilterCount={activeFilterCount}
-          filteredCount={filteredAndSortedGames.length}
-          totalCount={games.length}
           libraries={libraries}
-          onClearFilters={clearFilters}
+          filteredCount={filteredCount}
+          totalCount={games.length}
+          activeFilterCount={activeFilterCount}
+          viewMode={viewMode}
         />
       )}
 
       <LibraryToasts error={error} successMessage={scanMessage} />
 
-      {/* Games Tab */}
       {activeTab === 'games' && (
         <>
           {isLoading ? (
@@ -734,26 +726,25 @@ function Library() {
             <LibraryEmptyState onAddGame={() => setIsModalOpen(true)} />
           ) : (
             <>
-              {/* Pagination - Top */}
-              {filteredAndSortedGames.length > 0 && (
+              {filteredCount > 0 && (
                 <LibraryPagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
+                  pageIndex={pageIndex}
+                  pageCount={pageCount}
                   pageSize={pageSize}
-                  totalItems={filteredAndSortedGames.length}
-                  onPageChange={setCurrentPage}
-                  onPageSizeChange={handlePageSizeChange}
+                  totalItems={filteredCount}
+                  onPageChange={(idx) => table.setPageIndex(idx)}
+                  onPageSizeChange={(size) => table.setPageSize(size)}
                   itemLabel="games"
                 />
               )}
 
               {viewMode === 'posters' && (
                 <LibraryPosterGrid
-                  games={paginatedGames}
+                  games={visibleGames}
                   selectedGameIds={selectedGameIds}
-                  onToggleMonitor={handleToggleMonitor}
+                  onToggleMonitor={onToggleMonitor}
                   onDelete={handleDelete}
-                  onSearch={handleSearch}
+                  onSearch={onSearch}
                   onToggleSelect={toggleGameSelection}
                 />
               )}
@@ -761,40 +752,25 @@ function Library() {
               {viewMode === 'table' && (
                 <>
                   <LibraryMobileView
-                    games={paginatedGames}
-                    onToggleMonitor={handleToggleMonitor}
-                    onSearch={handleSearch}
-                    onEdit={handleEdit}
-                    onDelete={(game) => setGameToDelete(game)}
+                    games={visibleGames}
+                    onToggleMonitor={onToggleMonitor}
+                    onSearch={onSearch}
+                    onEdit={onEdit}
+                    onDelete={onRowDelete}
                   />
-                  <LibraryTableView
-                    games={paginatedGames}
-                    selectedGameIds={selectedGameIds}
-                    sortColumn={sortColumn}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                    onToggleSelect={toggleGameSelection}
-                    onSelectAll={selectAllGames}
-                    onClearSelection={clearSelection}
-                    isAllSelected={isAllSelected}
-                    isSomeSelected={isSomeSelected}
-                    onToggleMonitor={handleToggleMonitor}
-                    onSearch={handleSearch}
-                    onEdit={handleEdit}
-                    onDelete={(game) => setGameToDelete(game)}
-                  />
+                  <LibraryTableView table={table} />
                 </>
               )}
 
               {viewMode === 'overview' && (
                 <LibraryOverviewGrid
-                  games={paginatedGames}
+                  games={visibleGames}
                   selectedGameIds={selectedGameIds}
                   onToggleSelect={toggleGameSelection}
-                  onToggleMonitor={handleToggleMonitor}
-                  onSearch={handleSearch}
-                  onEdit={handleEdit}
-                  onDelete={(game) => setGameToDelete(game)}
+                  onToggleMonitor={onToggleMonitor}
+                  onSearch={onSearch}
+                  onEdit={onEdit}
+                  onDelete={onRowDelete}
                 />
               )}
             </>
@@ -802,7 +778,6 @@ function Library() {
         </>
       )}
 
-      {/* Scan Tab */}
       {activeTab === 'scan' && (
         <LibraryScanTab
           isScanLoaded={isScanLoaded}
@@ -834,7 +809,6 @@ function Library() {
         />
       )}
 
-      {/* Health Tab */}
       {activeTab === 'health' && (
         <LibraryHealthTab
           isLoading={isHealthLoading}
@@ -848,11 +822,7 @@ function Library() {
         />
       )}
 
-      {/* Modals */}
-      <AddGameModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
+      <AddGameModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
 
       <SearchReleasesModal
         isOpen={isSearchModalOpen}
@@ -900,7 +870,6 @@ function Library() {
         onCancel={() => setOrganizeError(null)}
       />
 
-      {/* Steam Import Modal */}
       <SteamImportModal
         isOpen={isSteamModalOpen}
         onClose={() => setIsSteamModalOpen(false)}
@@ -926,7 +895,6 @@ function Library() {
         onSortChange={setSteamSortBy}
       />
 
-      {/* GOG Import Modal */}
       <GogImportModal
         isOpen={isGogModalOpen}
         onClose={() => setIsGogModalOpen(false)}
