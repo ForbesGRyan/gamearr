@@ -294,7 +294,7 @@ export class GameService {
       title: igdbGame.title,
       slug: this.generateSlug(igdbGame.title),
       year: igdbGame.year,
-      platform: platform || igdbGame.platforms?.[0] || 'PC',
+      platform: platform || this.pickPreferredPlatform(igdbGame.platforms) || 'PC',
       store: store || null,
       monitored: shouldMonitor,
       status: gameStatus,
@@ -561,6 +561,16 @@ export class GameService {
   private isPcPlatform(platform: string): boolean {
     const lower = platform.toLowerCase();
     return lower.includes('pc') || lower.includes('windows') || lower === 'microsoft windows';
+  }
+
+  /**
+   * Pick the preferred platform from an IGDB platform list.
+   * Gamearr is PC-focused, so prefer a PC entry when present.
+   */
+  private pickPreferredPlatform(platforms?: string[]): string | undefined {
+    if (!platforms || platforms.length === 0) return undefined;
+    const pc = platforms.find(p => this.isPcPlatform(p));
+    return pc || platforms[0];
   }
 
   /**
