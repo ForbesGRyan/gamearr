@@ -25,13 +25,13 @@ export function LibraryPagination({
   const isLast = pageIndex >= pageCount - 1;
 
   return (
-    <div className="mt-6 flex items-center justify-between bg-gray-800 rounded-lg p-4">
-      <div className="flex items-center gap-4">
-        <span className="text-sm text-gray-400">
+    <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between bg-gray-800 rounded-lg p-3 md:p-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span className="text-sm text-gray-400 whitespace-nowrap">
           Showing {startItem}-{endItem} of {totalItems} {itemLabel}
         </span>
         <div className="flex items-center gap-2">
-          <label htmlFor="pagination-page-size" className="text-sm text-gray-400">Per page:</label>
+          <label htmlFor="pagination-page-size" className="text-sm text-gray-400 whitespace-nowrap">Per page:</label>
           <select
             id="pagination-page-size"
             value={pageSize}
@@ -47,11 +47,11 @@ export function LibraryPagination({
           </select>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between md:justify-end gap-2 flex-wrap">
         <button
           onClick={() => onPageChange(0)}
           disabled={isFirst}
-          className="px-3 py-2 min-h-[44px] md:min-h-0 md:py-1.5 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm"
+          className="hidden md:inline-flex px-3 py-2 md:min-h-0 md:py-1.5 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm"
         >
           First
         </button>
@@ -62,7 +62,7 @@ export function LibraryPagination({
         >
           Previous
         </button>
-        <span className="px-3 py-1.5 text-sm">
+        <span className="px-2 py-1.5 text-sm whitespace-nowrap">
           Page {currentPage} of {totalPages}
         </span>
         <button
@@ -75,7 +75,7 @@ export function LibraryPagination({
         <button
           onClick={() => onPageChange(pageCount - 1)}
           disabled={isLast}
-          className="px-3 py-2 min-h-[44px] md:min-h-0 md:py-1.5 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm"
+          className="hidden md:inline-flex px-3 py-2 md:min-h-0 md:py-1.5 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm"
         >
           Last
         </button>

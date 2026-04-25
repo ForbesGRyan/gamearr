@@ -47,9 +47,9 @@ export function LibraryHeader({
           </p>
         </div>
         <div className="flex gap-2 sm:gap-4 items-center">
-          {/* View Mode Toggle - only show on games tab, hidden on small mobile */}
+          {/* View Mode Toggle - only show on games tab */}
           {activeTab === 'games' && (
-            <div className="hidden sm:flex bg-gray-700 rounded overflow-hidden">
+            <div className="flex bg-gray-700 rounded overflow-hidden">
               <button
                 onClick={() => onViewModeChange('table')}
                 className={`p-2 transition min-h-[44px] min-w-[44px] flex items-center justify-center ${viewMode === 'table' ? 'bg-blue-600' : 'hover:bg-gray-600'}`}
