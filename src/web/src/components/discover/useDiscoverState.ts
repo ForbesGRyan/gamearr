@@ -6,6 +6,7 @@ const route = getRouteApi('/_auth/discover');
 import { api } from '../../api/client';
 import { unwrap } from '../../queries/unwrap';
 import { SUCCESS_MESSAGE_TIMEOUT_MS } from '../../utils/constants';
+import { pickPreferredPlatform } from '../../utils/platform';
 import {
   usePopularityTypes,
   usePopularGames,
@@ -30,16 +31,16 @@ export function useDiscoverState() {
   const queryClient = useQueryClient();
 
   // Read initial values from URL params
-  const initialTab: TabType = search.tab ?? 'trending';
   const initialQuery = search.q ?? '';
   const initialAge = search.age ?? 30;
   const initialType = search.type ?? 2;
 
-  const [activeTab, setActiveTabState] = useState<TabType>(initialTab);
+  const activeTab: TabType = search.tab ?? 'trending';
   const [selectedType, setSelectedTypeState] = useState<number>(initialType);
   const [error, setError] = useState<string | null>(null);
   const [addingGame, setAddingGame] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Record<number, string>>({});
 
   // Optimistic in-library overlay (tracks igdbIds added in this session)
   const [inLibraryOverrides, setInLibraryOverrides] = useState<Set<number>>(
@@ -87,15 +88,19 @@ export function useDiscoverState() {
 
   // ---- TanStack Query hooks ----
   const popularityTypesQuery = usePopularityTypes();
-  const popularityTypes: PopularityType[] =
-    (popularityTypesQuery.data as PopularityType[] | undefined) ?? [];
+  const popularityTypes = useMemo<PopularityType[]>(
+    () => (popularityTypesQuery.data as PopularityType[] | undefined) ?? [],
+    [popularityTypesQuery.data]
+  );
 
   const popularGamesQuery = usePopularGames(
     activeTab === 'trending' ? selectedType : undefined,
     50
   );
-  const popularGamesData: PopularGame[] =
-    (popularGamesQuery.data as PopularGame[] | undefined) ?? [];
+  const popularGamesData = useMemo<PopularGame[]>(
+    () => (popularGamesQuery.data as PopularGame[] | undefined) ?? [],
+    [popularGamesQuery.data]
+  );
 
   // Apply optimistic "in library" overrides without mutating cache
   const popularGames = useMemo<PopularGame[]>(() => {
@@ -105,8 +110,12 @@ export function useDiscoverState() {
     );
   }, [popularGamesData, inLibraryOverrides]);
 
-  const torrentSearchQuery = torrentSearch || 'game';
-  const topTorrentsQuery = useTopTorrents(torrentSearchQuery, 50, torrentMaxAge);
+  const trimmedTorrentSearch = torrentSearch.trim();
+  const topTorrentsQuery = useTopTorrents(
+    trimmedTorrentSearch || undefined,
+    50,
+    torrentMaxAge
+  );
   const torrents: TorrentRelease[] =
     (topTorrentsQuery.data as TorrentRelease[] | undefined) ?? [];
 
@@ -174,7 +183,6 @@ export function useDiscoverState() {
 
   // Wrapped setters that update URL
   const setActiveTab = useCallback((tab: TabType) => {
-    setActiveTabState(tab);
     navigate({
       search: (prev) => ({ ...prev, tab: tab === 'trending' ? undefined : tab }),
       replace: true,
@@ -236,16 +244,26 @@ export function useDiscoverState() {
       };
       runSearch();
     }
-  }, [selectedTorrent, cleanTorrentTitle]);
+  }, [selectedTorrent, cleanTorrentTitle, queryClient]);
 
   const invalidatePopularGames = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.discover.all });
   }, [queryClient]);
 
+  const handlePlatformChange = useCallback((igdbId: number, platform: string) => {
+    setSelectedPlatforms(prev => ({ ...prev, [igdbId]: platform }));
+  }, []);
+
   const handleAddToLibrary = useCallback(async (game: GameSearchResult) => {
     setAddingGame(game.igdbId);
     try {
-      await addGameMutation.mutateAsync({ igdbId: game.igdbId, monitored: true });
+      const platform =
+        selectedPlatforms[game.igdbId] || pickPreferredPlatform(game.platforms);
+      await addGameMutation.mutateAsync({
+        igdbId: game.igdbId,
+        monitored: true,
+        platform,
+      });
       setInLibraryOverrides(prev => {
         const next = new Set(prev);
         next.add(game.igdbId);
@@ -260,7 +278,7 @@ export function useDiscoverState() {
     } finally {
       setAddingGame(null);
     }
-  }, [addGameMutation, invalidatePopularGames]);
+  }, [addGameMutation, invalidatePopularGames, selectedPlatforms]);
 
   const getPopularityTypeName = useCallback((id: number): string => {
     const type = popularityTypes.find(t => t.id === id);
@@ -462,6 +480,8 @@ export function useDiscoverState() {
     handleAddToLibrary,
     getPopularityTypeName,
     getMultiplayerBadges,
+    selectedPlatforms,
+    handlePlatformChange,
 
     // Torrent state
     torrents,

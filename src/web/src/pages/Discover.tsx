@@ -53,6 +53,8 @@ function Discover() {
     handleAddToLibrary,
     getPopularityTypeName,
     getMultiplayerBadges,
+    selectedPlatforms,
+    handlePlatformChange,
 
     // Torrent state
     torrents,
@@ -150,6 +152,8 @@ function Discover() {
           popularityTypeName={getPopularityTypeName(selectedType)}
           activeFilterCount={activeFilterCount}
           addingGameId={addingGame}
+          selectedPlatforms={selectedPlatforms}
+          onPlatformChange={handlePlatformChange}
           onAddToLibrary={handleAddToLibrary}
           onClearFilters={clearFilters}
           getMultiplayerBadges={getMultiplayerBadges}

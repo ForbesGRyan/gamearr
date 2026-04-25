@@ -8,6 +8,8 @@ interface GamesGridProps {
   popularityTypeName: string;
   activeFilterCount: number;
   addingGameId: number | null;
+  selectedPlatforms: Record<number, string>;
+  onPlatformChange: (igdbId: number, platform: string) => void;
   onAddToLibrary: (game: GameSearchResult) => void;
   onClearFilters: () => void;
   getMultiplayerBadges: (mp: MultiplayerInfo | undefined) => string[];
@@ -20,6 +22,8 @@ export default function GamesGrid({
   popularityTypeName,
   activeFilterCount,
   addingGameId,
+  selectedPlatforms,
+  onPlatformChange,
   onAddToLibrary,
   onClearFilters,
   getMultiplayerBadges,
@@ -51,6 +55,8 @@ export default function GamesGrid({
             key={pg.game.igdbId}
             popularGame={pg}
             isAdding={addingGameId === pg.game.igdbId}
+            selectedPlatform={selectedPlatforms[pg.game.igdbId]}
+            onPlatformChange={onPlatformChange}
             onAddToLibrary={() => onAddToLibrary(pg.game)}
             getMultiplayerBadges={getMultiplayerBadges}
           />

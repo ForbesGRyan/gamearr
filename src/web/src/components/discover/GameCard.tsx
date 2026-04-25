@@ -1,8 +1,11 @@
 import { PopularGame, MultiplayerInfo } from './types';
+import { pickPreferredPlatform } from '../../utils/platform';
 
 interface GameCardProps {
   popularGame: PopularGame;
   isAdding: boolean;
+  selectedPlatform: string | undefined;
+  onPlatformChange: (igdbId: number, platform: string) => void;
   onAddToLibrary: () => void;
   getMultiplayerBadges: (mp: MultiplayerInfo | undefined) => string[];
 }
@@ -10,10 +13,14 @@ interface GameCardProps {
 export default function GameCard({
   popularGame,
   isAdding,
+  selectedPlatform,
+  onPlatformChange,
   onAddToLibrary,
   getMultiplayerBadges,
 }: GameCardProps) {
   const { game, rank, inLibrary } = popularGame;
+  const platforms = game.platforms ?? [];
+  const displayPlatform = selectedPlatform || pickPreferredPlatform(platforms);
 
   return (
     <div className="bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition group relative">
@@ -45,6 +52,19 @@ export default function GameCard({
 
         {/* Hover overlay with actions */}
         <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center gap-2 p-2">
+          {!inLibrary && platforms.length > 1 && (
+            <select
+              aria-label="Platform"
+              value={displayPlatform}
+              onChange={(e) => onPlatformChange(game.igdbId, e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white w-full focus:outline-none focus:border-blue-500"
+            >
+              {platforms.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          )}
           {!inLibrary && (
             <button
               onClick={onAddToLibrary}

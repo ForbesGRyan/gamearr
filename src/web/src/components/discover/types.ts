@@ -32,6 +32,7 @@ export interface GameSearchResult {
   summary?: string;
   genres?: string[];
   themes?: string[];
+  platforms?: string[];
   totalRating?: number;
   developer?: string;
   publisher?: string;
