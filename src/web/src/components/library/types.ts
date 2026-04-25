@@ -94,6 +94,7 @@ export interface DuplicateGroup {
 }
 
 export type ViewMode = 'posters' | 'table' | 'overview';
+export type PosterSize = 'sm' | 'md' | 'lg';
 export type SortColumn = 'title' | 'year' | 'rating' | 'monitored' | 'store' | 'status';
 export type SortDirection = 'asc' | 'desc';
 export type StatusFilter = 'all' | 'wanted' | 'downloading' | 'downloaded';

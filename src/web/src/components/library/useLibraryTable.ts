@@ -31,11 +31,12 @@ import {
 } from './libraryColumns';
 import { useUrlSyncedTableState } from './useUrlSyncedTableState';
 import { useLibraryFilterOptions } from './useLibraryFilterOptions';
-import type { Game, LibraryInfo, ViewMode } from './types';
+import type { Game, LibraryInfo, PosterSize, ViewMode } from './types';
 
 const route = getRouteApi('/_auth/');
 const COLUMN_VIS_KEY = 'library-column-visibility';
 const VIEW_MODE_KEY = 'library-view-mode';
+const POSTER_SIZE_KEY = 'library-poster-size';
 
 function safeParseJsonArray(json: string | null | undefined): string[] {
   if (!json) return [];
@@ -120,6 +121,31 @@ export function useLibraryTable() {
       });
       try {
         localStorage.setItem(VIEW_MODE_KEY, mode);
+      } catch {
+        // ignore
+      }
+    },
+    [routeNavigate]
+  );
+
+  // Poster grid density (URL-synced, falls back to localStorage)
+  const posterSize: PosterSize =
+    search.size ??
+    ((typeof window !== 'undefined' && (localStorage.getItem(POSTER_SIZE_KEY) as PosterSize)) || 'md');
+
+  const handlePosterSizeChange = useCallback(
+    (size: PosterSize) => {
+      routeNavigate({
+        search: (prev) => {
+          const next: Record<string, unknown> = { ...prev };
+          if (size === 'md') delete next.size;
+          else next.size = size;
+          return next;
+        },
+        replace: true,
+      });
+      try {
+        localStorage.setItem(POSTER_SIZE_KEY, size);
       } catch {
         // ignore
       }
@@ -353,6 +379,8 @@ export function useLibraryTable() {
 
     viewMode,
     handleViewModeChange,
+    posterSize,
+    handlePosterSizeChange,
 
     isModalOpen,
     setIsModalOpen,

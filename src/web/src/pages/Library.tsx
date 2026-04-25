@@ -77,6 +77,8 @@ function Library() {
     setError,
     viewMode,
     handleViewModeChange,
+    posterSize,
+    handlePosterSizeChange,
     isModalOpen,
     setIsModalOpen,
     isSearchModalOpen,
@@ -673,9 +675,11 @@ function Library() {
         gamesCount={games.length}
         activeTab={activeTab}
         viewMode={viewMode}
+        posterSize={posterSize}
         isScanning={isScanning}
         isHealthLoading={isHealthLoading}
         onViewModeChange={handleViewModeChange}
+        onPosterSizeChange={handlePosterSizeChange}
         onAddGame={() => setIsModalOpen(true)}
         onScanLibrary={handleScanLibrary}
       />
@@ -746,6 +750,7 @@ function Library() {
                   onDelete={handleDelete}
                   onSearch={onSearch}
                   onToggleSelect={toggleGameSelection}
+                  size={posterSize}
                 />
               )}
 

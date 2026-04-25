@@ -8,6 +8,7 @@ import { unwrap } from '../../queries/unwrap';
 const searchSchema = z.object({
   tab: z.enum(['games', 'scan', 'health']).optional(),
   view: z.enum(['posters', 'table', 'overview']).optional(),
+  size: z.enum(['sm', 'md', 'lg']).optional(),
   sort: z.enum(['title', 'year', 'rating', 'monitored', 'store', 'status']).optional(),
   dir: z.enum(['asc', 'desc']).optional(),
   q: z.string().optional(),
