@@ -1,6 +1,9 @@
 import { updateService } from '../services/UpdateService';
 import { settingsService } from '../services/SettingsService';
+import { gameRepository } from '../repositories/GameRepository';
 import { logger } from '../utils/logger';
+import { jobRegistry } from './JobRegistry';
+import { taskQueue } from '../queue/TaskQueue';
 
 /**
  * Background job to check for game updates.
@@ -38,14 +41,22 @@ export class UpdateCheckJob {
 
     logger.info(`Update check schedule: ${schedule} (every ${intervalMs / 1000 / 60 / 60} hours)`);
 
+    jobRegistry.register({
+      name: 'game-update-check',
+      schedule: `${schedule}`,
+      kind: 'interval',
+      intervalMs: intervalMs,
+      runNow: () => this.runScheduledScan(),
+    });
+
     // Run initial check after a short delay (don't slow down startup)
     setTimeout(() => {
-      this.checkForUpdates();
+      void jobRegistry.recordRun('game-update-check', () => this.runScheduledScan());
     }, 60 * 1000); // 1 minute after startup
 
     // Then run on schedule
     this.intervalId = setInterval(() => {
-      this.checkForUpdates();
+      void jobRegistry.recordRun('game-update-check', () => this.runScheduledScan());
     }, intervalMs);
   }
 
@@ -99,8 +110,52 @@ export class UpdateCheckJob {
   }
 
   /**
-   * Run update check for all eligible games
-   * Uses locking to prevent concurrent checks
+   * Scheduled scan: enqueues one update.check-game task per eligible game.
+   * Per-game work is done in the queue worker.
+   */
+  private async runScheduledScan(): Promise<void> {
+    if (this.isRunning) {
+      logger.debug('UpdateCheckJob scan already in progress, skipping');
+      return;
+    }
+    this.isRunning = true;
+    try {
+      const enabledSetting = await settingsService.getSetting('update_check_enabled');
+      const isEnabled = enabledSetting === null || enabledSetting === 'true';
+      if (!isEnabled) {
+        logger.debug('Update checking is disabled, skipping');
+        return;
+      }
+
+      const downloadedGames = await gameRepository.findByStatus('downloaded');
+      const eligible = downloadedGames.filter((g) => g.updatePolicy !== 'ignore');
+      if (eligible.length === 0) {
+        logger.debug('No eligible games for update check');
+        return;
+      }
+
+      let enqueued = 0;
+      for (const g of eligible) {
+        const t = taskQueue.enqueue(
+          'update.check-game',
+          { gameId: g.id },
+          { dedupKey: `game:${g.id}`, priority: 0 }
+        );
+        if (t.attempts === 0 && t.status === 'pending') enqueued++;
+      }
+      if (enqueued > 0) {
+        logger.info(`UpdateCheckJob enqueued ${enqueued} update.check-game task(s) (${eligible.length} eligible)`);
+      }
+    } catch (error) {
+      logger.error('UpdateCheckJob scan error:', error);
+    } finally {
+      this.isRunning = false;
+    }
+  }
+
+  /**
+   * Inline check for all eligible games. Used by manual API trigger so the
+   * caller can return a count to the user.
    */
   async checkForUpdates(): Promise<void> {
     const lock = await this.acquireLock();

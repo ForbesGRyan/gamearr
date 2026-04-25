@@ -1,10 +1,9 @@
 import { gameRepository } from '../repositories/GameRepository';
 import { releaseRepository } from '../repositories/ReleaseRepository';
-import { indexerService } from '../services/IndexerService';
-import { downloadService } from '../services/DownloadService';
 import { settingsService } from '../services/SettingsService';
 import { logger } from '../utils/logger';
-import type { Game } from '../db/schema';
+import { jobRegistry } from './JobRegistry';
+import { taskQueue } from '../queue/TaskQueue';
 
 /**
  * Search Scheduler Job
@@ -29,8 +28,18 @@ export class SearchScheduler {
 
     logger.info(`Starting search scheduler (runs every ${this.currentIntervalMinutes} minutes)`);
 
+    jobRegistry.register({
+      name: 'search-scheduler',
+      schedule: `every ${this.currentIntervalMinutes} minutes`,
+      kind: 'interval',
+      intervalMs: this.currentIntervalMinutes * 60 * 1000,
+      runNow: () => this.run(),
+    });
+
     // Run immediately on start, then at the configured interval
-    this.run().catch((err) => logger.error('Initial search scheduler run failed:', err));
+    jobRegistry
+      .recordRun('search-scheduler', () => this.run())
+      .catch((err) => logger.error('Initial search scheduler run failed:', err));
 
     this.intervalId = setInterval(async () => {
       // Check if interval has changed
@@ -42,7 +51,7 @@ export class SearchScheduler {
         return;
       }
 
-      await this.run();
+      await jobRegistry.recordRun('search-scheduler', () => this.run());
     }, this.currentIntervalMinutes * 60 * 1000);
   }
 
@@ -125,19 +134,15 @@ export class SearchScheduler {
     this.isRunning = true;
 
     try {
-      // Check if dry-run mode is enabled
       const isDryRun = await settingsService.getDryRun();
-
-      logger.info(`${isDryRun ? '[DRY-RUN] ' : ''}Running automated search for wanted games...`);
-
+      logger.info(`${isDryRun ? '[DRY-RUN] ' : ''}Running automated search scan...`);
       if (isDryRun) {
         logger.info('[DRY-RUN] Dry-run mode is ENABLED - downloads will be logged but not triggered');
       }
 
-      // First, handle retry logic for failed downloads
+      // First, handle retry logic for failed downloads (sweep, not per-unit).
       await this.handleFailedDownloads();
 
-      // Get all monitored games with 'wanted' status
       const monitoredGames = await gameRepository.findMonitored();
       const wantedGames = monitoredGames.filter((game) => game.status === 'wanted');
 
@@ -146,79 +151,22 @@ export class SearchScheduler {
         return;
       }
 
-      logger.info(`${isDryRun ? '[DRY-RUN] ' : ''}Found ${wantedGames.length} wanted games, searching for releases...`);
-
-      // Process each wanted game
-      let successCount = 0;
-      let failureCount = 0;
-
+      let enqueued = 0;
       for (const game of wantedGames) {
-        try {
-          const grabbed = await this.searchAndGrabGame(game);
-          if (grabbed) {
-            successCount++;
-          }
-        } catch (error) {
-          logger.error(`Failed to process game ${game.title}:`, error);
-          failureCount++;
-        }
-
-        // Small delay between searches to avoid hammering APIs
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const t = taskQueue.enqueue(
+          'search.game',
+          { gameId: game.id },
+          { dedupKey: `game:${game.id}`, priority: 0 }
+        );
+        if (t.attempts === 0 && t.status === 'pending') enqueued++;
       }
-
-      logger.info(
-        `${isDryRun ? '[DRY-RUN] ' : ''}Search scheduler completed: ${successCount} ${isDryRun ? 'would be grabbed' : 'grabbed'}, ${failureCount} failed`
-      );
+      if (enqueued > 0) {
+        logger.info(`SearchScheduler enqueued ${enqueued} search.game task(s) (${wantedGames.length} wanted total)`);
+      }
     } catch (error) {
-      logger.error('Search scheduler failed:', error);
+      logger.error('Search scheduler scan failed:', error);
     } finally {
       this.isRunning = false;
-    }
-  }
-
-  /**
-   * Search for releases for a game and auto-grab the best one
-   */
-  private async searchAndGrabGame(game: Game): Promise<boolean> {
-    try {
-      logger.info(`Searching for: ${game.title} (${game.year})`);
-
-      // Search for releases
-      const releases = await indexerService.searchForGame(game);
-
-      if (releases.length === 0) {
-        logger.info(`No releases found for ${game.title}`);
-        return false;
-      }
-
-      // Find the best release that meets auto-grab criteria
-      let bestRelease = null;
-      for (const release of releases) {
-        if (await indexerService.shouldAutoGrab(release)) {
-          bestRelease = release;
-          break;
-        }
-      }
-
-      if (!bestRelease) {
-        logger.info(
-          `No releases meet auto-grab criteria for ${game.title} (best score: ${releases[0]?.score || 0})`
-        );
-        return false;
-      }
-
-      logger.info(
-        `Auto-grabbing release for ${game.title}: ${bestRelease.title} (score: ${bestRelease.score})`
-      );
-
-      // Grab the release (throws on failure)
-      await downloadService.grabRelease(game.id, bestRelease);
-      logger.info(`Successfully grabbed ${bestRelease.title} for ${game.title}`);
-      return true;
-    } catch (error) {
-      logger.error(`Error searching/grabbing ${game.title}:`, error);
-      return false;
     }
   }
 

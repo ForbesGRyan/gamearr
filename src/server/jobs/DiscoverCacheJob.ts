@@ -3,6 +3,8 @@ import { settingsService } from '../services/SettingsService';
 import { igdbClient } from '../integrations/igdb/IGDBClient';
 import { prowlarrClient } from '../integrations/prowlarr/ProwlarrClient';
 import { logger } from '../utils/logger';
+import { jobRegistry } from './JobRegistry';
+import { taskQueue } from '../queue/TaskQueue';
 
 /**
  * Discover Cache Job
@@ -31,10 +33,29 @@ export class DiscoverCacheJob {
 
     logger.info(`Starting discover cache job (trending: ${this.currentTrendingInterval}m, torrents: ${this.currentTorrentsInterval}m)`);
 
+    jobRegistry.register({
+      name: 'discover-trending-cache',
+      schedule: `every ${this.currentTrendingInterval} minutes`,
+      kind: 'interval',
+      intervalMs: this.currentTrendingInterval * 60 * 1000,
+      runNow: () => this.refreshTrendingGames(),
+    });
+    jobRegistry.register({
+      name: 'discover-torrents-cache',
+      schedule: `every ${this.currentTorrentsInterval} minutes`,
+      kind: 'interval',
+      intervalMs: this.currentTorrentsInterval * 60 * 1000,
+      runNow: () => this.refreshTopTorrents(),
+    });
+
     // Initial refresh with delay to let other services initialize
     setTimeout(() => {
-      this.refreshTrendingGames().catch(err => logger.error('Initial trending games refresh failed:', err));
-      this.refreshTopTorrents().catch(err => logger.error('Initial top torrents refresh failed:', err));
+      jobRegistry
+        .recordRun('discover-trending-cache', () => this.refreshTrendingGames())
+        .catch(err => logger.error('Initial trending games refresh failed:', err));
+      jobRegistry
+        .recordRun('discover-torrents-cache', () => this.refreshTopTorrents())
+        .catch(err => logger.error('Initial top torrents refresh failed:', err));
     }, 5000);
 
     // Set up trending games interval
@@ -47,7 +68,7 @@ export class DiscoverCacheJob {
         this.restartTrendingInterval();
         return;
       }
-      await this.refreshTrendingGames();
+      await jobRegistry.recordRun('discover-trending-cache', () => this.refreshTrendingGames());
     }, this.currentTrendingInterval * 60 * 1000);
 
     // Set up top torrents interval
@@ -60,7 +81,7 @@ export class DiscoverCacheJob {
         this.restartTorrentsInterval();
         return;
       }
-      await this.refreshTopTorrents();
+      await jobRegistry.recordRun('discover-torrents-cache', () => this.refreshTopTorrents());
     }, this.currentTorrentsInterval * 60 * 1000);
   }
 
@@ -93,7 +114,7 @@ export class DiscoverCacheJob {
         this.restartTrendingInterval();
         return;
       }
-      await this.refreshTrendingGames();
+      await jobRegistry.recordRun('discover-trending-cache', () => this.refreshTrendingGames());
     }, this.currentTrendingInterval * 60 * 1000);
   }
 
@@ -111,12 +132,13 @@ export class DiscoverCacheJob {
         this.restartTorrentsInterval();
         return;
       }
-      await this.refreshTopTorrents();
+      await jobRegistry.recordRun('discover-torrents-cache', () => this.refreshTopTorrents());
     }, this.currentTorrentsInterval * 60 * 1000);
   }
 
   /**
-   * Refresh trending games for all configured popularity types
+   * Scheduled scan: refreshes popularity types index, then enqueues one
+   * discover.refresh-trending task per cached popularity type.
    */
   private async refreshTrendingGames() {
     if (this.isRefreshingTrending) {
@@ -132,25 +154,26 @@ export class DiscoverCacheJob {
     this.isRefreshingTrending = true;
 
     try {
-      // First refresh popularity types
+      // First refresh popularity types index (small inline call).
       await cacheService.refreshPopularityTypes();
 
-      // Refresh each configured popularity type
+      // Enqueue one task per popularity type so the queue worker handles
+      // the actual IGDB calls, with dedup + retry + visibility in Tasks Log.
       const typesToCache = cacheService.getPopularityTypesToCache();
+      let enqueued = 0;
       for (const typeId of typesToCache) {
-        try {
-          await cacheService.refreshTrendingGames(typeId, 50);
-          // Small delay between API calls to be respectful
-          await new Promise(resolve => setTimeout(resolve, 500));
-        } catch (error) {
-          logger.error(`Failed to refresh trending games type ${typeId}:`, error);
-          // Continue with other types
-        }
+        const t = taskQueue.enqueue(
+          'discover.refresh-trending',
+          { popularityType: typeId },
+          { dedupKey: `type:${typeId}`, priority: 0 }
+        );
+        if (t.attempts === 0 && t.status === 'pending') enqueued++;
       }
-
-      logger.info(`Trending games cache refreshed for ${typesToCache.length} popularity types`);
+      if (enqueued > 0) {
+        logger.info(`DiscoverCacheJob enqueued ${enqueued} discover.refresh-trending task(s) (${typesToCache.length} types)`);
+      }
     } catch (error) {
-      logger.error('Trending games refresh failed:', error);
+      logger.error('Trending games scan failed:', error);
     } finally {
       this.isRefreshingTrending = false;
     }
