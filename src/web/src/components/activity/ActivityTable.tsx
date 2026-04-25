@@ -30,7 +30,8 @@ function SortableHeader({
   sortDirection,
   onClick,
   align = 'left',
-}: SortableHeaderProps) {
+  className = '',
+}: SortableHeaderProps & { className?: string }) {
   const isActive = currentSortField === field;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -45,9 +46,9 @@ function SortableHeader({
 
   return (
     <th
-      className={`px-4 py-3 font-medium cursor-pointer hover:bg-gray-600 select-none ${
+      className={`px-3 py-3 font-medium cursor-pointer hover:bg-gray-600 select-none ${
         align === 'right' ? 'text-right' : ''
-      }`}
+      } ${className}`}
       onClick={onClick}
       onKeyDown={handleKeyDown}
       tabIndex={0}
@@ -89,7 +90,7 @@ function ActivityTable({
                 sortDirection={sortDirection}
                 onClick={() => onSortChange('name')}
               />
-              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-3 py-3 font-medium">Status</th>
               <SortableHeader
                 label="Progress"
                 field="progress"
@@ -121,16 +122,18 @@ function ActivityTable({
                 sortDirection={sortDirection}
                 onClick={() => onSortChange('uploadSpeed')}
                 align="right"
+                className="hidden lg:table-cell"
               />
-              <th className="px-4 py-3 font-medium text-right">ETA</th>
+              <th className="hidden lg:table-cell px-3 py-3 font-medium text-right">ETA</th>
               <SortableHeader
                 label="Added"
                 field="added"
                 currentSortField={sortField}
                 sortDirection={sortDirection}
                 onClick={() => onSortChange('added')}
+                className="hidden xl:table-cell"
               />
-              <th className="px-4 py-3 font-medium text-right">Actions</th>
+              <th className="px-3 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
@@ -138,8 +141,8 @@ function ActivityTable({
               const dlId = getDownloadId(download);
               return (
                 <tr key={dlId} className="hover:bg-gray-750">
-                  <td className="px-4 py-3">
-                    <div className="max-w-xs">
+                  <td className="px-3 py-3">
+                    <div className="max-w-[200px] lg:max-w-xs">
                       <div className="flex items-center gap-1.5">
                         <div className="truncate font-medium" title={download.name}>
                           {download.name}
@@ -156,21 +159,21 @@ function ActivityTable({
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3">
                     <span className={`text-xs ${getStateColor(download)}`}>{getStateLabel(download)}</span>
                   </td>
-                  <td className="px-4 py-3 text-right text-white">
+                  <td className="px-3 py-3 text-right text-white">
                     {(download.progress * 100).toFixed(1)}%
                   </td>
-                  <td className="px-4 py-3 text-right text-white">{formatBytes(download.size)}</td>
-                  <td className="px-4 py-3 text-right text-green-400">
+                  <td className="px-3 py-3 text-right text-white whitespace-nowrap">{formatBytes(download.size)}</td>
+                  <td className="px-3 py-3 text-right text-green-400 whitespace-nowrap">
                     {formatSpeed(download.downloadSpeed)}
                   </td>
-                  <td className="px-4 py-3 text-right text-blue-400">
+                  <td className="hidden lg:table-cell px-3 py-3 text-right text-blue-400 whitespace-nowrap">
                     {download.client === 'sabnzbd' ? '-' : formatSpeed(download.uploadSpeed || 0)}
                   </td>
-                  <td className="px-4 py-3 text-right text-white">{formatETA(download.eta)}</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
+                  <td className="hidden lg:table-cell px-3 py-3 text-right text-white whitespace-nowrap">{formatETA(download.eta)}</td>
+                  <td className="hidden xl:table-cell px-3 py-3 text-gray-400 text-xs whitespace-nowrap">
                     {download.addedOn ? new Date(download.addedOn).toLocaleDateString(undefined, {
                       year: 'numeric',
                       month: 'short',
@@ -179,7 +182,7 @@ function ActivityTable({
                       minute: '2-digit',
                     }) : '-'}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3">
                     <div className="flex gap-1 justify-end">
                       {isPaused(download) ? (
                         <button
