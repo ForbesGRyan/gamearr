@@ -411,6 +411,33 @@ function runMigrations() {
     `);
     sqlite.run('CREATE INDEX IF NOT EXISTS game_events_game_id_idx ON game_events(game_id)');
     sqlite.run('CREATE INDEX IF NOT EXISTS game_events_event_type_idx ON game_events(event_type)');
+  } else {
+    // Drop stale CHECK constraint on event_type (legacy from drizzle db:push that
+    // baked the enum into the table). The constraint blocks new event types like
+    // 'imported_download'. Rebuild without CHECK; enum is enforced in TS.
+    const tableSql = sqlite.query(
+      "SELECT sql FROM sqlite_master WHERE type='table' AND name='game_events'"
+    ).get() as { sql: string } | undefined;
+
+    if (tableSql?.sql.includes('CHECK') && tableSql.sql.includes('event_type')) {
+      logger.info('Migration: Rebuilding game_events to drop stale CHECK constraint');
+      sqlite.transaction(() => {
+        sqlite.run(`
+          CREATE TABLE game_events_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+            event_type TEXT NOT NULL,
+            data TEXT,
+            created_at INTEGER NOT NULL DEFAULT (unixepoch())
+          )
+        `);
+        sqlite.run('INSERT INTO game_events_new (id, game_id, event_type, data, created_at) SELECT id, game_id, event_type, data, created_at FROM game_events');
+        sqlite.run('DROP TABLE game_events');
+        sqlite.run('ALTER TABLE game_events_new RENAME TO game_events');
+        sqlite.run('CREATE INDEX IF NOT EXISTS game_events_game_id_idx ON game_events(game_id)');
+        sqlite.run('CREATE INDEX IF NOT EXISTS game_events_event_type_idx ON game_events(event_type)');
+      })();
+    }
   }
 
   // Games table migrations
