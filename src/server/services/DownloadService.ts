@@ -622,7 +622,22 @@ export class DownloadService {
           return isInCategory && (includeCompleted || !isCompleted);
         });
 
+        // Look up gameIds for torrents that aren't tagged by gamearr (e.g.
+        // imported via the Activity → Import flow — those get a release row
+        // but no qB tag).
+        const hashToGameId = new Map<string, number>();
+        const untaggedHashes = filteredTorrents
+          .filter(t => this.parseGameIdFromTags(t.tags) === null)
+          .map(t => t.hash);
+        if (untaggedHashes.length > 0) {
+          const releases = await releaseRepository.findByTorrentHashes(untaggedHashes);
+          for (const r of releases) {
+            if (r.torrentHash) hashToGameId.set(r.torrentHash.toLowerCase(), r.gameId);
+          }
+        }
+
         for (const torrent of filteredTorrents) {
+          const tagGameId = this.parseGameIdFromTags(torrent.tags);
           results.push({
             hash: torrent.hash,
             name: torrent.name,
@@ -636,7 +651,7 @@ export class DownloadService {
             savePath: torrent.savePath,
             addedOn: torrent.addedOn,
             completionOn: torrent.completionOn,
-            gameId: this.parseGameIdFromTags(torrent.tags),
+            gameId: tagGameId ?? hashToGameId.get(torrent.hash.toLowerCase()) ?? null,
             client: 'qbittorrent',
           });
         }

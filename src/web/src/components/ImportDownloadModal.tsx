@@ -3,6 +3,7 @@ import type { Download, SearchResult } from '../api/client';
 import { useLibraries } from '../queries/libraries';
 import { useSearchGames } from '../queries/search';
 import { useAddGame } from '../queries/games';
+import { useToast } from '../contexts/ToastContext';
 import { CloseIcon, GamepadIcon } from './Icons';
 
 interface ImportDownloadModalProps {
@@ -13,6 +14,7 @@ interface ImportDownloadModalProps {
 }
 
 function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDownloadModalProps) {
+  const { addToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   // The submitted query drives the actual fetch — it only updates on form
   // submit or when a new download triggers an auto-search. This keeps typing
@@ -143,13 +145,16 @@ function ImportDownloadModal({ isOpen, onClose, onImported, download }: ImportDo
           torrentHash: download.hash || download.id || '',
         } : undefined,
       });
+      addToast(`Imported ${game.title} to library`, 'success');
       onImported();
       onClose();
       setSearchQuery('');
       setSubmittedQuery('');
       setSelectedPlatforms({});
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to import game');
+      const message = err instanceof Error ? err.message : 'Failed to import game';
+      setError(message);
+      addToast(message, 'error');
     }
   };
 

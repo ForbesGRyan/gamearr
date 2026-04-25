@@ -193,6 +193,17 @@ export class ReleaseRepository {
 
     return results[0];
   }
+
+  /**
+   * Find releases for a set of torrent hashes (batch lookup)
+   */
+  async findByTorrentHashes(hashes: string[]): Promise<Release[]> {
+    if (hashes.length === 0) return [];
+    return db
+      .select(releaseFields)
+      .from(releases)
+      .where(inArray(releases.torrentHash, hashes));
+  }
 }
 
 // Singleton instance

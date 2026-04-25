@@ -6,6 +6,7 @@ import { integrationService } from '../services/IntegrationService';
 import { gameStoreRepository } from '../repositories/GameStoreRepository';
 import { gameFolderRepository } from '../repositories/GameFolderRepository';
 import { gameEventRepository } from '../repositories/GameEventRepository';
+import { releaseRepository } from '../repositories/ReleaseRepository';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode, NotFoundError, ValidationError } from '../utils/errors';
 
@@ -116,6 +117,27 @@ games.post('/', zValidator('json', addGameSchema), async (c) => {
         matchedTitle: game.title,
         igdbId: game.igdbId,
       });
+
+      // Link the existing torrent to this game so the Activity row reflects
+      // the import on next refetch (otherwise the Import button stays visible
+      // because gameId is derived from qB tags / release records).
+      if (importSource.torrentHash) {
+        const existing = await releaseRepository.findByTorrentHash(importSource.torrentHash);
+        if (!existing) {
+          await releaseRepository.create({
+            gameId: game.id,
+            title: importSource.torrentName,
+            downloadUrl: '',
+            indexer: 'external-import',
+            torrentHash: importSource.torrentHash,
+            protocol: 'torrent',
+            downloadClient: 'qbittorrent',
+            downloadId: importSource.torrentHash,
+            status: 'completed',
+            grabbedAt: new Date(),
+          });
+        }
+      }
     } else {
       // Default to manual import event if no source specified
       await gameEventRepository.createManualImportEvent(game.id, {
