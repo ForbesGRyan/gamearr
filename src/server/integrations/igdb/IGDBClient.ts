@@ -268,7 +268,7 @@ export class IGDBClient {
                  involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
                  similar_games.name, similar_games.cover.image_id, game_type,
                  multiplayer_modes.*, themes.name, websites.category, websites.url;
-          where name ~ *"${escapedName}"* & game_type = 0;
+          where name ~ *"${escapedName}"* & game_type = (0,3,4,8,9,10,11);
           limit ${limit};
         };`;
       })
@@ -326,7 +326,7 @@ export class IGDBClient {
              involved_companies.company.name, involved_companies.developer, involved_companies.publisher,
              similar_games.name, similar_games.cover.image_id, game_type,
              multiplayer_modes.*, themes.name, websites.category, websites.url;
-      where game_type = 0;
+      where game_type = (0,3,4,8,9,10,11);
       limit ${limit};
     `;
 
