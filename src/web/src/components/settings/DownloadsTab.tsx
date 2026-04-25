@@ -159,6 +159,9 @@ export default function DownloadsTab({
 
   return (
     <>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* qBittorrent column */}
+      <div className="space-y-6 min-w-0">
       {/* qBittorrent Settings */}
       <div className="bg-gray-800 rounded-lg p-4 md:p-6">
         <h3 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 flex items-center gap-2">
@@ -235,7 +238,10 @@ export default function DownloadsTab({
 
       {/* qBittorrent Category Filter */}
       <QBittorrentCategorySelector />
+      </div>
 
+      {/* SABnzbd column */}
+      <div className="space-y-6 min-w-0">
       {/* SABnzbd Settings */}
       <div className="bg-gray-800 rounded-lg p-4 md:p-6">
         <h3 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 flex items-center gap-2">
@@ -302,6 +308,8 @@ export default function DownloadsTab({
             </p>
           )}
         </div>
+      </div>
+      </div>
       </div>
 
       {/* Dry-Run Mode */}
