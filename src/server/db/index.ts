@@ -17,7 +17,11 @@ if (!existsSync(dataPath)) {
 // Initialize SQLite database
 const sqlite = new Database(dbPath);
 
-// Enable foreign keys
+// WAL: concurrent reads while writing (DownloadMonitor + UI), faster commits.
+// synchronous=NORMAL is safe under WAL. busy_timeout reduces SQLITE_BUSY noise.
+sqlite.run('PRAGMA journal_mode = WAL');
+sqlite.run('PRAGMA synchronous = NORMAL');
+sqlite.run('PRAGMA busy_timeout = 5000');
 sqlite.run('PRAGMA foreign_keys = ON');
 
 // Initialize schema if tables don't exist
@@ -256,6 +260,42 @@ function initializeSchema() {
       )
     `);
 
+    // Create tasks table
+    sqlite.run(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind TEXT NOT NULL,
+        payload TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'pending',
+        priority INTEGER NOT NULL DEFAULT 0,
+        run_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 5,
+        last_error TEXT,
+        locked_by TEXT,
+        locked_until INTEGER,
+        dedup_key TEXT,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+
+    // Create tasks_archive table
+    sqlite.run(`
+      CREATE TABLE IF NOT EXISTS tasks_archive (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        original_id INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        status TEXT NOT NULL,
+        attempts INTEGER NOT NULL,
+        last_error TEXT,
+        dedup_key TEXT,
+        created_at INTEGER NOT NULL,
+        finished_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+
     // Create indexes
     sqlite.run('CREATE INDEX IF NOT EXISTS games_status_idx ON games(status)');
     sqlite.run('CREATE INDEX IF NOT EXISTS games_monitored_idx ON games(monitored)');
@@ -286,6 +326,12 @@ function initializeSchema() {
     sqlite.run('CREATE INDEX IF NOT EXISTS sessions_token_idx ON sessions(token)');
     sqlite.run('CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions(user_id)');
     sqlite.run('CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions(expires_at)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS tasks_ready_idx ON tasks(status, run_at, priority)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS tasks_kind_status_idx ON tasks(kind, status)');
+    sqlite.run(`CREATE UNIQUE INDEX IF NOT EXISTS tasks_dedup_active_uidx
+                ON tasks(kind, dedup_key)
+                WHERE dedup_key IS NOT NULL AND status IN ('pending','running')`);
+    sqlite.run('CREATE INDEX IF NOT EXISTS tasks_archive_finished_at_idx ON tasks_archive(finished_at)');
 
     logger.info('Schema initialized successfully');
   }
@@ -485,6 +531,53 @@ function runMigrations() {
     sqlite.run('CREATE INDEX IF NOT EXISTS sessions_token_idx ON sessions(token)');
     sqlite.run('CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions(user_id)');
     sqlite.run('CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions(expires_at)');
+  }
+
+  // Create tasks table if missing (in-process job queue)
+  if (!tableExists('tasks')) {
+    logger.info('Migration: Creating tasks table');
+    sqlite.run(`
+      CREATE TABLE tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind TEXT NOT NULL,
+        payload TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'pending',
+        priority INTEGER NOT NULL DEFAULT 0,
+        run_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 5,
+        last_error TEXT,
+        locked_by TEXT,
+        locked_until INTEGER,
+        dedup_key TEXT,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+    sqlite.run('CREATE INDEX IF NOT EXISTS tasks_ready_idx ON tasks(status, run_at, priority)');
+    sqlite.run('CREATE INDEX IF NOT EXISTS tasks_kind_status_idx ON tasks(kind, status)');
+    sqlite.run(`CREATE UNIQUE INDEX IF NOT EXISTS tasks_dedup_active_uidx
+                ON tasks(kind, dedup_key)
+                WHERE dedup_key IS NOT NULL AND status IN ('pending','running')`);
+  }
+
+  if (!tableExists('tasks_archive')) {
+    logger.info('Migration: Creating tasks_archive table');
+    sqlite.run(`
+      CREATE TABLE tasks_archive (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        original_id INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        status TEXT NOT NULL,
+        attempts INTEGER NOT NULL,
+        last_error TEXT,
+        dedup_key TEXT,
+        created_at INTEGER NOT NULL,
+        finished_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+    sqlite.run('CREATE INDEX IF NOT EXISTS tasks_archive_finished_at_idx ON tasks_archive(finished_at)');
   }
 }
 

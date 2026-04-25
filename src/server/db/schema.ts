@@ -340,3 +340,49 @@ export type NewUser = typeof users.$inferInsert;
 
 export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
+
+// Tasks table — persistent in-process job queue
+export const tasks = sqliteTable('tasks', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  kind: text('kind').notNull(),
+  payload: text('payload').notNull().default('{}'), // JSON
+  status: text('status').notNull().default('pending'), // pending | running | done | failed | dead
+  priority: integer('priority').notNull().default(0), // higher runs first
+  runAt: integer('run_at').notNull().default(sql`(unixepoch())`),
+  attempts: integer('attempts').notNull().default(0),
+  maxAttempts: integer('max_attempts').notNull().default(5),
+  lastError: text('last_error'),
+  lockedBy: text('locked_by'),
+  lockedUntil: integer('locked_until'),
+  dedupKey: text('dedup_key'),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, (table) => ({
+  readyIdx: index('tasks_ready_idx').on(table.status, table.runAt, table.priority),
+  kindStatusIdx: index('tasks_kind_status_idx').on(table.kind, table.status),
+}));
+
+// Archive of terminal tasks
+export const tasksArchive = sqliteTable('tasks_archive', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  originalId: integer('original_id').notNull(),
+  kind: text('kind').notNull(),
+  payload: text('payload').notNull(),
+  status: text('status').notNull(),
+  attempts: integer('attempts').notNull(),
+  lastError: text('last_error'),
+  dedupKey: text('dedup_key'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  finishedAt: integer('finished_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, (table) => ({
+  finishedAtIdx: index('tasks_archive_finished_at_idx').on(table.finishedAt),
+}));
+
+export type Task = typeof tasks.$inferSelect;
+export type NewTask = typeof tasks.$inferInsert;
