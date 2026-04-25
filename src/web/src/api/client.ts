@@ -484,6 +484,48 @@ export interface AppUpdateSettings {
   repo: string;
 }
 
+export type TaskStatus = 'pending' | 'running' | 'done' | 'dead';
+
+export interface Task {
+  id: number;
+  kind: string;
+  payload: string;
+  status: TaskStatus;
+  priority: number;
+  runAt: number;
+  attempts: number;
+  maxAttempts: number;
+  lastError: string | null;
+  lockedBy: string | null;
+  lockedUntil: number | null;
+  dedupKey: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ListTasksParams {
+  status?: TaskStatus;
+  kind?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export type JobKind = 'cron' | 'interval' | 'continuous';
+
+export interface ScheduledJob {
+  name: string;
+  schedule: string;
+  kind: JobKind;
+  lastRunAt: number | null;
+  lastDurationMs: number | null;
+  lastError: string | null;
+  nextRunAt: number | null;
+  running: boolean;
+  runCount: number;
+  errorCount: number;
+  triggerable: boolean;
+}
+
 // Auth types
 export interface AuthUser {
   id: number;
@@ -1199,17 +1241,22 @@ class ApiClient {
   }
 
   async checkAllUpdates(): Promise<ApiResponse<{ checked: number; updatesFound: number }>> {
-    return this.request<{ checked: number; updatesFound: number }>('/updates/check');
+    return this.request<{ checked: number; updatesFound: number }>('/updates/check', {
+      method: 'POST',
+    });
   }
 
   async getGameUpdates(gameId: number): Promise<ApiResponse<GameUpdate[]>> {
     return this.request<GameUpdate[]>(`/updates/games/${gameId}`);
   }
 
-  async checkGameForUpdates(gameId: number): Promise<ApiResponse<GameUpdate[]>> {
-    return this.request<GameUpdate[]>(`/updates/games/${gameId}/check`, {
-      method: 'POST',
-    });
+  async checkGameForUpdates(
+    gameId: number
+  ): Promise<ApiResponse<{ updatesFound: number; updates: GameUpdate[] }>> {
+    return this.request<{ updatesFound: number; updates: GameUpdate[] }>(
+      `/updates/games/${gameId}/check`,
+      { method: 'POST' }
+    );
   }
 
   async setUpdatePolicy(gameId: number, policy: 'notify' | 'auto' | 'ignore'): Promise<ApiResponse<void>> {
@@ -1331,6 +1378,34 @@ class ApiClient {
     a.click();
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
+  }
+
+  // Tasks (background job queue)
+  async getTasks(params: ListTasksParams = {}): Promise<ApiResponse<Task[]>> {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set('status', params.status);
+    if (params.kind) qs.set('kind', params.kind);
+    if (params.limit !== undefined) qs.set('limit', String(params.limit));
+    if (params.offset !== undefined) qs.set('offset', String(params.offset));
+    const query = qs.toString();
+    return this.request<Task[]>(`/tasks${query ? `?${query}` : ''}`);
+  }
+
+  async retryTask(id: number): Promise<ApiResponse<Task>> {
+    return this.request<Task>(`/tasks/${id}/retry`, { method: 'POST' });
+  }
+
+  async deleteTask(id: number): Promise<ApiResponse<void>> {
+    return this.request<void>(`/tasks/${id}`, { method: 'DELETE' });
+  }
+
+  // Scheduled jobs (background timers + cron)
+  async getScheduledJobs(): Promise<ApiResponse<ScheduledJob[]>> {
+    return this.request<ScheduledJob[]>('/jobs');
+  }
+
+  async runScheduledJob(name: string): Promise<ApiResponse<void>> {
+    return this.request<void>(`/jobs/${encodeURIComponent(name)}/run`, { method: 'POST' });
   }
 
   // Application Updates

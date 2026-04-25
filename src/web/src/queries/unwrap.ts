@@ -15,8 +15,5 @@ export function unwrap<T>(res: ApiResponse<T>): T {
   if (!res.success) {
     throw new ApiError(res.error ?? 'Request failed');
   }
-  if (res.data === undefined) {
-    throw new ApiError('Response missing data');
-  }
-  return res.data;
+  return res.data as T;
 }

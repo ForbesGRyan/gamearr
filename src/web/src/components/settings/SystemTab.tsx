@@ -10,6 +10,8 @@ import {
   useCheckForAppUpdates,
   useUpdateAppUpdateSettings,
 } from '../../queries/system';
+import BackgroundJobsCard from './BackgroundJobsCard';
+import ScheduledJobsCard from './ScheduledJobsCard';
 
 export default function SystemTab() {
   const { addToast } = useToast();
@@ -27,7 +29,6 @@ export default function SystemTab() {
   const checkForUpdatesMutation = useCheckForAppUpdates();
   const updateAppUpdateSettingsMutation = useUpdateAppUpdateSettings();
 
-  const version = systemStatusQuery.data?.version ?? '';
   const uptime = systemStatusQuery.data?.uptime ?? 0;
   const logFiles = logFilesQuery.data?.files ?? [];
   const updateStatus = updateStatusQuery.data ?? null;
@@ -122,27 +123,7 @@ export default function SystemTab() {
 
   return (
     <>
-      {/* Version Info */}
-      <div className="bg-gray-800 rounded-lg p-4 md:p-6">
-        <h3 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 flex items-center gap-2">
-          <svg className="w-5 h-5 md:w-6 md:h-6 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          System Information
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-gray-700 rounded-lg p-4">
-            <p className="text-sm text-gray-400 mb-1">Version</p>
-            <p className="text-xl font-mono font-semibold text-white">{version}</p>
-          </div>
-          <div className="bg-gray-700 rounded-lg p-4">
-            <p className="text-sm text-gray-400 mb-1">Uptime</p>
-            <p className="text-xl font-mono font-semibold text-white">{formatUptime(uptime)}</p>
-          </div>
-        </div>
-      </div>
-
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
       {/* Application Updates */}
       <div className="bg-gray-800 rounded-lg p-4 md:p-6">
         <h3 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 flex items-center gap-2">
@@ -172,11 +153,12 @@ export default function SystemTab() {
                     )}
                   </div>
                 )}
-                {updateStatus.lastChecked && (
-                  <div className="text-sm text-gray-400">
-                    Last checked: {new Date(updateStatus.lastChecked).toLocaleString()}
-                  </div>
-                )}
+                <div className="text-sm text-gray-400 flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                  {updateStatus.lastChecked && (
+                    <span>Last checked: {new Date(updateStatus.lastChecked).toLocaleString()}</span>
+                  )}
+                  <span>Uptime: <span className="font-mono">{formatUptime(uptime)}</span></span>
+                </div>
               </div>
               <div className="flex gap-2">
                 {updateStatus.updateAvailable && updateStatus.releaseUrl && (
@@ -246,6 +228,10 @@ export default function SystemTab() {
         )}
       </div>
 
+      <BackgroundJobsCard />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
       {/* Log Files */}
       <div className="bg-gray-800 rounded-lg p-4 md:p-6">
         <h3 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 flex items-center gap-2">
@@ -263,9 +249,9 @@ export default function SystemTab() {
             <p>No log files found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="max-h-96 overflow-y-auto overflow-x-auto pr-1">
             <table className="w-full">
-              <thead>
+              <thead className="sticky top-0 bg-gray-800">
                 <tr className="text-left text-gray-400 border-b border-gray-700">
                   <th className="pb-3 font-medium">Filename</th>
                   <th className="pb-3 font-medium">Size</th>
@@ -305,6 +291,9 @@ export default function SystemTab() {
             </table>
           </div>
         )}
+      </div>
+
+      <ScheduledJobsCard />
       </div>
 
       {/* Log Viewer Modal */}

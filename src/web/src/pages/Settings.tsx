@@ -1,3 +1,5 @@
+'use no memo';
+
 import { useState, useEffect, useRef, Suspense, lazy, useCallback } from 'react';
 import { getRouteApi } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -145,6 +147,8 @@ function Settings() {
     if (discordWebhookQ.data) setDiscordWebhookUrl(discordWebhookQ.data);
     if (updatePatchHandlingQ.data) setUpdatePatchHandling(updatePatchHandlingQ.data);
     if (updatePatchPenaltyQ.data !== null && updatePatchPenaltyQ.data !== undefined) setUpdatePatchPenalty(updatePatchPenaltyQ.data);
+    // Init-only sync from server queries; including all data deps would cause the form to overwrite user edits on refetch.
+    // File opts out of React Compiler via 'use no memo' directive at top.
   }, [isLoading]);
 
   const handleRetry = () => {

@@ -87,4 +87,13 @@ export const queryKeys = {
     ownedGames: () => [...queryKeys.gog.all, 'ownedGames'] as const,
     authUrl: () => [...queryKeys.gog.all, 'authUrl'] as const,
   },
+  tasks: {
+    all: ['tasks'] as const,
+    list: (params: { status?: string; kind?: string; limit?: number; offset?: number }) =>
+      [...queryKeys.tasks.all, 'list', params] as const,
+  },
+  jobs: {
+    all: ['jobs'] as const,
+    list: () => [...queryKeys.jobs.all, 'list'] as const,
+  },
 } as const;
