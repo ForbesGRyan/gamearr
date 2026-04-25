@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getRouteApi, useNavigate } from '@tanstack/react-router';
 import { Release, SearchResult } from '../api/client';
 
@@ -30,14 +30,20 @@ function Search() {
   const search = route.useSearch();
   const routeNavigate = route.useNavigate();
 
-  // Derive search mode directly from URL - single source of truth
+  // Derive search mode + query directly from URL - single source of truth
   const searchMode: SearchMode = search.tab === 'releases' ? 'releases' : 'games';
+  const submittedQuery = search.q ?? '';
+  const hasSearched = submittedQuery.trim().length > 0;
 
-  const [query, setQuery] = useState('');
-  const [submittedQuery, setSubmittedQuery] = useState('');
+  // Local input state mirrors URL but lets the user edit without firing a search.
+  const [query, setQuery] = useState(submittedQuery);
   const [errorOverride, setErrorOverride] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [hasSearched, setHasSearched] = useState(false);
+
+  // Sync input back from URL when it changes externally (back/forward, deep link).
+  useEffect(() => {
+    setQuery(submittedQuery);
+  }, [submittedQuery]);
 
   // Games search state
   const [selectedStores, setSelectedStores] = useState<string[]>([]);
@@ -81,23 +87,25 @@ function Search() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim()) {
+    const trimmed = query.trim();
+    if (!trimmed) {
       setErrorOverride('Please enter a search query');
       return;
     }
 
     setErrorOverride(null);
-    setHasSearched(true);
-    setSubmittedQuery(query.trim());
+    routeNavigate({
+      search: (prev) => ({ ...prev, q: trimmed }),
+      replace: true,
+    });
   };
 
   const handleModeChange = (mode: SearchMode) => {
+    // Keep `q` so switching tabs runs the same query in the new mode.
     routeNavigate({
       search: (prev) => ({ ...prev, tab: mode === 'games' ? undefined : mode }),
       replace: true,
     });
-    setHasSearched(false);
-    setSubmittedQuery('');
     setErrorOverride(null);
     setSuccessMessage(null);
   };
