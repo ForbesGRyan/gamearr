@@ -16,6 +16,7 @@ export const router = createRouter({
   // query staleTime uses for bySlug/releases.
   defaultPreloadStaleTime: 30_000,
   scrollRestoration: true,
+  defaultViewTransition: true,
   defaultErrorComponent: RouteErrorComponent,
   defaultPendingComponent: RoutePendingComponent,
   defaultNotFoundComponent: RouteNotFoundComponent,

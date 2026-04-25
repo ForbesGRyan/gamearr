@@ -97,6 +97,7 @@ function Search() {
     routeNavigate({
       search: (prev) => ({ ...prev, q: trimmed }),
       replace: true,
+      viewTransition: false,
     });
   };
 

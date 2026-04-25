@@ -17,16 +17,18 @@
     <!-- Critical inline CSS for instant first paint -->
     <style>
       *,*::before,*::after{box-sizing:border-box}
-      body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#111827;color:#fff;-webkit-font-smoothing:antialiased}
-      #root{min-height:100vh}
+      html,body{height:100%;overflow:hidden;background:#111827}
+      body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#fff;-webkit-font-smoothing:antialiased}
+      #root{height:100%;display:flex;flex-direction:column}
       /* Header */
-      .shell-header{background:#1f2937;border-bottom:1px solid #374151;height:64px}
+      .shell-header{background:#1f2937;border-bottom:1px solid #374151;height:64px;flex-shrink:0}
       .shell-header-inner{max-width:1280px;margin:0 auto;padding:0 16px;height:100%;display:flex;align-items:center}
       .shell-logo{font-size:1.5rem;font-weight:700;color:#3b82f6;display:flex;align-items:center;gap:8px}
       .shell-nav{display:flex;gap:16px;margin-left:32px}
       .shell-nav-item{padding:8px 12px;border-radius:6px;color:#9ca3af;font-size:14px}
       /* Main content */
-      .shell-main{max-width:1280px;margin:0 auto;padding:32px 16px}
+      .shell-main{flex:1;overflow-y:auto;scrollbar-gutter:stable}
+      .shell-main-inner{max-width:1280px;margin:0 auto;padding:32px 16px}
       /* Page header */
       .shell-page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
       .shell-title{font-size:1.875rem;font-weight:700;line-height:2.25rem}
@@ -77,6 +79,7 @@
         </div>
       </div>
       <div class="shell-main">
+       <div class="shell-main-inner">
         <!-- Page header -->
         <div class="shell-page-header">
           <h2 class="shell-title">Library</h2>
@@ -106,6 +109,7 @@
           <div class="shell-card"><div class="shell-card-img"></div><div class="shell-card-info"><div class="shell-card-title"></div><div class="shell-card-meta"></div></div></div>
           <div class="shell-card"><div class="shell-card-img"></div><div class="shell-card-info"><div class="shell-card-title"></div><div class="shell-card-meta"></div></div></div>
         </div>
+       </div>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>

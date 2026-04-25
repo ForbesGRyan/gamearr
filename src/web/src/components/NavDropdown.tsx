@@ -68,7 +68,6 @@ export function NavDropdown({ label, basePath, items, end }: NavDropdownProps) {
       <Link
         to={basePath as string}
         activeOptions={{ exact: end }}
-        viewTransition
         className={`px-3 py-2 min-h-[44px] rounded transition flex items-center gap-1 ${
           isActive
             ? 'bg-blue-600 text-white'
@@ -94,7 +93,7 @@ export function NavDropdown({ label, basePath, items, end }: NavDropdownProps) {
 
             const handleClick = () => {
               setIsOpen(false);
-              navigate({ href: item.to, viewTransition: true });
+              navigate({ href: item.to });
             };
 
             return (

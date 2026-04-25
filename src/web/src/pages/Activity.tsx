@@ -67,16 +67,22 @@ function Activity() {
   const [sortDirection, setSortDirection] = useState<SortDirection>(initialDir);
 
   useEffect(() => {
-    navigate({
-      search: {
-        q: searchQuery || undefined,
-        status: statusFilter === 'all' ? undefined : statusFilter,
-        sort: sortField === 'added' ? undefined : sortField,
-        dir: sortDirection === 'desc' ? undefined : sortDirection,
-      },
-      replace: true,
-    });
-  }, [searchQuery, statusFilter, sortField, sortDirection, navigate]);
+    const next = {
+      q: searchQuery || undefined,
+      status: statusFilter === 'all' ? undefined : statusFilter,
+      sort: sortField === 'added' ? undefined : sortField,
+      dir: sortDirection === 'desc' ? undefined : sortDirection,
+    };
+    if (
+      next.q === search.q &&
+      next.status === search.status &&
+      next.sort === search.sort &&
+      next.dir === search.dir
+    ) {
+      return;
+    }
+    navigate({ search: next, replace: true, viewTransition: false });
+  }, [searchQuery, statusFilter, sortField, sortDirection, navigate, search]);
 
   const filteredDownloads = useMemo(() => {
     const filtered = filterDownloads(downloads, searchQuery, statusFilter);

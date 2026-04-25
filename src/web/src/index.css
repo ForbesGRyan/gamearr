@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: #111827;
+}
+
+#root {
+  height: 100%;
+}
+
 @keyframes fade-in-up {
   from {
     opacity: 0;
@@ -31,7 +41,7 @@ code {
 
 /* View Transitions API */
 
-/* Default page transition */
+/* Default page transition — let browser handle crossfade compositing */
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation-duration: 200ms;
@@ -43,33 +53,6 @@ code {
 ::view-transition-new(game-cover) {
   animation-duration: 300ms;
   animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Crossfade for non-cover content */
-::view-transition-old(root) {
-  animation: view-fade-out 200ms ease-out both;
-}
-
-::view-transition-new(root) {
-  animation: view-fade-in 200ms ease-out both;
-}
-
-@keyframes view-fade-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes view-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 /* Hide scrollbar for horizontal scroll areas */

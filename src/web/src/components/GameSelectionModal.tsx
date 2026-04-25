@@ -13,7 +13,7 @@ function GameSelectionModal({ isOpen, onClose, onSelect, releaseName }: GameSele
   const [searchQuery, setSearchQuery] = useState('');
 
   const gamesQuery = useGames();
-  const games = gamesQuery.data ?? [];
+  const games = useMemo(() => gamesQuery.data ?? [], [gamesQuery.data]);
   const isLoading = gamesQuery.isLoading;
   const error = gamesQuery.error
     ? ((gamesQuery.error as Error).message || 'Failed to load games')

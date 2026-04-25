@@ -74,7 +74,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="h-dvh flex flex-col bg-gray-900 text-white">
       <MobileNav isOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
 
       <header className="bg-gray-800 border-b border-gray-700" role="banner">
@@ -109,7 +109,6 @@ export function MainLayout({ children }: MainLayoutProps) {
                 />
                 <Link
                   to="/discover"
-                  viewTransition
                   className={NAV_BASE}
                   activeProps={{ className: NAV_ACTIVE }}
                 >
@@ -117,7 +116,6 @@ export function MainLayout({ children }: MainLayoutProps) {
                 </Link>
                 <Link
                   to="/search"
-                  viewTransition
                   className={NAV_BASE}
                   activeProps={{ className: NAV_ACTIVE }}
                 >
@@ -125,7 +123,6 @@ export function MainLayout({ children }: MainLayoutProps) {
                 </Link>
                 <Link
                   to="/activity"
-                  viewTransition
                   className={NAV_BASE}
                   activeProps={{ className: NAV_ACTIVE }}
                 >
@@ -133,7 +130,6 @@ export function MainLayout({ children }: MainLayoutProps) {
                 </Link>
                 <Link
                   to="/updates"
-                  viewTransition
                   className={NAV_BASE}
                   activeProps={{ className: NAV_ACTIVE }}
                 >
@@ -164,8 +160,15 @@ export function MainLayout({ children }: MainLayoutProps) {
       <DryRunBanner />
       <UpdateBanner />
 
-      <main className="container mx-auto px-4 py-6 md:py-8" role="main">
-        {children}
+      <main
+        className="flex-1 overflow-y-auto"
+        style={{ scrollbarGutter: 'stable' }}
+        role="main"
+        data-scroll-restoration-id="main"
+      >
+        <div className="container mx-auto px-4 py-6 md:py-8">
+          {children}
+        </div>
       </main>
     </div>
   );

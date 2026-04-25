@@ -81,7 +81,6 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
         <Link
           to="/game/$platform/$slug"
           params={detailParams}
-          viewTransition
           className="block w-full h-full cursor-pointer"
           aria-label={`View ${game.title}`}
           style={{ viewTransitionName: `game-cover-${game.id}` }}
@@ -154,8 +153,7 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
               </button>
               <Link
                 to="/game/$platform/$slug"
-          params={detailParams}
-                viewTransition
+                params={detailParams}
                 className="bg-purple-600 hover:bg-purple-700 min-h-[44px] min-w-[44px] flex items-center justify-center rounded transition text-sm"
                 title="View Details"
                 aria-label={`View details for ${game.title}`}
@@ -190,8 +188,7 @@ function GameCard({ game, onToggleMonitor, onDelete, onSearch, selected, onToggl
         <h3 className="font-semibold text-sm truncate" title={game.title}>
           <Link
             to="/game/$platform/$slug"
-          params={detailParams}
-            viewTransition
+            params={detailParams}
             className="hover:text-blue-400 transition block truncate"
           >
             {game.title}

@@ -1,5 +1,6 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Link, useNavigate, getRouteApi } from '@tanstack/react-router';
+import { loadLibrarySearch } from '../utils/librarySearchMemory';
 
 const route = getRouteApi('/_auth/game/$platform/$slug');
 import {
@@ -60,12 +61,15 @@ function GameDetail() {
   const updates = updatesQuery.data ?? [];
   const events = eventsQuery.data ?? [];
 
+  const backToLibrarySearch = useMemo(() => loadLibrarySearch(), []);
+
   const activeTab: TabId = search.tab ?? 'info';
   const setActiveTab = useCallback(
     (tab: TabId) => {
       routeNavigate({
         search: (prev) => ({ ...prev, tab: tab === 'info' ? undefined : tab }),
         replace: true,
+        viewTransition: false,
       });
     },
     [routeNavigate]
@@ -80,13 +84,7 @@ function GameDetail() {
     if (!game) return;
     try {
       await deleteGameMutation.mutateAsync(game.id);
-      if (document.startViewTransition) {
-        document.startViewTransition(() => {
-          navigate({ to: '/' });
-        });
-      } else {
-        navigate({ to: '/' });
-      }
+      navigate({ to: '/', search: backToLibrarySearch });
     } catch {
       // Error surfaces via mutation state; navigation skipped.
     }
@@ -119,7 +117,7 @@ function GameDetail() {
       <div>
         <Link
           to="/"
-          viewTransition
+          search={backToLibrarySearch}
           className="flex items-center gap-1 text-gray-400 hover:text-white mb-6 transition min-h-[44px]"
         >
           <ChevronLeftIcon className="w-5 h-5" />
@@ -138,6 +136,7 @@ function GameDetail() {
     <div>
       <Link
         to="/"
+        search={backToLibrarySearch}
         viewTransition
         className="flex items-center gap-1 text-gray-400 hover:text-white mb-6 transition min-h-[44px]"
       >
