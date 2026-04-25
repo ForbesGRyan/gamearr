@@ -134,6 +134,7 @@ function Search() {
         navigate({
           to: '/game/$platform/$slug',
           params: getGameSlugs(added.platform, added.title),
+          search: { tab: 'releases' },
         });
       }
     } catch (err) {

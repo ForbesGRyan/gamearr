@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback } from 'react';
 import { Link, useNavigate, getRouteApi } from '@tanstack/react-router';
 
 const route = getRouteApi('/_auth/game/$platform/$slug');
@@ -40,6 +40,8 @@ const TABS: Tab[] = [
 
 function GameDetail() {
   const { platform, slug } = route.useParams();
+  const search = route.useSearch();
+  const routeNavigate = route.useNavigate();
   const navigate = useNavigate();
 
   const gameQuery = useGameBySlug(platform, slug);
@@ -58,7 +60,16 @@ function GameDetail() {
   const updates = updatesQuery.data ?? [];
   const events = eventsQuery.data ?? [];
 
-  const [activeTab, setActiveTab] = useState<TabId>('info');
+  const activeTab: TabId = search.tab ?? 'info';
+  const setActiveTab = useCallback(
+    (tab: TabId) => {
+      routeNavigate({
+        search: (prev) => ({ ...prev, tab: tab === 'info' ? undefined : tab }),
+        replace: true,
+      });
+    },
+    [routeNavigate]
+  );
 
   const loading = gameQuery.isLoading;
   const error = gameQuery.isError
