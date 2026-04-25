@@ -149,6 +149,21 @@ export class TaskRepository {
     return result.changes;
   }
 
+  /**
+   * Release a claimed row back to pending without poisoning attempts/last_error.
+   * Used when post-claim checks (e.g., capacity) prevent execution.
+   * Decrements attempts so the claim is fully undone.
+   */
+  releaseClaim(id: number): void {
+    const now = Math.floor(Date.now() / 1000);
+    this.sqlite.run(
+      `UPDATE tasks SET status = 'pending', locked_by = NULL, locked_until = NULL,
+       attempts = MAX(0, attempts - 1), updated_at = ?
+       WHERE id = ? AND status = 'running'`,
+      [now, id]
+    );
+  }
+
   findById(id: number): TaskRow | null {
     const row = this.sqlite.query('SELECT * FROM tasks WHERE id = ?').get(id) as
       | Record<string, unknown>

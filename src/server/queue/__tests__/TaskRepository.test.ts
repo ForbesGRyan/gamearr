@@ -193,3 +193,33 @@ describe('TaskRepository.requeue / delete / list', () => {
     expect(repo.list({ status: 'done', kind: 'a' }).length).toBe(0);
   });
 });
+
+describe('TaskRepository.releaseClaim', () => {
+  it('returns a running row to pending without bumping attempts or setting lastError', () => {
+    const { repo } = makeRepo();
+    const t = repo.enqueue('a', {});
+    repo.claimDue('w', 60, 10);
+    const claimed = repo.findById(t.id)!;
+    expect(claimed.status).toBe('running');
+    expect(claimed.attempts).toBe(1);
+
+    repo.releaseClaim(t.id);
+
+    const released = repo.findById(t.id)!;
+    expect(released.status).toBe('pending');
+    expect(released.attempts).toBe(0);
+    expect(released.lastError).toBeNull();
+    expect(released.lockedBy).toBeNull();
+    expect(released.lockedUntil).toBeNull();
+  });
+
+  it('does nothing for a row not in running status', () => {
+    const { repo } = makeRepo();
+    const t = repo.enqueue('a', {});
+    // Status is 'pending', not 'running'
+    repo.releaseClaim(t.id);
+    const row = repo.findById(t.id)!;
+    expect(row.status).toBe('pending');
+    expect(row.attempts).toBe(0);
+  });
+});

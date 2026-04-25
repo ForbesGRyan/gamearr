@@ -125,34 +125,36 @@ export class TaskWorker {
     const kinds = this.registry.kindsWithCapacity();
     if (kinds.length === 0) return;
 
-    // Claim with the smallest visibility timeout among capacity-having kinds, to be safe.
-    const minTimeout = Math.min(
-      ...kinds.map((k) => this.registry.get(k)!.timeoutSec)
-    );
+    for (const kind of kinds) {
+      // Skip if capacity used up by a previous iteration in this same tick.
+      if (!this.registry.canRun(kind)) continue;
 
-    const claimed = this.repo.claimDue(this.workerId, minTimeout, this.claimBatchSize, kinds);
-    for (const task of claimed) {
-      // Re-check capacity now that we hold the row (other tick could be racing).
-      if (!this.registry.canRun(task.kind)) {
-        // Release row back to pending immediately
-        this.repo.markFailed(task.id, 'No capacity at execution time', Math.floor(Date.now() / 1000));
-        continue;
+      const reg = this.registry.get(kind)!;
+      const claimed = this.repo.claimDue(this.workerId, reg.timeoutSec, this.claimBatchSize, [kind]);
+
+      for (const task of claimed) {
+        // Re-check capacity now that we hold the row (concurrency may have hit cap mid-batch).
+        if (!this.registry.canRun(kind)) {
+          // Release row back to pending without poisoning attempts/lastError (see fix #3).
+          this.repo.releaseClaim(task.id);
+          continue;
+        }
+        this.registry.acquire(kind);
+        const promise = this.execute(task).finally(() => {
+          this.registry.release(kind);
+          this.inFlightPromises.delete(promise);
+          this.abortControllers.delete(task.id);
+        });
+        this.inFlightPromises.add(promise);
       }
-      this.registry.acquire(task.kind);
-      const promise = this.execute(task).finally(() => {
-        this.registry.release(task.kind);
-        this.inFlightPromises.delete(promise);
-        this.abortControllers.delete(task.id);
-      });
-      this.inFlightPromises.add(promise);
     }
   }
 
   private async execute(task: TaskRow): Promise<void> {
     const reg = this.registry.get(task.kind);
     if (!reg) {
-      // Defensive: should be filtered out before claim. Reset to pending.
-      this.repo.markFailed(task.id, `No handler for kind ${task.kind}`, null);
+      // Defensive: should be filtered out before claim. Mark dead so it stops cycling.
+      this.safeFinalize(() => this.repo.markFailed(task.id, `No handler for kind ${task.kind}`, null), task.id);
       return;
     }
 
@@ -163,18 +165,32 @@ export class TaskWorker {
     try {
       payload = JSON.parse(task.payload);
     } catch (err) {
-      this.repo.markFailed(task.id, `Invalid JSON payload: ${(err as Error).message}`, null);
+      this.safeFinalize(
+        () => this.repo.markFailed(task.id, `Invalid JSON payload: ${(err as Error).message}`, null),
+        task.id
+      );
       return;
     }
 
     try {
       await reg.handler({ task, payload, signal: ac.signal });
-      this.repo.markDone(task.id);
+      this.safeFinalize(() => this.repo.markDone(task.id), task.id);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const nextRunAt = computeBackoff(task.attempts, task.maxAttempts, Math.floor(Date.now() / 1000));
-      this.repo.markFailed(task.id, message, nextRunAt);
+      this.safeFinalize(() => this.repo.markFailed(task.id, message, nextRunAt), task.id);
       logger.warn(`TaskWorker task #${task.id} (${task.kind}) failed (attempt ${task.attempts}/${task.maxAttempts}): ${message}`);
+    }
+  }
+
+  /** Run a finalize action; if the DB call itself throws, log and swallow so the
+   *  worker promise resolves cleanly and the in-flight set drains. */
+  private safeFinalize(fn: () => void, taskId: number): void {
+    try {
+      fn();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error(`TaskWorker failed to finalize task #${taskId}: ${msg}`);
     }
   }
 }
