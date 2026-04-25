@@ -90,12 +90,14 @@ export class CacheService {
 
     try {
       logger.info('Refreshing top torrents cache');
-      const releases = await indexerService.manualSearch('game');
+      // Page through ~1 year of history so the UI's max-age filter can slice freely.
+      // Hard cap on pages keeps the worst case bounded.
+      const releases = await indexerService.getTopTorrents(365, 100, 20);
 
-      // Sort by seeders and limit to top 50
+      // Sort by seeders and keep top 200 — UI filters/limits further.
       const sorted = releases
         .sort((a, b) => b.seeders - a.seeders)
-        .slice(0, 50);
+        .slice(0, 200);
 
       await cacheRepository.set({
         cacheKey: 'top_torrents',

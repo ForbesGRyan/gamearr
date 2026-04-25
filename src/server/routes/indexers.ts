@@ -93,7 +93,8 @@ indexers.post('/test', async (c) => {
 
 // GET /api/v1/indexers/torrents - Get top torrents from indexers
 indexers.get('/torrents', async (c) => {
-  const query = c.req.query('query') || 'game';
+  const rawQuery = c.req.query('query');
+  const query = rawQuery?.trim() || '';
   const limitParam = c.req.query('limit');
   const maxAgeParam = c.req.query('maxAge');
 
@@ -109,15 +110,14 @@ indexers.get('/torrents', async (c) => {
     return c.json({ success: false, error: 'Invalid maxAge parameter', code: ErrorCode.VALIDATION_ERROR }, 400);
   }
 
-  logger.info(`GET /api/v1/indexers/torrents - query: ${query}, limit: ${limit}, maxAge: ${maxAgeDays} days`);
+  logger.info(`GET /api/v1/indexers/torrents - query: ${query || '<top>'}, limit: ${limit}, maxAge: ${maxAgeDays} days`);
 
   try {
-    // Use cache for default query only
-    if (query === 'game') {
+    // No user query → "top torrents" path: cached, category-scoped RSS
+    if (!query) {
       const cached = await cacheService.getTopTorrents();
       if (cached) {
         logger.debug('Returning cached top torrents');
-        // Apply age filter and limit to cached data
         const now = new Date();
         const cutoffDate = new Date(now.getTime() - maxAgeDays * 24 * 60 * 60 * 1000);
 
@@ -132,9 +132,21 @@ indexers.get('/torrents', async (c) => {
           cached: true,
         });
       }
+
+      // Cache miss - fetch fresh top torrents (no text query, by category)
+      const releases = await indexerService.getTopTorrents(maxAgeDays, 100, 20);
+      const now = new Date();
+      const cutoffDate = new Date(now.getTime() - maxAgeDays * 24 * 60 * 60 * 1000);
+      const filtered = releases.filter(r => new Date(r.publishedAt) >= cutoffDate);
+      const sorted = filtered.sort((a, b) => b.seeders - a.seeders);
+      return c.json({
+        success: true,
+        data: sorted.slice(0, limit),
+        cached: false,
+      });
     }
 
-    // Cache miss or custom query - fetch directly
+    // User-provided query - text search
     const releases = await indexerService.manualSearch(query);
 
     // Filter by age

@@ -145,16 +145,16 @@ export class ProwlarrClient {
    * This fetches the latest releases without a specific search query
    */
   async getRssReleases(params: ProwlarrRssParams = {}): Promise<ReleaseSearchResult[]> {
-    const { indexerIds, categories, limit = 100 } = params;
+    const { indexerIds, categories, limit = 100, offset = 0 } = params;
 
-    logger.info('Fetching RSS releases from Prowlarr');
+    logger.info(`Fetching RSS releases from Prowlarr (limit=${limit}, offset=${offset})`);
 
     try {
       const searchParams: Record<string, string> = {
         query: '', // Empty query to get recent releases
         type: 'search',
         limit: limit.toString(),
-        offset: '0',
+        offset: offset.toString(),
       };
 
       // Add indexer IDs if specified

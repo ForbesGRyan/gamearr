@@ -97,6 +97,68 @@ export class IndexerService {
   }
 
   /**
+   * Fetch latest releases across configured game categories, no text query.
+   * Pages through Prowlarr until we cover `maxAgeDays` of history, hit an
+   * empty/short page, or reach the hard page cap. Each page is capped by the
+   * indexer (typically 50). Results are deduplicated by guid.
+   *
+   * Used to populate the "Top Torrents" view (sorted by seeders downstream).
+   */
+  async getTopTorrents(
+    maxAgeDays: number = 30,
+    pageSize: number = 100,
+    maxPages: number = 20,
+  ): Promise<ReleaseSearchResult[]> {
+    if (!prowlarrClient.isConfigured()) {
+      throw new NotConfiguredError('Prowlarr');
+    }
+
+    const categories = await settingsService.getProwlarrCategories();
+    const cutoff = new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000);
+
+    const seen = new Set<string>();
+    const all: ReleaseSearchResult[] = [];
+    let lastPageLen = pageSize;
+
+    for (let page = 0; page < maxPages; page++) {
+      const offset = page * pageSize;
+      const batch = await prowlarrClient.getRssReleases({
+        categories,
+        limit: pageSize,
+        offset,
+      });
+
+      if (batch.length === 0) break;
+
+      let newOnPage = 0;
+      let oldest: Date | null = null;
+      for (const r of batch) {
+        if (seen.has(r.guid)) continue;
+        seen.add(r.guid);
+        all.push(r);
+        newOnPage++;
+        const pub = new Date(r.publishedAt);
+        if (!oldest || pub < oldest) oldest = pub;
+      }
+
+      logger.debug(
+        `Top torrents page ${page}: got=${batch.length} new=${newOnPage} oldest=${oldest?.toISOString() ?? 'n/a'}`,
+      );
+
+      // Stop if oldest item on this page is already past cutoff
+      if (oldest && oldest < cutoff) break;
+      // Stop if no new items (caught up to overlap region)
+      if (newOnPage === 0) break;
+      // Stop on a short page (indexer ran out)
+      if (batch.length < lastPageLen / 2) break;
+      lastPageLen = batch.length;
+    }
+
+    logger.info(`Top torrents: fetched ${all.length} unique releases across ≤${maxPages} pages`);
+    return all;
+  }
+
+  /**
    * Get available indexers
    */
   async getIndexers() {

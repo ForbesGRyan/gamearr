@@ -13,6 +13,7 @@ export interface ProwlarrRssParams {
   indexerIds?: number[];
   categories?: number[];
   limit?: number;
+  offset?: number;
 }
 
 export interface ProwlarrCategory {
