@@ -1,7 +1,15 @@
+import { basename } from 'node:path';
 import { logger } from '../utils/logger';
 
 // Dynamic import type for transformers
 type FeatureExtractionPipeline = any;
+
+function isCompiledBunBinary(): boolean {
+  // In `bun run`, process.execPath is the bun executable.
+  // In a standalone-compiled binary, it is the compiled exe itself.
+  const exec = basename(process.execPath).toLowerCase();
+  return exec !== 'bun' && exec !== 'bun.exe';
+}
 
 export interface ScoredMatch {
   text: string;
@@ -25,6 +33,16 @@ export class EmbeddingService {
     // Allow disabling semantic search via environment variable
     if (process.env.DISABLE_SEMANTIC_SEARCH === 'true') {
       logger.info('Semantic search disabled via DISABLE_SEMANTIC_SEARCH environment variable');
+      this.initializationFailed = true;
+      return;
+    }
+
+    // Bun's standalone compiled binary supports NAPI versions 1-10, but
+    // onnxruntime-node (loaded by @xenova/transformers) requires NAPI v14.
+    // The version check failure triggers a segfault that try/catch cannot
+    // recover from, so detect compiled binaries up-front and skip.
+    if (isCompiledBunBinary()) {
+      logger.warn('Semantic search disabled: ONNX runtime requires NAPI v14, which is unsupported in Bun standalone binaries. Set DISABLE_SEMANTIC_SEARCH=true to silence this warning, or run via "bun run" for full functionality.');
       this.initializationFailed = true;
       return;
     }
