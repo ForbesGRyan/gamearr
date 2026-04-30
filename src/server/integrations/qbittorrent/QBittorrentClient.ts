@@ -190,31 +190,35 @@ export class QBittorrentClient {
 
   /**
    * Add a torrent by URL or magnet link
-   * For magnet links: sends URL directly
-   * For .torrent URLs: downloads the file first, then uploads as binary
+   * For magnet links: sends URL directly to qBittorrent
+   * For HTTP URLs (including Prowlarr proxies): tries sending URL directly to qBittorrent
+   *   first, falling back to server-side download + upload if qBittorrent can't resolve it
    * If fallbackUrl is provided and primary URL fails, retries with fallback
    */
   async addTorrent(url: string, options?: Partial<AddTorrentOptions>, fallbackUrl?: string, fetchHeaders?: Record<string, string>): Promise<string> {
     const isMagnet = url.startsWith('magnet:');
-    logger.info(`Adding ${isMagnet ? 'magnet' : 'torrent file'} to qBittorrent`);
+    logger.info(`Adding ${isMagnet ? 'magnet' : 'torrent URL'} to qBittorrent`);
 
     try {
       if (isMagnet) {
         return await this.addTorrentByUrl(url, options);
-      } else {
+      }
+
+      // For HTTP URLs, try sending directly to qBittorrent first (it can download torrent files
+      // from URLs, including Prowlarr proxy URLs). This avoids an unnecessary server-side hop
+      // and works when gamearr's server can't reach the URL but qBittorrent can.
+      try {
+        return await this.addTorrentByUrl(url, options);
+      } catch (urlError) {
+        logger.warn(`Direct URL add failed, falling back to file download: ${urlError instanceof Error ? urlError.message : urlError}`);
         return await this.addTorrentByFile(url, options, fetchHeaders);
       }
     } catch (error) {
       // If primary URL failed and we have a fallback, try it
       if (fallbackUrl && fallbackUrl !== url) {
-        const isFallbackMagnet = fallbackUrl.startsWith('magnet:');
-        logger.warn(`Primary download URL failed, trying fallback (${isFallbackMagnet ? 'magnet' : 'torrent file'})...`);
+        logger.warn(`Primary download URL failed, trying fallback...`);
         try {
-          if (isFallbackMagnet) {
-            return await this.addTorrentByUrl(fallbackUrl, options);
-          } else {
-            return await this.addTorrentByFile(fallbackUrl, options, fetchHeaders);
-          }
+          return await this.addTorrent(fallbackUrl, options, undefined, fetchHeaders);
         } catch (fallbackError) {
           logger.error('Fallback URL also failed:', fallbackError);
           // Throw the original error since it's more relevant
@@ -227,10 +231,11 @@ export class QBittorrentClient {
   }
 
   /**
-   * Add torrent by magnet URL (sent directly to qBittorrent)
+   * Add torrent by URL (sent directly to qBittorrent via the urls parameter)
+   * Works with both magnet URIs and HTTP URLs pointing to .torrent files
    */
   private async addTorrentByUrl(url: string, options?: Partial<AddTorrentOptions>): Promise<string> {
-    logger.debug(`Sending magnet URL to qBittorrent`);
+    logger.debug(`Sending URL to qBittorrent`);
 
     const params = new URLSearchParams();
     params.append('urls', url);
@@ -259,7 +264,7 @@ export class QBittorrentClient {
       );
     }
 
-    logger.info(`Magnet added successfully to qBittorrent`);
+    logger.info(`URL added successfully to qBittorrent`);
     return result;
   }
 
