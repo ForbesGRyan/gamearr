@@ -8,6 +8,8 @@ import { SabnzbdClient } from '../integrations/sabnzbd/SabnzbdClient';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode } from '../utils/errors';
 
+// Credentials for testing form values. Empty username/password are accepted
+// as-is (legitimate for qBittorrent setups using IP whitelisting or no auth).
 const qbTestSchema = z.object({
   host: z.string().min(1),
   username: z.string().optional().default(''),
@@ -63,47 +65,64 @@ downloads.post('/resume-all', async (c) => {
 });
 
 // POST /api/v1/downloads/test - Test qBittorrent connection
-// Accepts credentials in body to test form values without persisting them.
-// Falls back to saved settings if body is empty/absent.
+// With a body: tests exactly those credentials, used as-is (empty
+// username/password are valid). Without a body: tests the saved settings.
 // NOTE: Must be defined BEFORE /:hash route to avoid "test" being treated as a hash
 downloads.post('/test', async (c) => {
   logger.info('POST /api/v1/downloads/test');
 
   try {
-    let host: string | null | undefined;
-    let username: string;
-    let password: string;
-
-    // Try parsing body; may be empty (legacy behavior: test saved settings)
     let body: unknown = null;
     try {
       body = await c.req.json();
     } catch {
-      // No JSON body - fall back to saved settings
+      // No JSON body — fall back to saved settings
     }
 
-    const parsed = body ? qbTestSchema.safeParse(body) : null;
+    let host: string | undefined;
+    let username: string;
+    let password: string;
 
-    if (parsed?.success) {
+    const hasBody = body != null && typeof body === 'object' && Object.keys(body).length > 0;
+    if (hasBody) {
+      const parsed = qbTestSchema.safeParse(body);
+      if (!parsed.success) {
+        return c.json({
+          success: false,
+          error: parsed.error.issues.map((i) => i.message).join(', '),
+          code: ErrorCode.VALIDATION_ERROR,
+        }, 400);
+      }
       host = parsed.data.host;
       username = parsed.data.username;
       password = parsed.data.password;
     } else {
-      host = await settingsService.getSetting('qbittorrent_host');
-      username = (await settingsService.getSetting('qbittorrent_username')) || '';
-      password = (await settingsService.getSetting('qbittorrent_password')) || '';
+      host = (await settingsService.getSetting('qbittorrent_host')) || undefined;
+      username = (await settingsService.getSetting('qbittorrent_username')) ?? '';
+      password = (await settingsService.getSetting('qbittorrent_password')) ?? '';
     }
 
     if (!host) {
-      return c.json({ success: true, data: false, error: 'Host is required' });
+      return c.json({ success: false, error: 'Host is required' }, 400);
     }
 
-    // Use a throwaway client so the singleton isn't mutated by untrusted form values
+    // Use a throwaway client so the singleton isn't mutated by untrusted form values.
+    // Call getVersion() directly (rather than testConnection() which swallows the
+    // error to a bool) so we can surface the real reason to the user.
     const testClient = new QBittorrentClient({ host, username, password });
-    const connected = await testClient.testConnection();
-    return c.json({ success: true, data: connected });
+    try {
+      const version = await testClient.getVersion();
+      logger.info(`qBittorrent connection test succeeded (v${version})`);
+      return c.json({ success: true, data: true });
+    } catch (testError) {
+      const message = testError instanceof Error ? testError.message : 'Unknown error';
+      logger.warn(`qBittorrent connection test failed: ${message}`);
+      // Return success:false so the frontend's unwrap() throws with the real
+      // message in err.message instead of the generic "Connection failed".
+      return c.json({ success: false, error: message });
+    }
   } catch (error) {
-    logger.error('qBittorrent connection test failed:', error);
+    logger.error('qBittorrent connection test errored:', error);
     return c.json(formatErrorResponse(error), getHttpStatusCode(error) as any);
   }
 });

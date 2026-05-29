@@ -80,6 +80,8 @@ export default function DownloadsTab({
       return;
     }
     setQbTest({ status: 'testing' });
+    // Send exactly what's in the form. Empty username/password are sent as-is
+    // (valid for qBittorrent setups using IP whitelisting or with no auth).
     try {
       const connected = await testQb.mutateAsync({
         host: qbHost.trim(),

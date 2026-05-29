@@ -105,8 +105,15 @@ export class QBittorrentClient {
         );
       }
 
-      const result = await response.text();
-      if (result !== 'Ok.') {
+      // qBittorrent's login response varies by version:
+      //   - v4.x: HTTP 200 with body "Ok." (success) or "Fails." (bad creds)
+      //   - v5.x / auth-bypass (localhost or IP-whitelisted subnet):
+      //     HTTP 204 No Content with an empty body
+      // Any 2xx already passed the response.ok check above; only an explicit
+      // "Fails." body indicates rejected credentials. An empty body (204) is
+      // success, not failure.
+      const result = (await response.text()).trim();
+      if (result === 'Fails.') {
         throw new QBittorrentError(
           'Authentication failed: Invalid credentials',
           ErrorCode.QBITTORRENT_AUTH_FAILED
