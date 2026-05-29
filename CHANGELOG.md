@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.1 (2026-05-29)
+
+### Bug Fixes
+
+- **qBittorrent connection works with v5.x and auth-bypass setups** - The "Test Connection" button (and all qBittorrent operations) failed against qBittorrent v5.x and against setups using localhost/IP-whitelist auth-bypass, which return `HTTP 204 No Content` with an empty body on login. The client only accepted the literal `Ok.` body used by v4.x. It now treats any 2xx login response as success and only rejects an explicit `Fails.` body (bad credentials). The connection test also accepts empty username/password (valid for IP-whitelist/no-auth setups) and surfaces the real failure reason instead of a generic "Connection failed".
+
 ## v0.2.0 (2026-04-25)
 
 ### Highlights
