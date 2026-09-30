@@ -15,6 +15,9 @@ interface QBittorrentCategory {
   savePath: string;
 }
 
+// Max redirects to follow when downloading a .torrent file (e.g. Prowlarr proxy -> tracker)
+const MAX_TORRENT_REDIRECTS = 5;
+
 export class QBittorrentClient {
   private host: string;
   private username: string;
@@ -277,7 +280,13 @@ export class QBittorrentClient {
     logger.debug(`Downloading .torrent file from: ${url.substring(0, 80)}...`);
 
     // Download the .torrent file (include any provided headers, e.g. Prowlarr API key)
-    const response = await fetch(url, fetchHeaders ? { headers: fetchHeaders } : undefined);
+    const fetched = await this.fetchTorrentUrl(url, fetchHeaders);
+    if ('magnet' in fetched) {
+      logger.info('Torrent URL redirected to a magnet link, sending magnet to qBittorrent');
+      return this.addTorrentByUrl(fetched.magnet, options);
+    }
+
+    const { response } = fetched;
     if (!response.ok) {
       throw new QBittorrentError(
         `Failed to download .torrent file: ${response.status} ${response.statusText}`,
@@ -333,6 +342,41 @@ export class QBittorrentClient {
 
     logger.info(`Torrent file uploaded successfully to qBittorrent`);
     return result;
+  }
+
+  /**
+   * Fetch a .torrent URL, following redirects manually so a redirect to a magnet URI
+   * (how Prowlarr serves magnet-only indexers) can be detected instead of crashing fetch.
+   * Headers are only sent to the original origin so API keys don't leak to trackers.
+   */
+  private async fetchTorrentUrl(
+    url: string,
+    fetchHeaders?: Record<string, string>
+  ): Promise<{ magnet: string } | { response: Response }> {
+    const origin = new URL(url).origin;
+    let currentUrl = url;
+
+    for (let i = 0; i <= MAX_TORRENT_REDIRECTS; i++) {
+      const sameOrigin = new URL(currentUrl).origin === origin;
+      const response = await fetch(currentUrl, {
+        redirect: 'manual',
+        ...(fetchHeaders && sameOrigin ? { headers: fetchHeaders } : {}),
+      });
+
+      const location = response.headers.get('location');
+      if (response.status < 300 || response.status >= 400 || !location) {
+        return { response };
+      }
+      if (location.startsWith('magnet:')) {
+        return { magnet: location };
+      }
+      currentUrl = new URL(location, currentUrl).toString();
+    }
+
+    throw new QBittorrentError(
+      `Too many redirects while downloading .torrent file`,
+      ErrorCode.QBITTORRENT_ERROR
+    );
   }
 
   /**

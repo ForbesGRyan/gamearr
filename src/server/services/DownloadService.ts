@@ -3,6 +3,7 @@ import { sabnzbdClient } from '../integrations/sabnzbd/SabnzbdClient';
 import { discordClient } from '../integrations/discord/DiscordWebhookClient';
 import { releaseRepository } from '../repositories/ReleaseRepository';
 import { gameRepository } from '../repositories/GameRepository';
+import { downloadHistoryRepository } from '../repositories/DownloadHistoryRepository';
 import { settingsService } from './SettingsService';
 import { libraryService } from './LibraryService';
 import type { NewRelease, NewDownloadHistory, Release } from '../db/schema';
@@ -510,6 +511,19 @@ export class DownloadService {
       // Update game status to downloading
       await gameRepository.update(gameId, { status: 'downloading' });
 
+      // Record the grab in download history (non-critical: never fail the grab
+      // because history bookkeeping failed)
+      try {
+        await downloadHistoryRepository.upsertForRelease({
+          gameId,
+          releaseId: createdRelease.id,
+          status: 'downloading',
+          progress: 0,
+        });
+      } catch (historyError) {
+        logger.error(`Failed to record download history for release ${createdRelease.id}:`, historyError);
+      }
+
       logger.info(`Release grabbed successfully (${protocol}): ${release.title}`);
 
       return { releaseId: createdRelease.id };
@@ -540,6 +554,13 @@ export class DownloadService {
       }> = [];
       const gameIdsToMarkDownloaded: number[] = [];
       const completedReleases: string[] = [];
+      const historyEntries: Array<{
+        gameId: number;
+        releaseId: number;
+        status: string;
+        progress?: number;
+        completedAt?: Date | null;
+      }> = [];
 
       for (const release of usenetReleases) {
         // Match by stored downloadId (nzo_id)
@@ -563,6 +584,15 @@ export class DownloadService {
 
         if (release.status !== newStatus) {
           releaseStatusUpdates.push({ id: release.id, status: newStatus });
+
+          // Advance the download_history row for this release
+          historyEntries.push({
+            gameId: release.gameId,
+            releaseId: release.id,
+            status: newStatus,
+            progress: Math.round(match.progress * 100),
+            completedAt: newStatus === 'completed' ? new Date() : undefined,
+          });
         }
       }
 
@@ -573,6 +603,8 @@ export class DownloadService {
       if (releaseStatusUpdates.length > 0) {
         await releaseRepository.batchUpdateStatus(releaseStatusUpdates);
       }
+
+      await this.recordHistoryEntries(historyEntries);
 
       await this.handleCompletedGames(gameIdsToMarkDownloaded);
     } catch (error) {
@@ -908,6 +940,13 @@ export class DownloadService {
       }> = [];
       const gameIdsToMarkDownloaded: number[] = [];
       const completedReleases: string[] = [];
+      const historyEntries: Array<{
+        gameId: number;
+        releaseId: number;
+        status: string;
+        progress?: number;
+        completedAt?: Date | null;
+      }> = [];
 
       for (const release of torrentReleases) {
         // Use robust multi-criteria matching algorithm
@@ -961,6 +1000,15 @@ export class DownloadService {
           } else {
             releaseStatusUpdates.push({ id: release.id, status: newStatus });
           }
+
+          // Advance the download_history row for this release
+          historyEntries.push({
+            gameId: release.gameId,
+            releaseId: release.id,
+            status: newStatus,
+            progress: Math.round(torrent.progress * 100),
+            completedAt: newStatus === 'completed' ? new Date() : undefined,
+          });
         }
       }
 
@@ -986,6 +1034,8 @@ export class DownloadService {
       if (statusOnlyUpdates.length > 0) {
         await releaseRepository.batchUpdateStatus(statusOnlyUpdates);
       }
+
+      await this.recordHistoryEntries(historyEntries);
 
       await this.handleCompletedGames(gameIdsToMarkDownloaded);
     } catch (error) {
@@ -1043,6 +1093,28 @@ export class DownloadService {
       }
     } catch (error) {
       logger.error('Failed to send download complete notifications:', error);
+    }
+  }
+
+  /**
+   * Persist download_history rows for releases whose status advanced.
+   * Non-critical: a history write failure must not abort a sync pass.
+   */
+  private async recordHistoryEntries(
+    entries: Array<{
+      gameId: number;
+      releaseId: number;
+      status: string;
+      progress?: number;
+      completedAt?: Date | null;
+    }>
+  ): Promise<void> {
+    for (const entry of entries) {
+      try {
+        await downloadHistoryRepository.upsertForRelease(entry);
+      } catch (error) {
+        logger.error(`Failed to record download history for release ${entry.releaseId}:`, error);
+      }
     }
   }
 

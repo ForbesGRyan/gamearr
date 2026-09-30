@@ -7,6 +7,7 @@ import { gameStoreRepository } from '../repositories/GameStoreRepository';
 import { gameFolderRepository } from '../repositories/GameFolderRepository';
 import { gameEventRepository } from '../repositories/GameEventRepository';
 import { releaseRepository } from '../repositories/ReleaseRepository';
+import { downloadHistoryRepository } from '../repositories/DownloadHistoryRepository';
 import { logger } from '../utils/logger';
 import { formatErrorResponse, getHttpStatusCode, ErrorCode, NotFoundError, ValidationError } from '../utils/errors';
 
@@ -122,9 +123,9 @@ games.post('/', zValidator('json', addGameSchema), async (c) => {
       // the import on next refetch (otherwise the Import button stays visible
       // because gameId is derived from qB tags / release records).
       if (importSource.torrentHash) {
-        const existing = await releaseRepository.findByTorrentHash(importSource.torrentHash);
-        if (!existing) {
-          await releaseRepository.create({
+        let release = await releaseRepository.findByTorrentHash(importSource.torrentHash);
+        if (!release) {
+          release = await releaseRepository.create({
             gameId: game.id,
             title: importSource.torrentName,
             downloadUrl: '',
@@ -136,6 +137,19 @@ games.post('/', zValidator('json', addGameSchema), async (c) => {
             status: 'completed',
             grabbedAt: new Date(),
           });
+        }
+
+        // Record the import in download history (non-critical)
+        try {
+          await downloadHistoryRepository.upsertForRelease({
+            gameId: game.id,
+            releaseId: release.id,
+            status: 'completed',
+            progress: 100,
+            completedAt: new Date(),
+          });
+        } catch (historyError) {
+          logger.error(`Failed to record download history for imported release ${release.id}:`, historyError);
         }
       }
     } else {
