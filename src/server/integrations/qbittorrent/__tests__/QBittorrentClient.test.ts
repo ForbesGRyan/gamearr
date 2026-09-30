@@ -758,6 +758,80 @@ describe('QBittorrentClient', () => {
         expect(lastCall[1]?.body).toBeInstanceOf(FormData);
       });
     });
+
+    describe('with redirecting URLs', () => {
+      const proxyUrl = 'http://prowlarr:9696/10/download?apikey=k&link=abc&file=Test';
+
+      it('should send magnet to qBittorrent when Prowlarr proxy redirects to a magnet link', async () => {
+        // Prowlarr answers magnet-only indexer downloads with a 301 to the magnet URI
+        const magnet = 'magnet:?xt=urn:btih:abc123&dn=Test+Game';
+        const fetchMock = mock(() =>
+          Promise.resolve(new Response(null, { status: 301, headers: { Location: magnet } }))
+        );
+        global.fetch = fetchMock as unknown as typeof fetch;
+
+        // Mock auth
+        mockFetchWithRetry.mockResolvedValueOnce(
+          new Response('Ok.', {
+            headers: { 'set-cookie': 'SID=testsession; path=/' },
+          })
+        );
+        // Mock add torrent response
+        mockFetchWithRetry.mockResolvedValueOnce(new Response('Ok.'));
+
+        const result = await client.addTorrent(proxyUrl, { category: 'games' });
+        expect(result).toBe('Ok.');
+
+        // Redirects must be handled manually so the magnet Location can be inspected
+        const fetchCalls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+        expect(fetchCalls[0][1]?.redirect).toBe('manual');
+
+        // The magnet is sent to qBittorrent via the urls param, with options preserved
+        const body = mockFetchWithRetry.mock.calls[1][1]?.body as string;
+        expect(typeof body).toBe('string');
+        expect(body).toContain(`urls=${encodeURIComponent(magnet)}`);
+        expect(body).toContain('category=games');
+      });
+
+      it('should follow HTTP redirects and upload the resulting torrent file', async () => {
+        const trackerUrl = 'https://tracker.example/files/test.torrent';
+        const fetchMock = mock((url: string) =>
+          Promise.resolve(
+            url === proxyUrl
+              ? new Response(null, { status: 302, headers: { Location: trackerUrl } })
+              : new Response(new ArrayBuffer(100))
+          )
+        );
+        global.fetch = fetchMock as unknown as typeof fetch;
+
+        // Mock auth
+        mockFetchWithRetry.mockResolvedValueOnce(
+          new Response('Ok.', {
+            headers: { 'set-cookie': 'SID=testsession; path=/' },
+          })
+        );
+        // Mock add torrent response
+        mockFetchWithRetry.mockResolvedValueOnce(new Response('Ok.'));
+
+        await client.addTorrent(proxyUrl, undefined, undefined, { 'X-Api-Key': 'secret' });
+
+        const fetchCalls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+        expect(fetchCalls.map(([url]) => url)).toEqual([proxyUrl, trackerUrl]);
+        // API key goes to Prowlarr but is not forwarded to a different host
+        expect(fetchCalls[0][1]?.headers).toEqual({ 'X-Api-Key': 'secret' });
+        expect(fetchCalls[1][1]?.headers).toBeUndefined();
+
+        expect(mockFetchWithRetry.mock.calls[1][1]?.body).toBeInstanceOf(FormData);
+      });
+
+      it('should throw when redirects never resolve', async () => {
+        global.fetch = mock(() =>
+          Promise.resolve(new Response(null, { status: 302, headers: { Location: '/loop' } }))
+        ) as unknown as typeof fetch;
+
+        await expect(client.addTorrent(proxyUrl)).rejects.toThrow(/Too many redirects/);
+      });
+    });
   });
 
   describe('deleteTorrents', () => {
