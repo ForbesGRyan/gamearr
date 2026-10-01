@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.2.2 (2026-10-01)
+
+### Bug Fixes
+
+- **Grabs from magnet-only indexers now work** - Prowlarr serves magnet-only indexers (e.g. YGG Gratis) by redirecting the download URL to a `magnet:` link, which caused every grab from those indexers to fail with "Unable to connect. Is the computer able to access the url?". Gamearr now follows these redirects itself and hands magnet links straight to qBittorrent, while regular `.torrent` redirects keep working as before. The Prowlarr API key is only sent to Prowlarr, never forwarded to trackers. (#7, #9)
+
+### Improvements
+
+- **Download history is now recorded** - Grabbing a release now writes a download history entry, which is updated as the download progresses (torrent and usenet) and when the files are imported from the download client.
+
 ## v0.2.1 (2026-05-29)
 
 ### Bug Fixes
